@@ -1,0 +1,263 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ==========================================
+// ENTITIES & ORGANIZATIONAL STRUCTURE
+// ==========================================
+
+model Entity {
+  id                    String    @id @default(cuid())
+  code                  String    @unique                    // PT0001, ES0002, DE0003
+  legalName             String
+  countryCode           String                               // PT, ES, DE, FR, UK
+  localCurrency         String                               // EUR, GBP, etc.
+  consolidationMethod   String    @default("full")           // full, proportional, equity
+  ownershipPercentage   Float     @default(1.0)              // 0.0 to 1.0
+  sector                String?                              // Technology, Manufacturing, etc.
+  isActive              Boolean   @default(true)
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  trialBalances         TrialBalance[]
+  intercompanyFrom      IntercompanyTransaction[] @relation("FromEntity")
+  intercompanyTo        IntercompanyTransaction[] @relation("ToEntity")
+  budgetEntries         BudgetEntry[]
+  forecastEntries       ForecastEntry[]
+}
+
+// ==========================================
+// CHART OF ACCOUNTS (Group COA)
+// ==========================================
+
+model ChartOfAccount {
+  id                    String    @id @default(cuid())
+  code                  String    @unique                    // Group COA code
+  name                  String
+  accountType           String                               // asset, liability, equity, revenue, expense
+  statementType         String                               // income, balance, cashflow
+  parentCode            String?                              // For hierarchical COA
+  level                 Int       @default(1)                // 1=Group, 2=Sub-group, 3=Detail
+  isIntercompany        Boolean   @default(false)            // IC account flag
+  sortOrder             Int       @default(0)
+
+  localMappings         COAMapping[]
+  trialBalances         TrialBalance[]
+  budgetEntries         BudgetEntry[]
+  forecastEntries       ForecastEntry[]
+}
+
+// ==========================================
+// COA MAPPING (Local COA → Group COA)
+// ==========================================
+
+model COAMapping {
+  id                    String    @id @default(cuid())
+  entityCode            String                               // Entity code
+  localAccountCode      String                               // Local ERP account code
+  localAccountName      String                               // Local account name
+  localCOAType          String                               // SNC, PGC, HGB, IFRS
+  groupCOACode          String                               // Maps to ChartOfAccount.code
+  groupCOA              ChartOfAccount @relation(fields: [groupCOACode], references: [code])
+  createdAt             DateTime  @default(now())
+}
+
+// ==========================================
+// EXCHANGE RATES
+// ==========================================
+
+model ExchangeRate {
+  id                    String    @id @default(cuid())
+  currency              String                               // GBP, USD, etc.
+  rateDate              DateTime                             // Date of the rate
+  rateType              String    @default("closing")        // closing, average, historical
+  rate                  Float                                 // Rate to EUR (1 EUR = X currency)
+  source                String    @default("ECB")            // ECB, manual
+  createdAt             DateTime  @default(now())
+
+  @@unique([currency, rateDate, rateType])
+}
+
+// ==========================================
+// TRIAL BALANCE (Ingested from ERPs)
+// ==========================================
+
+model TrialBalance {
+  id                    String    @id @default(cuid())
+  entityId              String
+  entity                Entity    @relation(fields: [entityId], references: [id])
+  period                DateTime                             // YYYY-MM-01
+  periodType            String    @default("actual")         // actual, budget, forecast
+  groupCOACode          String
+  groupCOA              ChartOfAccount @relation(fields: [groupCOACode], references: [code])
+  amountLocal           Float                                 // Amount in local currency
+  amountEUR             Float                                 // Amount converted to EUR
+  currency              String                               // Original currency
+  exchangeRateUsed      Float?                               // Rate applied
+  sourceSystem          String    @default("manual")         // SAP, Oracle, manual
+  isIntercompany        Boolean   @default(false)
+  icPartnerEntityId     String?                              // Counterparty entity for IC
+  eliminationStatus     String    @default("pending")        // pending, matched, eliminated
+  eliminationGroup      String?                              // Group for IC matching
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@index([entityId, period])
+  @@index([groupCOACode])
+  @@index([eliminationStatus])
+}
+
+// ==========================================
+// INTERCOMPANY TRANSACTIONS
+// ==========================================
+
+model IntercompanyTransaction {
+  id                    String    @id @default(cuid())
+  transactionId         String    @unique                    // IC-PT0001-20240101
+  fromEntityId          String
+  fromEntity            Entity    @relation("FromEntity", fields: [fromEntityId], references: [id])
+  toEntityId            String
+  toEntity              Entity    @relation("ToEntity", fields: [toEntityId], references: [id])
+  amount                Float
+  currency              String
+  amountEUR             Float
+  transactionType       String                               // sale, purchase, loan, dividend, service
+  matchingReference     String?                              // For bilateral matching
+  period                DateTime
+  isEliminated          Boolean   @default(false)
+  eliminationGroup      String?
+  createdAt             DateTime  @default(now())
+}
+
+// ==========================================
+// BUDGET ENTRIES
+// ==========================================
+
+model BudgetEntry {
+  id                    String    @id @default(cuid())
+  entityId              String
+  entity                Entity    @relation(fields: [entityId], references: [id])
+  period                DateTime
+  groupCOACode          String
+  groupCOA              ChartOfAccount @relation(fields: [groupCOACode], references: [code])
+  amountLocal           Float
+  amountEUR             Float
+  currency              String
+  budgetVersion         String    @default("v1")             // v1, v2, etc.
+  createdAt             DateTime  @default(now())
+
+  @@index([entityId, period])
+}
+
+// ==========================================
+// FORECAST ENTRIES (Rolling Forecasts)
+// ==========================================
+
+model ForecastEntry {
+  id                    String    @id @default(cuid())
+  entityId              String
+  entity                Entity    @relation(fields: [entityId], references: [id])
+  period                DateTime
+  groupCOACode          String
+  groupCOA              ChartOfAccount @relation(fields: [groupCOACode], references: [code])
+  amountLocal           Float
+  amountEUR             Float
+  currency              String
+  forecastVersion       String    @default("rf1")            // rf1, rf2, etc.
+  scenarioType          String    @default("base")           // base, optimistic, pessimistic
+  createdAt             DateTime  @default(now())
+
+  @@index([entityId, period, scenarioType])
+}
+
+// ==========================================
+// CONSOLIDATION RUNS (Audit Trail)
+// ==========================================
+
+model ConsolidationRun {
+  id                    String    @id @default(cuid())
+  period                DateTime
+  entityCodes           String                               // JSON array of entity codes
+  scenarioType          String    @default("base")           // base, optimistic, pessimistic
+  status                String    @default("completed")      // running, completed, failed
+  eliminationsApplied   Int       @default(0)
+  totalRevenue          Float?
+  totalEBITDA           Float?
+  totalNetIncome        Float?
+  totalAssets           Float?
+  netDebt               Float?
+  ebitdaMargin          Float?
+  leverage              Float?
+  processingTimeMs      Float?
+  createdAt             DateTime  @default(now())
+}
+
+// ==========================================
+// PROJECTS (Investment appraisal, e.g. Automation & Logistics Hub)
+// ==========================================
+
+model Project {
+  id                    String    @id @default(cuid())
+  code                  String    @unique                    // PRJ-HUB, etc.
+  name                  String
+  entityCode            String                               // Owning entity (e.g. MERID)
+  countryCode           String    @default("PT")             // Jurisdiction for tax appraisal
+  projectType           String    @default("investment")     // investment, expansion, logistics_hub
+  currency              String    @default("EUR")
+  status                String    @default("appraisal")       // appraisal, approved, active, closed
+  startYear             Int
+  horizonYears          Int       @default(10)
+
+  // Capital structure
+  capexTotal            Float     @default(0)
+  debtAmount            Float     @default(0)
+  debtRate              Float     @default(0)                // weighted Kd
+  equityAmount          Float     @default(0)
+
+  // Appraisal parameters
+  discountRate          Float     @default(0.0637)           // WACC
+  terminalGrowth        Float     @default(0.035)
+  taxRate               Float     @default(0.235)            // effective IRC for appraisal
+
+  // Free-form structured assumptions + computed cash flows (JSON)
+  assumptions           String?                              // JSON: capex schedule, revenue ramp, opex, residual
+  cashFlows             String?                              // JSON: per-year free cash flow array
+
+  // Computed metrics
+  npv                   Float?
+  irr                   Float?
+  paybackYears          Float?
+
+  description           String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+}
+
+// ==========================================
+// SCENARIOS
+// ==========================================
+
+model Scenario {
+  id                    String    @id @default(cuid())
+  name                  String    @unique                    // Base Case, Optimistic, Pessimistic
+  scenarioType          String                               // base, optimistic, pessimistic
+  inflationRate         Float     @default(0.02)
+  interestRate          Float     @default(0.03)
+  fxVolatility          Float     @default(0.05)
+  revenueGrowthFactor   Float     @default(1.0)
+  opexGrowthFactor      Float     @default(1.0)
+  capexGrowthFactor     Float     @default(1.0)
+  forecastPeriods       Int       @default(12)
+  description           String?
+  isActive              Boolean   @default(true)
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+}
