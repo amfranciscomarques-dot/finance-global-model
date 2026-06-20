@@ -4,3 +4,4 @@ export * from './account-maps';
 export * from './statements';
 export * from './fx';
 export * from './kpis';
+export * from './metrics';

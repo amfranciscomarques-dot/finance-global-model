@@ -116,6 +116,34 @@ export const CHART_OF_ACCOUNTS: CoaDef[] = [
   { code: 'CFA-005', name: 'Dividends Paid', accountType: 'equity', statementType: 'cashflow', level: 2, sortOrder: 76 },
 ];
 
+// Display category for a Group COA code, used by the budget vs. actual views.
+// Derived from the real code prefixes in CHART_OF_ACCOUNTS above — keep in sync.
+// (The previous per-route copies checked `EQ-`, but equity codes are `EQY-*`, so
+// all equity was silently bucketed as 'Other'.)
+export type CoaCategory =
+  | 'Revenue' | 'COGS' | 'OPEX' | 'D&A' | 'Interest' | 'Tax'
+  | 'Assets' | 'Liabilities' | 'Equity' | 'Other';
+
+const CATEGORY_BY_PREFIX: ReadonlyArray<readonly [string, CoaCategory]> = [
+  ['REV-', 'Revenue'],
+  ['COGS-', 'COGS'],
+  ['OPX-', 'OPEX'],
+  ['PAY-', 'OPEX'],
+  ['DEP-', 'D&A'],
+  ['INT-', 'Interest'],
+  ['TAX-', 'Tax'],
+  ['AST-', 'Assets'],
+  ['LIA-', 'Liabilities'],
+  ['EQY-', 'Equity'],
+];
+
+export function categorizeCoaCode(code: string): CoaCategory {
+  for (const [prefix, category] of CATEGORY_BY_PREFIX) {
+    if (code.startsWith(prefix)) return category;
+  }
+  return 'Other';
+}
+
 export const EXCHANGE_RATES = [
   { currency: 'EUR', rateDate: '2024-12-31', rateType: 'closing', rate: 1.0000, source: 'ECB' },
   { currency: 'USD', rateDate: '2024-12-31', rateType: 'closing', rate: 1.0820, source: 'ECB' },

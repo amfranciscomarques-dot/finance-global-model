@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { runConsolidation } from '@/lib/consolidation-engine';
+import {
+  calculateKPIs,
+  deriveBalanceSheet,
+  deriveCashFlow,
+  deriveIncomeStatement,
+} from '@/lib/finance';
 import { z } from 'zod';
 
 const scenarioRunSchema = z.object({
@@ -30,82 +36,59 @@ export async function POST(request: NextRequest) {
       scenarioType: 'base',
     });
 
-    // Run scenario consolidation with scenario type
-    const scenarioResult = await runConsolidation({
-      period: validated.basePeriod,
-      entityCodes: validated.entityCodes,
-      scenarioType: scenario.scenarioType,
-    });
+    // Project the scenario from the base consolidation by applying the
+    // scenario's growth factors. We deliberately do NOT call runConsolidation a
+    // second time with the scenario type: the engine only swaps actual→forecast
+    // trial balances on scenarioType, so layering growth factors on top of an
+    // already-forecasted base would double-count the assumptions. The base
+    // (actuals) is the single anchor; the projection is pure arithmetic on top.
+    const baseIS = baseResult.incomeStatement;
+    const baseBS = baseResult.balanceSheet;
+    const baseCF = baseResult.cashFlow;
 
-    // Apply scenario adjustments to base data
-    // The scenario factors modify the financial outcomes
-    const adjustedIS = { ...scenarioResult.incomeStatement };
-    const adjustedBS = { ...scenarioResult.balanceSheet };
-    const adjustedCF = { ...scenarioResult.cashFlow };
+    // Effective tax rate implied by the base consolidation. This ties scenario
+    // tax to the group's actual burden instead of a hard-coded rate. (Full
+    // per-jurisdiction modelling via src/lib/tax would need per-entity, currency-
+    // aware EBT, which the consolidated what-if doesn't currently carry — the tax
+    // module is not yet wired into the engine.)
+    const baseEffectiveTaxRate = baseIS.ebt !== 0 ? baseIS.taxExpense / baseIS.ebt : 0;
 
-    // Apply growth factors
-    adjustedIS.revenue *= scenario.revenueGrowthFactor;
-    adjustedIS.cogs *= scenario.revenueGrowthFactor * 0.95; // COGS scales slightly less
-    adjustedIS.opex *= scenario.opexGrowthFactor;
-    adjustedIS.grossProfit = adjustedIS.revenue + adjustedIS.cogs;
-    adjustedIS.ebitda = adjustedIS.grossProfit + adjustedIS.opex;
-    adjustedIS.depreciation *= scenario.capexGrowthFactor;
-    adjustedIS.ebit = adjustedIS.ebitda + adjustedIS.depreciation;
-    adjustedIS.interestExpense *= (1 + (scenario.interestRate - 0.03) * 10); // Adjust for interest rate changes
-    adjustedIS.ebt = adjustedIS.ebit + adjustedIS.interestExpense;
-    adjustedIS.taxExpense = -(Math.abs(adjustedIS.ebt) * 0.25); // 25% effective tax rate
+    // --- Scenario income statement -------------------------------------------
+    const adjustedIS = { ...baseIS };
+    adjustedIS.revenue = baseIS.revenue * scenario.revenueGrowthFactor;
+    adjustedIS.cogs = baseIS.cogs * scenario.revenueGrowthFactor;   // COGS scales with volume
+    adjustedIS.opex = baseIS.opex * scenario.opexGrowthFactor;
+    adjustedIS.depreciation = baseIS.depreciation * scenario.capexGrowthFactor;
+    // Interest-rate and FX sensitivity are not modelled at the consolidated level
+    // (they need per-instrument debt schedules and per-entity FX exposure, not a
+    // flat multiplier on a blended number). Interest is carried from the base.
+    adjustedIS.interestExpense = baseIS.interestExpense;
+    deriveIncomeStatement(adjustedIS);                              // grossProfit→ebt chain
+    adjustedIS.taxExpense = adjustedIS.ebt * baseEffectiveTaxRate;  // preserve effective rate (signed)
     adjustedIS.netIncome = adjustedIS.ebt + adjustedIS.taxExpense;
+    adjustedIS.minorityInterest = baseIS.minorityInterest;         // ownership structure unchanged
 
-    adjustedCF.capex *= scenario.capexGrowthFactor;
-    adjustedCF.investingCashFlow = adjustedCF.capex;
-    adjustedCF.operatingCashFlow = adjustedIS.netIncome + adjustedCF.depreciation + adjustedCF.changesInWorkingCapital;
-    adjustedCF.netChangeInCash = adjustedCF.operatingCashFlow + adjustedCF.investingCashFlow + adjustedCF.financingCashFlow;
-    adjustedCF.endingCash = adjustedCF.beginningCash + adjustedCF.netChangeInCash;
+    // --- Scenario balance sheet ----------------------------------------------
+    // Simplified, balanced roll-forward: the change in net income flows into
+    // cash + retained earnings, and incremental capex moves cash → PPE. Both
+    // legs keep assets = liabilities + equity (the old code overwrote cash and
+    // broke the balance check).
+    const adjustedBS = { ...baseBS };
+    const deltaNI = (adjustedIS.netIncome + adjustedIS.minorityInterest)
+      - (baseIS.netIncome + baseIS.minorityInterest);
+    const deltaCapex = baseCF.capex * (scenario.capexGrowthFactor - 1); // capex stored negative
+    adjustedBS.ppe = baseBS.ppe - deltaCapex;                      // extra spend increases PPE
+    adjustedBS.retainedEarnings = baseBS.retainedEarnings + deltaNI;
+    adjustedBS.cash = baseBS.cash + deltaNI + deltaCapex;          // earnings in, extra capex out
+    deriveBalanceSheet(adjustedBS);                                // recompute subtotals + balanceCheck
 
-    adjustedBS.cash = adjustedCF.endingCash;
-    adjustedBS.ppe *= scenario.capexGrowthFactor;
-    adjustedBS.nonCurrentAssets = adjustedBS.ppe + adjustedBS.intangibleAssets + adjustedBS.goodwill;
-    adjustedBS.totalAssets = adjustedBS.currentAssets + adjustedBS.nonCurrentAssets;
+    // --- Scenario cash flow ---------------------------------------------------
+    const adjustedCF = { ...baseCF };
+    adjustedCF.capex = baseCF.capex * scenario.capexGrowthFactor;
+    deriveCashFlow(adjustedCF, adjustedIS);                        // links NI/dep, rolls up subtotals
 
-    // Apply FX volatility effect on non-EUR entity exposures
-    if (scenario.fxVolatility > 0.05) {
-      const fxImpact = 1 + (scenario.fxVolatility - 0.05) * 0.5; // Simplified FX impact
-      adjustedIS.revenue *= fxImpact;
-    }
-
-    // Recalculate with adjustments
-    adjustedIS.grossProfit = adjustedIS.revenue + adjustedIS.cogs;
-    adjustedIS.ebitda = adjustedIS.grossProfit + adjustedIS.opex;
-    adjustedIS.ebit = adjustedIS.ebitda + adjustedIS.depreciation;
-
-    // Calculate scenario KPIs
-    const totalRevenue = adjustedIS.revenue;
-    const totalEBITDA = adjustedIS.ebitda;
-    const ebitdaMargin = totalRevenue > 0 ? (totalEBITDA / totalRevenue) * 100 : 0;
-    const netIncome = adjustedIS.netIncome + adjustedIS.minorityInterest;
-    const totalAssets = adjustedBS.totalAssets;
-    const netDebt = adjustedBS.shortTermDebt + adjustedBS.longTermDebt - adjustedBS.cash;
-    const totalEquity = adjustedBS.totalEquity;
-    const leverage = totalEBITDA !== 0 ? netDebt / totalEBITDA : 0;
-    const roe = totalEquity !== 0 ? (netIncome / totalEquity) * 100 : 0;
-    const roce = (totalAssets - adjustedBS.currentLiabilities) !== 0
-      ? (adjustedIS.ebit / (totalAssets - adjustedBS.currentLiabilities)) * 100
-      : 0;
-
-    const scenarioKPIs = {
-      totalRevenue,
-      totalEBITDA,
-      ebitdaMargin: Math.round(ebitdaMargin * 10) / 10,
-      netIncome,
-      totalAssets,
-      netDebt: Math.round(netDebt),
-      leverage: Math.round(leverage * 100) / 100,
-      roe: Math.round(roe * 10) / 10,
-      roce: Math.round(roce * 10) / 10,
-      liquidityRatio: adjustedBS.currentLiabilities !== 0
-        ? Math.round((adjustedBS.currentAssets / adjustedBS.currentLiabilities) * 100) / 100
-        : 0,
-    };
+    // Headline KPIs through the same calculator the engine uses.
+    const scenarioKPIs = calculateKPIs(adjustedIS, adjustedBS, adjustedCF);
 
     // Build comparison data
     const comparison = [
@@ -187,7 +170,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: 'Validation failed', details: error.errors },
+        { error: 'Validation failed', details: error.issues },
         { status: 400 }
       );
     }

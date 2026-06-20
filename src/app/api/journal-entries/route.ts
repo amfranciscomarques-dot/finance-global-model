@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import type { TrialBalance } from '@prisma/client';
 import { z } from 'zod';
 
 // ============================================================
@@ -150,7 +151,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Create trial balance records for each line
-    const createdRecords = [];
+    const createdRecords: TrialBalance[] = [];
     const periodDate = new Date(validated.period + '-01');
 
     for (const line of validated.lines) {
@@ -206,7 +207,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: 'Validation failed', details: error.errors.map((e) => e.message) },
+        { error: 'Validation failed', details: error.issues.map((e) => e.message) },
         { status: 400 }
       );
     }

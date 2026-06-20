@@ -18,14 +18,10 @@ const chatRequestSchema = z.object({
   }).optional(),
 });
 
-// In-memory session store (last 20 messages per session)
-interface SessionData {
-  messages: Array<{ role: 'user' | 'assistant'; content: string }>;
-  createdAt: string;
-  lastActive: string;
-}
-
-const sessionStore = new Map<string, SessionData>();
+// Chat sessions are persisted to the `ChatSession` table (last 20 messages per
+// session) so conversations survive restarts and work across serverless
+// instances — a module-level Map does neither.
+type ChatMessage = { role: 'user' | 'assistant'; content: string };
 const MAX_MESSAGES = 20;
 
 // Generate a unique session ID
@@ -33,14 +29,32 @@ function generateSessionId(): string {
   return `session-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
 }
 
-// Clean up old sessions (older than 1 hour)
-function cleanupOldSessions() {
-  const oneHourAgo = Date.now() - 60 * 60 * 1000;
-  for (const [sessionId, data] of sessionStore.entries()) {
-    if (new Date(data.lastActive).getTime() < oneHourAgo) {
-      sessionStore.delete(sessionId);
-    }
+// Clean up old sessions (inactive for more than 1 hour)
+async function cleanupOldSessions(): Promise<void> {
+  const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+  await db.chatSession.deleteMany({ where: { lastActive: { lt: oneHourAgo } } });
+}
+
+// Load a session's message history, or null if the session doesn't exist.
+async function loadSessionMessages(sessionId: string): Promise<ChatMessage[] | null> {
+  const row = await db.chatSession.findUnique({ where: { id: sessionId } });
+  if (!row) return null;
+  try {
+    return JSON.parse(row.messages) as ChatMessage[];
+  } catch {
+    return [];
   }
+}
+
+// Persist a session's message history (trimmed to the last MAX_MESSAGES), bumping lastActive.
+async function saveSessionMessages(sessionId: string, messages: ChatMessage[]): Promise<void> {
+  const value = JSON.stringify(messages.slice(-MAX_MESSAGES));
+  const now = new Date();
+  await db.chatSession.upsert({
+    where: { id: sessionId },
+    create: { id: sessionId, messages: value, createdAt: now, lastActive: now },
+    update: { messages: value, lastActive: now },
+  });
 }
 
 /**
@@ -292,27 +306,14 @@ export async function POST(request: NextRequest) {
 
     const { message, sessionId, context } = validated;
 
-    // Get or create session
-    let currentSessionId = sessionId || generateSessionId();
-    let sessionData = sessionStore.get(currentSessionId);
+    // Get or create session (persisted in the DB).
+    const currentSessionId = sessionId || generateSessionId();
+    const messages: ChatMessage[] = (await loadSessionMessages(currentSessionId)) ?? [];
 
-    if (!sessionData) {
-      currentSessionId = sessionId || generateSessionId();
-      sessionData = {
-        messages: [],
-        createdAt: new Date().toISOString(),
-        lastActive: new Date().toISOString(),
-      };
-      sessionStore.set(currentSessionId, sessionData);
-    }
-
-    // Add user message to history
-    sessionData.messages.push({ role: 'user', content: message });
-    sessionData.lastActive = new Date().toISOString();
-
-    // Trim to last MAX_MESSAGES messages
-    if (sessionData.messages.length > MAX_MESSAGES) {
-      sessionData.messages = sessionData.messages.slice(-MAX_MESSAGES);
+    // Add user message to history, trimmed to the last MAX_MESSAGES.
+    messages.push({ role: 'user', content: message });
+    if (messages.length > MAX_MESSAGES) {
+      messages.splice(0, messages.length - MAX_MESSAGES);
     }
 
     // Fetch financial context from database
@@ -322,7 +323,7 @@ export async function POST(request: NextRequest) {
     const systemPrompt = buildSystemPrompt(financialContext);
     const aiMessages: Array<{ role: 'assistant' | 'user'; content: string }> = [
       { role: 'assistant', content: systemPrompt },
-      ...sessionData.messages,
+      ...messages,
     ];
 
     // Call z-ai-web-dev-sdk with retry logic
@@ -349,14 +350,9 @@ export async function POST(request: NextRequest) {
       aiResponse = generateFallbackResponse(message, financialContext);
     }
 
-    // Add assistant response to history
-    sessionData.messages.push({ role: 'assistant', content: aiResponse });
-    sessionData.lastActive = new Date().toISOString();
-
-    // Trim again if needed
-    if (sessionData.messages.length > MAX_MESSAGES) {
-      sessionData.messages = sessionData.messages.slice(-MAX_MESSAGES);
-    }
+    // Add assistant response to history and persist (trimmed) the updated session.
+    messages.push({ role: 'assistant', content: aiResponse });
+    await saveSessionMessages(currentSessionId, messages);
 
     return NextResponse.json({
       response: aiResponse,
@@ -366,7 +362,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: 'Validation failed', details: error.errors },
+        { error: 'Validation failed', details: error.issues },
         { status: 400 }
       );
     }

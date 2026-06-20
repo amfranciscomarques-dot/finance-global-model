@@ -1,73 +1,31 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { buildStatements, resolveMetric, type StatementMetric } from '@/lib/finance';
 
-// Metric calculation helpers
-const METRIC_CONFIG: Record<string, {
-  revenueCodes: string[];
-  expenseCodes: string[];
-  assetCodes: string[];
-  liabilityCodes: string[];
-  compute: (vals: Record<string, number>) => number;
-}> = {
-  revenue: {
-    revenueCodes: ['REV-001', 'REV-002', 'REV-003'],
-    expenseCodes: [],
-    assetCodes: [],
-    liabilityCodes: [],
-    compute: (vals) => vals.revenue || 0,
-  },
-  ebitda: {
-    revenueCodes: ['REV-001', 'REV-002', 'REV-003'],
-    expenseCodes: ['COGS-001', 'COGS-002', 'OPX-001', 'PAY-001'],
-    assetCodes: [],
-    liabilityCodes: [],
-    compute: (vals) => (vals.revenue || 0) - (vals.cogs || 0) - (vals.opex || 0),
-  },
-  netIncome: {
-    revenueCodes: ['REV-001', 'REV-002', 'REV-003'],
-    expenseCodes: ['COGS-001', 'COGS-002', 'OPX-001', 'PAY-001', 'DEP-001', 'DEP-002', 'INT-001', 'TAX-001'],
-    assetCodes: [],
-    liabilityCodes: [],
-    compute: (vals) => (vals.revenue || 0) - (vals.cogs || 0) - (vals.opex || 0) - (vals.da || 0) - (vals.interest || 0) - (vals.tax || 0),
-  },
-  assets: {
-    revenueCodes: [],
-    expenseCodes: [],
-    assetCodes: ['AST-001', 'AST-002', 'AST-003', 'AST-004', 'AST-005', 'AST-006'],
-    liabilityCodes: [],
-    compute: (vals) => vals.assets || 0,
-  },
-  leverage: {
-    revenueCodes: [],
-    expenseCodes: [],
-    assetCodes: ['AST-001', 'AST-002', 'AST-003', 'AST-004', 'AST-005', 'AST-006'],
-    liabilityCodes: ['LIA-001', 'LIA-002', 'LIA-003', 'LIA-004', 'LIA-005'],
-    compute: (vals) => {
-      const equity = (vals.assets || 0) - (vals.liabilities || 0);
-      return equity > 0 ? (vals.liabilities || 0) / equity : 0;
-    },
-  },
-  ebitdaMargin: {
-    revenueCodes: ['REV-001', 'REV-002', 'REV-003'],
-    expenseCodes: ['COGS-001', 'COGS-002', 'OPX-001', 'PAY-001'],
-    assetCodes: [],
-    liabilityCodes: [],
-    compute: (vals) => {
-      const ebitda = (vals.revenue || 0) - (vals.cogs || 0) - (vals.opex || 0);
-      return (vals.revenue || 0) > 0 ? (ebitda / vals.revenue) * 100 : 0;
-    },
-  },
+// Public trend metric names → canonical statement metric. All metrics roll up
+// through the shared finance pipeline (buildStatements + resolveMetric), so the
+// full Group COA is included rather than a hand-maintained subset of codes.
+const METRIC_ALIASES: Record<string, StatementMetric> = {
+  revenue: 'revenue',
+  ebitda: 'ebitda',
+  netincome: 'netIncome',
+  assets: 'assets',
+  leverage: 'leverage',
+  ebitdamargin: 'ebitdaMargin',
 };
 
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = request.nextUrl;
-    const metric = searchParams.get('metric') || 'revenue';
+    const metricParam = searchParams.get('metric') || 'revenue';
     const periodsParam = searchParams.get('periods') || '2024-01,2024-02,2024-03,2024-04,2024-05,2024-06,2024-07,2024-08,2024-09,2024-10,2024-11,2024-12';
     const entityCode = searchParams.get('entityCode') || undefined;
 
     const periods = periodsParam.split(',').filter(Boolean);
-    const config = METRIC_CONFIG[metric] || METRIC_CONFIG.revenue;
+    const metric: StatementMetric = METRIC_ALIASES[metricParam.toLowerCase()] ?? 'revenue';
+    // Ratios (margins, leverage) cannot be summed across entities — they must be
+    // resolved on the aggregated statements for the consolidated period value.
+    const isRatio = metric === 'ebitdaMargin' || metric === 'leverage';
 
     // Fetch all entities
     const entities = await db.entity.findMany({
@@ -78,14 +36,6 @@ export async function GET(request: NextRequest) {
       ? entities.filter((e) => e.code === entityCode)
       : entities;
 
-    // For each period, compute the metric per entity and consolidated
-    const allCOACodes = [
-      ...config.revenueCodes,
-      ...config.expenseCodes,
-      ...config.assetCodes,
-      ...config.liabilityCodes,
-    ];
-
     const periodData: Array<{
       period: string;
       value: number;
@@ -95,46 +45,41 @@ export async function GET(request: NextRequest) {
     for (const period of periods) {
       const periodDate = new Date(period + '-01');
 
+      // All actual entries for the period — no COA-code filter, so every mapped
+      // detail account is captured.
       const trialBalances = await db.trialBalance.findMany({
         where: {
           period: periodDate,
-          groupCOACode: { in: allCOACodes.length > 0 ? allCOACodes : undefined },
           entityId: { in: filteredEntities.map((e) => e.id) },
           periodType: 'actual',
         },
       });
 
-      // Group by entity
-      const entityValues: Record<string, Record<string, number>> = {};
+      // Group entries by entity
+      const entriesByEntity: Record<string, Array<{ groupCOACode: string; amountEUR: number }>> = {};
       for (const tb of trialBalances) {
-        if (!entityValues[tb.entityId]) entityValues[tb.entityId] = {};
-        entityValues[tb.entityId][tb.groupCOACode] =
-          (entityValues[tb.entityId][tb.groupCOACode] || 0) + tb.amountEUR;
+        (entriesByEntity[tb.entityId] ??= []).push({ groupCOACode: tb.groupCOACode, amountEUR: tb.amountEUR });
       }
 
       const entityBreakdown: Array<{ entityCode: string; entityName: string; value: number }> = [];
-      let consolidatedValue = 0;
+      let additiveTotal = 0;
 
       for (const entity of filteredEntities) {
-        const vals = entityValues[entity.id] || {};
-        const computedVals: Record<string, number> = {
-          revenue: config.revenueCodes.reduce((s, c) => s + (vals[c] || 0), 0),
-          cogs: ['COGS-001', 'COGS-002'].reduce((s, c) => s + (vals[c] || 0), 0),
-          opex: ['OPX-001', 'PAY-001'].reduce((s, c) => s + (vals[c] || 0), 0),
-          da: ['DEP-001', 'DEP-002'].reduce((s, c) => s + (vals[c] || 0), 0),
-          interest: ['INT-001'].reduce((s, c) => s + (vals[c] || 0), 0),
-          tax: ['TAX-001'].reduce((s, c) => s + (vals[c] || 0), 0),
-          assets: config.assetCodes.reduce((s, c) => s + (vals[c] || 0), 0),
-          liabilities: config.liabilityCodes.reduce((s, c) => s + (vals[c] || 0), 0),
-        };
-        const value = config.compute(computedVals);
+        const stmts = buildStatements(entriesByEntity[entity.id] || []);
+        const value = resolveMetric(stmts, metric);
         entityBreakdown.push({
           entityCode: entity.code,
           entityName: entity.legalName,
           value,
         });
-        consolidatedValue += value;
+        additiveTotal += value;
       }
+
+      // Consolidated period value: aggregate all entries for ratios; sum the
+      // per-entity values for additive metrics (equivalent, and cheaper).
+      const consolidatedValue = isRatio
+        ? resolveMetric(buildStatements(trialBalances.map((tb) => ({ groupCOACode: tb.groupCOACode, amountEUR: tb.amountEUR }))), metric)
+        : additiveTotal;
 
       periodData.push({
         period,
@@ -211,7 +156,7 @@ export async function GET(request: NextRequest) {
     }
 
     return NextResponse.json({
-      metric,
+      metric: metricParam,
       periods: periodData,
       qoqChanges,
       yoyChanges,

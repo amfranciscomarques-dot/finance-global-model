@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { z } from 'zod/v4';
+import type { BudgetEntry } from '@prisma/client';
+import { z } from 'zod';
+import { categorizeCoaCode } from '@/lib/coa-data';
 
 const budgetEntrySchema = z.object({
   entityCode: z.string().min(1),
@@ -10,20 +12,6 @@ const budgetEntrySchema = z.object({
     budgetAmount: z.number(),
   })).min(1),
 });
-
-// Account category mapping
-function getCategory(code: string): string {
-  if (code.startsWith('REV-')) return 'Revenue';
-  if (code.startsWith('COGS-')) return 'COGS';
-  if (code.startsWith('OPX-') || code.startsWith('PAY-')) return 'OPEX';
-  if (code.startsWith('DEP-')) return 'D&A';
-  if (code.startsWith('INT-')) return 'Interest';
-  if (code.startsWith('TAX-')) return 'Tax';
-  if (code.startsWith('AST-')) return 'Assets';
-  if (code.startsWith('LIA-')) return 'Liabilities';
-  if (code.startsWith('EQ-')) return 'Equity';
-  return 'Other';
-}
 
 export async function GET(request: NextRequest) {
   try {
@@ -113,13 +101,13 @@ export async function GET(request: NextRequest) {
     const categoryMap = new Map<string, { totalBudget: number; totalActual: number }>();
     for (const [key, budget] of budgetByEntityCOA) {
       const [, coaCode] = key.split('|');
-      const cat = getCategory(coaCode);
+      const cat = categorizeCoaCode(coaCode);
       if (!categoryMap.has(cat)) categoryMap.set(cat, { totalBudget: 0, totalActual: 0 });
       categoryMap.get(cat)!.totalBudget += budget;
     }
     for (const [key, actual] of actualsByEntityCOA) {
       const [, coaCode] = key.split('|');
-      const cat = getCategory(coaCode);
+      const cat = categorizeCoaCode(coaCode);
       if (!categoryMap.has(cat)) categoryMap.set(cat, { totalBudget: 0, totalActual: 0 });
       categoryMap.get(cat)!.totalActual += actual;
     }
@@ -187,7 +175,7 @@ export async function POST(request: NextRequest) {
     const periodDate = new Date(validated.period + '-01');
 
     // Create or update budget entries
-    const results = [];
+    const results: BudgetEntry[] = [];
     for (const entry of validated.entries) {
       // Check if entry already exists
       const existing = await db.budgetEntry.findFirst({

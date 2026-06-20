@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ provider: provider.name, result });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: 'Validation failed', details: error.errors }, { status: 400 });
+      return NextResponse.json({ error: 'Validation failed', details: error.issues }, { status: 400 });
     }
     console.error('Error computing tax:', error);
     return NextResponse.json({ error: 'Failed to compute tax' }, { status: 500 });

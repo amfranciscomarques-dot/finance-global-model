@@ -261,3 +261,58 @@ model Scenario {
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
 }
+
+// ==========================================
+// APP SETTINGS (persisted user-editable config)
+// Replaces the former in-memory settings store so changes survive restarts
+// and behave correctly across serverless instances.
+// ==========================================
+
+model Setting {
+  key                   String    @id                        // "consolidation", "currency"
+  value                 String                               // JSON blob of that category's settings
+  updatedAt             DateTime  @updatedAt
+}
+
+model ValidationRule {
+  id                    String    @id                        // vr-001, vr-002, ... (app-assigned, stable)
+  name                  String
+  entityScope           String    @default("all")            // all, non-eur, ...
+  severity              String    @default("error")          // error, warning
+  isActive              Boolean   @default(true)
+  description           String
+  sortOrder             Int       @default(0)
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+}
+
+// ==========================================
+// IMPORT BATCHES (trial-balance import history)
+// ==========================================
+
+model ImportBatch {
+  id                    String    @id @default(cuid())
+  fileName              String    @default("csv-upload")
+  recordCount           Int       @default(0)
+  entityCount           Int       @default(0)
+  dateRange             String    @default("")               // "YYYY-MM to YYYY-MM"
+  totalAmount           Float     @default(0)
+  status                String    @default("completed")      // completed, failed
+  errors                String    @default("[]")             // JSON array of row-error strings
+  createdAt             DateTime  @default(now())
+
+  @@index([createdAt])
+}
+
+// ==========================================
+// AI CHAT SESSIONS (financial-insights chatbot)
+// ==========================================
+
+model ChatSession {
+  id                    String    @id                        // app-assigned session id
+  messages              String    @default("[]")             // JSON array of { role, content }
+  createdAt             DateTime  @default(now())
+  lastActive            DateTime  @default(now())
+
+  @@index([lastActive])
+}

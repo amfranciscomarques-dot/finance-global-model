@@ -26,6 +26,13 @@ export interface FinancialStatements {
   cashFlow: CashFlowData;
 }
 
+// Every field of the statement data types is a number, so viewing one as a
+// string-keyed number record for dynamic-key accumulation is safe. This local
+// helper documents that intent in one place (TS can't prove it structurally).
+function asNumbers(stmt: object): Record<string, number> {
+  return stmt as unknown as Record<string, number>;
+}
+
 /**
  * Accumulate a single trial-balance entry into the right statement line item.
  * Summary/subtotal accounts are ignored (they are recomputed from details).
@@ -39,13 +46,13 @@ export function addEntry(
 
   if (IS_ACCOUNTS[groupCOACode]) {
     const key = IS_ACCOUNTS[groupCOACode];
-    (stmts.incomeStatement as Record<string, number>)[key] += amountEUR;
+    asNumbers(stmts.incomeStatement)[key] += amountEUR;
   } else if (BS_DETAIL_ACCOUNTS[groupCOACode]) {
     const key = BS_DETAIL_ACCOUNTS[groupCOACode];
-    (stmts.balanceSheet as Record<string, number>)[key] += amountEUR;
+    asNumbers(stmts.balanceSheet)[key] += amountEUR;
   } else if (CF_ACCOUNTS[groupCOACode]) {
     const key = CF_ACCOUNTS[groupCOACode];
-    (stmts.cashFlow as Record<string, number>)[key] += amountEUR;
+    asNumbers(stmts.cashFlow)[key] += amountEUR;
   }
   // IC accounts (IC-001..IC-005) are handled separately in eliminations.
 }
@@ -54,13 +61,13 @@ export function addEntry(
 export function applyOwnership(stmts: FinancialStatements, ownership: number): void {
   const { incomeStatement: is, balanceSheet: bs, cashFlow: cf } = stmts;
   for (const key of Object.keys(is) as Array<keyof IncomeStatementData>) {
-    (is as Record<string, number>)[key] *= ownership;
+    asNumbers(is)[key] *= ownership;
   }
   for (const key of Object.keys(bs) as Array<keyof BalanceSheetData>) {
-    if (key !== 'balanceCheck') (bs as Record<string, number>)[key] *= ownership;
+    if (key !== 'balanceCheck') asNumbers(bs)[key] *= ownership;
   }
   for (const key of Object.keys(cf) as Array<keyof CashFlowData>) {
-    (cf as Record<string, number>)[key] *= ownership;
+    asNumbers(cf)[key] *= ownership;
   }
 }
 
@@ -135,13 +142,13 @@ export function aggregateFinancials(entityStatements: FinancialStatements[]): Fi
 
   for (const ef of entityStatements) {
     for (const key of Object.keys(ef.incomeStatement) as Array<keyof IncomeStatementData>) {
-      (is as Record<string, number>)[key] += ef.incomeStatement[key];
+      asNumbers(is)[key] += ef.incomeStatement[key];
     }
     for (const key of Object.keys(ef.balanceSheet) as Array<keyof BalanceSheetData>) {
-      if (key !== 'balanceCheck') (bs as Record<string, number>)[key] += ef.balanceSheet[key];
+      if (key !== 'balanceCheck') asNumbers(bs)[key] += ef.balanceSheet[key];
     }
     for (const key of Object.keys(ef.cashFlow) as Array<keyof CashFlowData>) {
-      (cf as Record<string, number>)[key] += ef.cashFlow[key];
+      asNumbers(cf)[key] += ef.cashFlow[key];
     }
   }
 

@@ -1,116 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { z } from 'zod';
-
-// In-memory settings store (would be database in production)
-let settingsStore: Record<string, Record<string, any>> = {
-  consolidation: {
-    roundingTolerance: 0.01,
-    eliminationThreshold: 100,
-    minorityInterestMethod: 'proportional',
-    balanceSheetTolerance: 0.05,
-    autoConsolidation: false,
-  },
-  currency: {
-    baseCurrency: 'EUR',
-    rateTypePreference: 'closing',
-    ecbApiEnabled: true,
-    refreshFrequencyHours: 24,
-    exchangeRateProvider: 'ECB',
-  },
-};
+import {
+  type ValidationRuleData,
+  type Severity,
+  getCategorySettings,
+  patchCategorySettings,
+  getValidationRules,
+  toggleValidationRule,
+  bulkToggleValidationRules,
+  addValidationRule,
+  replaceValidationRules,
+  resetSettings,
+} from '@/lib/app-settings';
 
 const updateSettingsSchema = z.object({
   category: z.enum(['consolidation', 'currency', 'validation', 'system']),
   settings: z.record(z.string(), z.unknown()),
 });
-
-// Default validation rules
-const defaultValidationRules = [
-  {
-    id: 'vr-001',
-    name: 'Trial balance must balance',
-    entityScope: 'all',
-    severity: 'error' as const,
-    isActive: true,
-    description: 'Total debits must equal total credits for each entity trial balance',
-  },
-  {
-    id: 'vr-002',
-    name: 'IC transactions must match',
-    entityScope: 'all',
-    severity: 'error' as const,
-    isActive: true,
-    description: 'Intercompany transactions must have matching counterpart entries',
-  },
-  {
-    id: 'vr-003',
-    name: 'Currency rate must exist',
-    entityScope: 'non-eur',
-    severity: 'error' as const,
-    isActive: true,
-    description: 'Exchange rate must be available for all non-EUR entity conversions',
-  },
-  {
-    id: 'vr-004',
-    name: 'Revenue > 0',
-    entityScope: 'all',
-    severity: 'warning' as const,
-    isActive: true,
-    description: 'Revenue should be positive for active entities',
-  },
-  {
-    id: 'vr-005',
-    name: 'Assets = Liabilities + Equity',
-    entityScope: 'all',
-    severity: 'error' as const,
-    isActive: true,
-    description: 'Balance sheet equation must hold within tolerance',
-  },
-  {
-    id: 'vr-006',
-    name: 'Net income within expected range',
-    entityScope: 'all',
-    severity: 'warning' as const,
-    isActive: false,
-    description: 'Net income should be within ±50% of previous period',
-  },
-  {
-    id: 'vr-007',
-    name: 'Ownership percentage valid',
-    entityScope: 'all',
-    severity: 'error' as const,
-    isActive: true,
-    description: 'Ownership percentage must be between 0% and 100%',
-  },
-  {
-    id: 'vr-008',
-    name: 'No duplicate COA codes',
-    entityScope: 'all',
-    severity: 'error' as const,
-    isActive: true,
-    description: 'Each entity must have unique chart of account codes',
-  },
-  {
-    id: 'vr-009',
-    name: 'Consolidation method matches ownership',
-    entityScope: 'all',
-    severity: 'warning' as const,
-    isActive: true,
-    description: 'Consolidation method should be appropriate for ownership level (full >50%, proportional 20-50%, equity <20%)',
-  },
-  {
-    id: 'vr-010',
-    name: 'Period data completeness',
-    entityScope: 'all',
-    severity: 'warning' as const,
-    isActive: false,
-    description: 'All expected accounts should have data entries for the reporting period',
-  },
-];
-
-// Validation rules are stored in-memory (editable)
-let validationRules = [...defaultValidationRules];
 
 export async function GET() {
   try {
@@ -126,23 +33,29 @@ export async function GET() {
     const forecastCount = await db.forecastEntry.count();
     const coaMappingCount = await db.cOAMapping.count();
 
-    const totalRecordCount = entityCount + trialBalanceCount + coaCount + exchangeRateCount + 
+    const totalRecordCount = entityCount + trialBalanceCount + coaCount + exchangeRateCount +
       icTransactionCount + budgetEntryCount + consolidationRunCount + scenarioCount + forecastCount + coaMappingCount;
 
     const lastConsolidationRun = await db.consolidationRun.findFirst({
       orderBy: { createdAt: 'desc' },
     });
 
-    const lastBackup = lastConsolidationRun 
+    const lastBackup = lastConsolidationRun
       ? new Date(lastConsolidationRun.createdAt).toISOString().split('T')[0]
       : '2024-12-15';
 
     // Database size estimation (SQLite)
     const dbSize = totalRecordCount > 15000 ? '~4.2 MB' : totalRecordCount > 5000 ? '~1.8 MB' : '~0.5 MB';
 
+    const [consolidation, currency, validationRules] = await Promise.all([
+      getCategorySettings('consolidation'),
+      getCategorySettings('currency'),
+      getValidationRules(),
+    ]);
+
     const settings = {
-      consolidation: settingsStore.consolidation,
-      currency: settingsStore.currency,
+      consolidation,
+      currency,
       validationRules,
       system: {
         version: '2.4.0',
@@ -182,7 +95,7 @@ export async function GET() {
           dbType: 'SQLite',
           cacheStatus: 'Active',
           platform: 'Next.js 16',
-          runtime: 'Bun',
+          runtime: 'Node.js',
         },
         versionHistory: [
           { version: 'v2.4.0', date: '2025-01-15', notes: 'Settings & Configuration module, Budget vs Actual, Trend Analysis' },
@@ -213,7 +126,8 @@ export async function POST(request: NextRequest) {
     const { category, settings } = parsed;
 
     switch (category) {
-      case 'consolidation':
+      case 'consolidation': {
+        const patch: Record<string, unknown> = {};
         if (settings.roundingTolerance !== undefined) {
           const tolerance = Number(settings.roundingTolerance);
           if (tolerance < 0.01 || tolerance > 1.0) {
@@ -222,112 +136,106 @@ export async function POST(request: NextRequest) {
               { status: 400 }
             );
           }
-          settingsStore.consolidation.roundingTolerance = tolerance;
+          patch.roundingTolerance = tolerance;
         }
         if (settings.eliminationThreshold !== undefined) {
-          settingsStore.consolidation.eliminationThreshold = Number(settings.eliminationThreshold);
+          patch.eliminationThreshold = Number(settings.eliminationThreshold);
         }
-        if (settings.minorityInterestMethod) {
-          if (!['proportional', 'full'].includes(settings.minorityInterestMethod)) {
+        if (settings.minorityInterestMethod !== undefined) {
+          const method = String(settings.minorityInterestMethod);
+          if (!['proportional', 'full'].includes(method)) {
             return NextResponse.json(
               { error: 'Minority interest method must be "proportional" or "full"' },
               { status: 400 }
             );
           }
-          settingsStore.consolidation.minorityInterestMethod = settings.minorityInterestMethod;
+          patch.minorityInterestMethod = method;
         }
         if (settings.balanceSheetTolerance !== undefined) {
-          settingsStore.consolidation.balanceSheetTolerance = Number(settings.balanceSheetTolerance);
+          patch.balanceSheetTolerance = Number(settings.balanceSheetTolerance);
         }
         if (settings.autoConsolidation !== undefined) {
-          settingsStore.consolidation.autoConsolidation = Boolean(settings.autoConsolidation);
+          patch.autoConsolidation = Boolean(settings.autoConsolidation);
         }
+        await patchCategorySettings('consolidation', patch);
         break;
+      }
 
-      case 'currency':
-        if (settings.baseCurrency) {
-          if (!['EUR', 'GBP', 'USD'].includes(settings.baseCurrency)) {
+      case 'currency': {
+        const patch: Record<string, unknown> = {};
+        if (settings.baseCurrency !== undefined) {
+          const ccy = String(settings.baseCurrency);
+          if (!['EUR', 'GBP', 'USD'].includes(ccy)) {
             return NextResponse.json(
               { error: 'Base currency must be EUR, GBP, or USD' },
               { status: 400 }
             );
           }
-          settingsStore.currency.baseCurrency = settings.baseCurrency;
+          patch.baseCurrency = ccy;
         }
-        if (settings.rateTypePreference) {
-          if (!['closing', 'average', 'historical'].includes(settings.rateTypePreference)) {
+        if (settings.rateTypePreference !== undefined) {
+          const rateType = String(settings.rateTypePreference);
+          if (!['closing', 'average', 'historical'].includes(rateType)) {
             return NextResponse.json(
               { error: 'Rate type must be closing, average, or historical' },
               { status: 400 }
             );
           }
-          settingsStore.currency.rateTypePreference = settings.rateTypePreference;
+          patch.rateTypePreference = rateType;
         }
         if (settings.ecbApiEnabled !== undefined) {
-          settingsStore.currency.ecbApiEnabled = Boolean(settings.ecbApiEnabled);
+          patch.ecbApiEnabled = Boolean(settings.ecbApiEnabled);
         }
         if (settings.refreshFrequencyHours !== undefined) {
-          settingsStore.currency.refreshFrequencyHours = Number(settings.refreshFrequencyHours);
+          patch.refreshFrequencyHours = Number(settings.refreshFrequencyHours);
         }
-        if (settings.exchangeRateProvider) {
-          settingsStore.currency.exchangeRateProvider = settings.exchangeRateProvider;
+        if (settings.exchangeRateProvider !== undefined) {
+          patch.exchangeRateProvider = String(settings.exchangeRateProvider);
         }
+        await patchCategorySettings('currency', patch);
         break;
+      }
 
-      case 'validation':
-        if (settings.rules) {
-          validationRules = settings.rules;
+      case 'validation': {
+        if (Array.isArray(settings.rules)) {
+          await replaceValidationRules(settings.rules as ValidationRuleData[]);
         }
-        if (settings.toggleRuleId) {
-          const rule = validationRules.find(r => r.id === settings.toggleRuleId);
-          if (rule) {
-            rule.isActive = !rule.isActive;
-          }
+        if (typeof settings.toggleRuleId === 'string') {
+          await toggleValidationRule(settings.toggleRuleId);
         }
         if (settings.bulkToggle !== undefined) {
-          validationRules.forEach(r => { r.isActive = settings.bulkToggle; });
+          await bulkToggleValidationRules(Boolean(settings.bulkToggle));
         }
-        if (settings.newRule) {
-          const newRule = {
-            id: `vr-${String(validationRules.length + 1).padStart(3, '0')}`,
-            ...settings.newRule,
-          };
-          validationRules.push(newRule);
+        if (settings.newRule && typeof settings.newRule === 'object') {
+          const r = settings.newRule as Partial<ValidationRuleData>;
+          await addValidationRule({
+            name: String(r.name ?? 'Untitled rule'),
+            entityScope: String(r.entityScope ?? 'all'),
+            severity: (r.severity === 'warning' ? 'warning' : 'error') as Severity,
+            isActive: r.isActive ?? true,
+            description: String(r.description ?? ''),
+          });
         }
         break;
+      }
 
-      case 'system':
-        // System settings are read-only via API, but allow reset
+      case 'system': {
+        // System settings are read-only via API, but allow a demo-data reset.
         if (settings.resetDemoData) {
-          settingsStore = {
-            consolidation: {
-              roundingTolerance: 0.01,
-              eliminationThreshold: 100,
-              minorityInterestMethod: 'proportional',
-              balanceSheetTolerance: 0.05,
-              autoConsolidation: false,
-            },
-            currency: {
-              baseCurrency: 'EUR',
-              rateTypePreference: 'closing',
-              ecbApiEnabled: true,
-              refreshFrequencyHours: 24,
-              exchangeRateProvider: 'ECB',
-            },
-          };
-          validationRules = [...defaultValidationRules];
+          await resetSettings();
         }
         break;
+      }
     }
 
-    return NextResponse.json({ 
-      success: true, 
-      message: `${category} settings updated successfully` 
+    return NextResponse.json({
+      success: true,
+      message: `${category} settings updated successfully`
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: 'Validation failed', details: error.errors },
+        { error: 'Validation failed', details: error.issues },
         { status: 400 }
       );
     }

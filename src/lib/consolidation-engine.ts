@@ -219,7 +219,14 @@ async function runICEliminations(
 /**
  * Main consolidation function
  */
-export async function runConsolidation(input: ConsolidationInput) {
+/**
+ * Compute a full consolidation (per-entity statements + IC-eliminated group
+ * statements + KPIs) WITHOUT persisting anything. This is the reusable core:
+ * read-only callers (the Excel/PDF exporters) use it so they don't pollute the
+ * audit trail with a ConsolidationRun row on every download. `runConsolidation`
+ * wraps this and persists the run.
+ */
+export async function computeConsolidation(input: ConsolidationInput) {
   const startTime = Date.now();
   const periodDate = new Date(input.period + '-01');
 
@@ -282,25 +289,6 @@ export async function runConsolidation(input: ConsolidationInput) {
 
   const processingTimeMs = Date.now() - startTime;
 
-  // Save consolidation run record
-  const run = await db.consolidationRun.create({
-    data: {
-      period: periodDate,
-      entityCodes: JSON.stringify(input.entityCodes),
-      scenarioType: input.scenarioType,
-      status,
-      eliminationsApplied: eliminations.eliminationCount,
-      totalRevenue: kpis.totalRevenue,
-      totalEBITDA: kpis.totalEBITDA,
-      totalNetIncome: kpis.netIncome,
-      totalAssets: kpis.totalAssets,
-      netDebt: kpis.netDebt,
-      ebitdaMargin: kpis.ebitdaMargin,
-      leverage: kpis.leverage,
-      processingTimeMs,
-    },
-  });
-
   return {
     period: input.period,
     entities: input.entityCodes,
@@ -311,7 +299,8 @@ export async function runConsolidation(input: ConsolidationInput) {
     balanceSheet: consolidatedBS,
     cashFlow: consolidatedCF,
     kpis,
-    eliminationsApplied: eliminations.eliminationAmount,
+    eliminationsApplied: eliminations.eliminationAmount, // signed internal volume removed
+    eliminationsCount: eliminations.eliminationCount,    // number of IC flows eliminated
     entityBreakdown: entityFinancials.map((ef) => ({
       entityCode: ef.entityCode,
       legalName: ef.legalName,
@@ -323,7 +312,35 @@ export async function runConsolidation(input: ConsolidationInput) {
       cashFlow: ef.cashFlow,
     })),
     eliminationDetails: eliminations.details,
-    runId: run.id,
     processingTimeMs,
   };
+}
+
+/**
+ * Run a consolidation and persist it as a ConsolidationRun audit record.
+ * Thin wrapper over {@link computeConsolidation} — use this for the actual
+ * consolidation action; use computeConsolidation for read-only reporting.
+ */
+export async function runConsolidation(input: ConsolidationInput) {
+  const result = await computeConsolidation(input);
+
+  const run = await db.consolidationRun.create({
+    data: {
+      period: new Date(input.period + '-01'),
+      entityCodes: JSON.stringify(input.entityCodes),
+      scenarioType: input.scenarioType,
+      status: result.status,
+      eliminationsApplied: result.eliminationsCount,
+      totalRevenue: result.kpis.totalRevenue,
+      totalEBITDA: result.kpis.totalEBITDA,
+      totalNetIncome: result.kpis.netIncome,
+      totalAssets: result.kpis.totalAssets,
+      netDebt: result.kpis.netDebt,
+      ebitdaMargin: result.kpis.ebitdaMargin,
+      leverage: result.kpis.leverage,
+      processingTimeMs: result.processingTimeMs,
+    },
+  });
+
+  return { ...result, runId: run.id };
 }

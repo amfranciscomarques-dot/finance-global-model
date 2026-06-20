@@ -81,14 +81,37 @@ Two paths:
 - Annual actuals are stored as a single `YYYY-12` snapshot with `periodType: 'actual'`.
 - Only **detail** COA codes carry amounts; all subtotals (current assets, EBITDA, …) are recomputed, never trusted from storage.
 
+## Security / auth posture
+
+This is a **single-tenant portfolio demo** seeded with sample company data, so it
+deliberately ships **no login system** — a recruiter or reviewer can open the
+live demo and explore every dashboard, run consolidations and play with scenarios
+without signing in. Full multi-tenant auth (per-user/org sessions plus a tenant
+column on every table) is the right call for a real product, but for a demo it
+would only add friction.
+
+What *is* protected: `src/middleware.ts` gates the handful of endpoints that can
+destroy or bulk-replace the shared dataset (`POST /api/packs`, `POST /api/import`,
+`settings` writes, any `DELETE`) behind an admin token.
+
+- **Local dev:** `ADMIN_TOKEN` unset → every route is open.
+- **Deployed demo:** set `ADMIN_TOKEN` (env). Destructive routes then require it
+  via the `x-admin-token` header or `admin_token` cookie; everything else stays
+  open. This keeps the public demo explorable while protecting its data integrity.
+
+**Production upgrade path:** replace the middleware guard with real
+authentication (e.g. session-based) and scope every Prisma query by `userId`/
+`orgId`. The schema would gain a tenant column; the middleware matcher already
+centralises where that gate lives.
+
 ## Known limitations (roadmap)
 
 See [`docs/ROADMAP.md`](docs/ROADMAP.md) for the phased plan and
 [`docs/ARCHITECTURE_REVIEW.md`](docs/ARCHITECTURE_REVIEW.md) for the full
 architecture review behind it.
 
-- Tax providers are not yet wired into the engine for forecast periods (actuals pass through the stored IRC charge, which is correct for credits-affected years).
+- Tax providers are not yet wired into the engine for forecast periods (actuals pass through the stored IRC charge, which is correct for credits-affected years). Scenario projections preserve the base run's effective tax rate rather than recomputing per jurisdiction.
 - Balance-sheet IC eliminations (IC receivable/payable netting) are not automated; P&L IC flows are.
-- Several reporting routes (export, trends, variance, scenarios, budget) still use legacy prefix-matching math instead of `src/lib/finance`.
-- No authentication on API routes; single-user local tool for now.
-- `next.config.ts` sets `ignoreBuildErrors: true` (pre-existing zod v4 `.errors`→`.issues` noise).
+- All analytical routes now compute through `src/lib/finance` (the shared `metrics.ts` resolver / consolidation engine): `trends`, `budget`, `variance`, `scenarios/run`, and the Excel/PDF exports. The exporters call a compute-only `computeConsolidation` via `src/lib/report-model.ts`, so a downloaded report's Consolidated column carries the real IC eliminations (and ties to the dashboard) instead of an un-eliminated entity sum.
+- Settings, validation rules, the AI-chat sessions and import history are persisted (Prisma `Setting`/`ValidationRule`/`ChatSession`/`ImportBatch` tables) rather than held in module-level memory, so they survive restarts and behave correctly across serverless instances.
+- The codebase typechecks cleanly under `strict` (`noImplicitAny` included), so `next.config.ts` no longer sets `ignoreBuildErrors` — `next build` enforces TypeScript. ESLint runs with a curated rule set; the React-Compiler-readiness lints (`set-state-in-effect`, `immutability`) are warnings, not yet addressed in the view components.

@@ -1,5 +1,31 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { buildStatements, resolveMetric, type CoaAmount, type StatementMetric } from '@/lib/finance';
+
+// Variance analysis: group actual vs budget vs forecast per metric, for the
+// period. Metrics are resolved through the shared finance domain
+// (buildStatements + resolveMetric) — the single source for the COA→statement
+// rollup — instead of the hand-maintained prefix subsets this route used to
+// carry (which also had an unused `sign` field). These are pre-elimination group
+// totals, which is the right basis for comparing against (uneliminated) budgets.
+
+const METRICS: Array<{ label: string; metric: StatementMetric }> = [
+  { label: 'Revenue', metric: 'revenue' },
+  { label: 'COGS', metric: 'cogs' },
+  { label: 'Gross Profit', metric: 'grossProfit' },
+  { label: 'OPEX', metric: 'opex' },
+  { label: 'EBITDA', metric: 'ebitda' },
+  { label: 'Depreciation', metric: 'depreciation' },
+  { label: 'EBIT', metric: 'ebit' },
+  { label: 'Interest Expense', metric: 'interestExpense' },
+  { label: 'Net Income', metric: 'netIncome' },
+  { label: 'Operating Cash Flow', metric: 'operatingCashFlow' },
+  { label: 'Capex', metric: 'capex' },
+  { label: 'Total Assets', metric: 'assets' },
+];
+
+const toAmounts = (rows: Array<{ groupCOACode: string; amountEUR: number }>): CoaAmount[] =>
+  rows.map((r) => ({ groupCOACode: r.groupCOACode, amountEUR: r.amountEUR }));
 
 export async function GET(request: NextRequest) {
   try {
@@ -7,63 +33,37 @@ export async function GET(request: NextRequest) {
     const period = searchParams.get('period') || '2024-12';
     const periodDate = new Date(period + '-01');
 
-    // Fetch active entities
     const entities = await db.entity.findMany({ where: { isActive: true } });
     const entityIds = entities.map((e) => e.id);
 
-    // Fetch actuals, budget, and forecast for the period
     const [actuals, budgets, forecasts] = await Promise.all([
       db.trialBalance.findMany({
         where: { entityId: { in: entityIds }, period: periodDate, periodType: 'actual' },
-        include: { groupCOA: { select: { code: true, name: true, accountType: true, statementType: true } } },
       }),
       db.budgetEntry.findMany({
         where: { entityId: { in: entityIds }, period: periodDate },
-        include: { groupCOA: { select: { code: true, name: true, accountType: true, statementType: true } } },
       }),
       db.forecastEntry.findMany({
         where: { entityId: { in: entityIds }, period: periodDate, scenarioType: 'base' },
-        include: { groupCOA: { select: { code: true, name: true, accountType: true, statementType: true } } },
       }),
     ]);
 
-    // Group amounts by account category
-    const metricDefinitions: Array<{
-      metric: string;
-      prefixes: string[];
-      sign: number; // 1 for positive metrics, -1 for expense metrics
-    }> = [
-      { metric: 'Revenue', prefixes: ['REV-'], sign: 1 },
-      { metric: 'COGS', prefixes: ['COGS-'], sign: -1 },
-      { metric: 'Gross Profit', prefixes: ['REV-', 'COGS-'], sign: 0 },
-      { metric: 'OPEX', prefixes: ['OPX-', 'PAY-'], sign: -1 },
-      { metric: 'EBITDA', prefixes: ['REV-', 'COGS-', 'OPX-', 'PAY-'], sign: 0 },
-      { metric: 'Depreciation', prefixes: ['DEP-'], sign: -1 },
-      { metric: 'EBIT', prefixes: ['REV-', 'COGS-', 'OPX-', 'PAY-', 'DEP-'], sign: 0 },
-      { metric: 'Interest Expense', prefixes: ['INT-'], sign: -1 },
-      { metric: 'Net Income', prefixes: ['REV-', 'COGS-', 'OPX-', 'PAY-', 'DEP-', 'INT-', 'TAX-'], sign: 0 },
-      { metric: 'Operating Cash Flow', prefixes: ['CFA-001'], sign: 1 },
-      { metric: 'Capex', prefixes: ['CFA-002'], sign: -1 },
-      { metric: 'Total Assets', prefixes: ['AST-'], sign: 1 },
-    ];
+    // Build each statement set once, then resolve every metric from it.
+    const actualStmts = buildStatements(toAmounts(actuals));
+    const budgetStmts = buildStatements(toAmounts(budgets));
+    const forecastStmts = buildStatements(toAmounts(forecasts));
 
-    const varianceData = metricDefinitions.map((def) => {
-      const filterByPrefixes = (entries: Array<{ groupCOACode: string; amountEUR: number }>) => {
-        return entries
-          .filter((e) => def.prefixes.some((p) => e.groupCOACode.startsWith(p)))
-          .reduce((sum, e) => sum + e.amountEUR, 0);
-      };
-
-      let actual = filterByPrefixes(actuals);
-      let budget = filterByPrefixes(budgets);
-      let forecast = filterByPrefixes(forecasts);
+    const varianceData = METRICS.map(({ label, metric }) => {
+      const actual = resolveMetric(actualStmts, metric);
+      const budget = resolveMetric(budgetStmts, metric);
+      const forecast = resolveMetric(forecastStmts, metric);
 
       const varianceVsBudget = actual - budget;
       const varianceVsForecast = actual - forecast;
       const variancePctBudget = budget !== 0 ? (varianceVsBudget / Math.abs(budget)) * 100 : 0;
 
       return {
-        metric: def.metric,
+        metric: label,
         actual: Math.round(actual),
         budget: Math.round(budget),
         forecast: Math.round(forecast),
@@ -74,26 +74,21 @@ export async function GET(request: NextRequest) {
     });
 
     // Summary cards
-    const revenueVariance = varianceData.find((v) => v.metric === 'Revenue');
-    const ebitdaVariance = varianceData.find((v) => v.metric === 'EBITDA');
-    const netIncomeVariance = varianceData.find((v) => v.metric === 'Net Income');
-
-    const summary = {
-      revenue: revenueVariance
-        ? { actual: revenueVariance.actual, budget: revenueVariance.budget, variance: revenueVariance.varianceVsBudget, variancePct: revenueVariance.variancePctBudget }
-        : null,
-      ebitda: ebitdaVariance
-        ? { actual: ebitdaVariance.actual, budget: ebitdaVariance.budget, variance: ebitdaVariance.varianceVsBudget, variancePct: ebitdaVariance.variancePctBudget }
-        : null,
-      netIncome: netIncomeVariance
-        ? { actual: netIncomeVariance.actual, budget: netIncomeVariance.budget, variance: netIncomeVariance.varianceVsBudget, variancePct: netIncomeVariance.variancePctBudget }
-        : null,
+    const card = (label: string) => {
+      const v = varianceData.find((d) => d.metric === label);
+      return v
+        ? { actual: v.actual, budget: v.budget, variance: v.varianceVsBudget, variancePct: v.variancePctBudget }
+        : null;
     };
 
     return NextResponse.json({
       period,
       varianceData,
-      summary,
+      summary: {
+        revenue: card('Revenue'),
+        ebitda: card('EBITDA'),
+        netIncome: card('Net Income'),
+      },
       totalActuals: actuals.length,
       totalBudgets: budgets.length,
       totalForecasts: forecasts.length,

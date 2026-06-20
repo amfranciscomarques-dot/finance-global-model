@@ -1,13 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
 import { z } from 'zod';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { buildReportData, type ReportEntity, type StatementKind } from '@/lib/report-model';
 
 // ============================================================
 // PDF EXPORT API
-// Generates downloadable PDF reports for financial statements
-// Uses jsPDF (pure JS, no font file path issues)
+// Generates downloadable PDF reports for financial statements (jsPDF — pure JS).
+// Data comes from the shared report model (src/lib/report-model.ts), which runs
+// the consolidation engine: the Consolidated column carries real IC eliminations
+// and the IC Elim. column = Consolidated − Σ entities, so the columns reconcile.
 // ============================================================
 
 const exportQuerySchema = z.object({
@@ -38,23 +40,28 @@ const BS_LINE_ITEMS = [
   { key: 'cash', label: '  Cash & Cash Equivalents', indent: true },
   { key: 'accountsReceivable', label: '  Accounts Receivable', indent: true },
   { key: 'inventory', label: '  Inventory', indent: true },
+  { key: 'otherCurrentAssets', label: '  Other Current Assets', indent: true },
   { key: 'currentAssets', label: 'Total Current Assets', isSubtotal: true },
   { key: 'ppe', label: '  Property, Plant & Equipment', indent: true },
   { key: 'intangibleAssets', label: '  Intangible Assets', indent: true },
   { key: 'goodwill', label: '  Goodwill', indent: true },
+  { key: 'otherNonCurrentAssets', label: '  Other Non-Current Assets', indent: true },
   { key: 'nonCurrentAssets', label: 'Total Non-Current Assets', isSubtotal: true },
   { key: 'totalAssets', label: 'TOTAL ASSETS', isTotal: true },
   { section: 'LIABILITIES & EQUITY' },
   { key: 'accountsPayable', label: '  Accounts Payable', indent: true },
   { key: 'shortTermDebt', label: '  Short-Term Debt', indent: true },
+  { key: 'otherCurrentLiabilities', label: '  Other Current Liabilities', indent: true },
   { key: 'currentLiabilities', label: 'Total Current Liabilities', isSubtotal: true },
   { key: 'longTermDebt', label: '  Long-Term Debt', indent: true },
+  { key: 'otherNonCurrentLiabilities', label: '  Other Non-Current Liabilities', indent: true },
   { key: 'nonCurrentLiabilities', label: 'Total Non-Current Liabilities', isSubtotal: true },
   { key: 'totalLiabilities', label: 'TOTAL LIABILITIES', isSubtotal: true },
   { key: 'shareCapital', label: '  Share Capital', indent: true },
   { key: 'retainedEarnings', label: '  Retained Earnings', indent: true },
   { key: 'minorityEquity', label: '  Minority Interest', indent: true },
   { key: 'totalEquity', label: 'TOTAL EQUITY', isSubtotal: true },
+  { key: 'balanceCheck', label: 'Balance Check (Assets − L − E)' },
 ];
 
 const CF_LINE_ITEMS = [
@@ -75,148 +82,6 @@ const CF_LINE_ITEMS = [
   { key: 'netChangeInCash', label: 'Net Change in Cash', isTotal: true },
 ];
 
-interface EntityFinancials {
-  entityCode: string;
-  legalName: string;
-  localCurrency: string;
-  ownershipPercentage: number;
-  consolidationMethod: string;
-  is: Record<string, number>;
-  bs: Record<string, number>;
-  cf: Record<string, number>;
-}
-
-async function fetchEntityFinancials(
-  period: string,
-  scenarioType: string,
-  entityCodes?: string[]
-): Promise<EntityFinancials[]> {
-  const periodDate = new Date(period + '-01');
-
-  const entityFilter: Record<string, unknown> = { isActive: true };
-  if (entityCodes && entityCodes.length > 0) {
-    entityFilter.code = { in: entityCodes };
-  }
-  const entities = await db.entity.findMany({ where: entityFilter });
-
-  const results: EntityFinancials[] = [];
-
-  for (const entity of entities) {
-    let rate = 1.0;
-    if (entity.localCurrency !== 'EUR') {
-      const rateRecord = await db.exchangeRate.findFirst({
-        where: { currency: entity.localCurrency, rateType: 'closing', rateDate: { lte: periodDate } },
-        orderBy: { rateDate: 'desc' },
-      });
-      if (rateRecord) rate = rateRecord.rate;
-    }
-
-    const periodType = scenarioType === 'base' ? 'actual' : 'forecast';
-    let trialBalances = await db.trialBalance.findMany({
-      where: { entityId: entity.id, period: periodDate, periodType },
-    });
-    if (trialBalances.length === 0) {
-      trialBalances = await db.trialBalance.findMany({
-        where: { entityId: entity.id, period: periodDate },
-      });
-    }
-
-    const isData: Record<string, number> = {
-      revenue: 0, cogs: 0, opex: 0, depreciation: 0, interestExpense: 0,
-      taxExpense: 0, grossProfit: 0, ebitda: 0, ebit: 0, ebt: 0,
-      netIncome: 0, minorityInterest: 0,
-    };
-    const bsData: Record<string, number> = {
-      cash: 0, accountsReceivable: 0, inventory: 0, currentAssets: 0,
-      ppe: 0, intangibleAssets: 0, goodwill: 0, nonCurrentAssets: 0, totalAssets: 0,
-      accountsPayable: 0, shortTermDebt: 0, currentLiabilities: 0,
-      longTermDebt: 0, nonCurrentLiabilities: 0, totalLiabilities: 0,
-      shareCapital: 0, retainedEarnings: 0, minorityEquity: 0, totalEquity: 0,
-    };
-    const cfData: Record<string, number> = {
-      netIncome: 0, depreciation: 0, changesInWorkingCapital: 0,
-      operatingCashFlow: 0, capex: 0, investingCashFlow: 0,
-      debtIssuance: 0, debtRepayment: 0, dividendsPaid: 0,
-      financingCashFlow: 0, netChangeInCash: 0,
-    };
-
-    const IS_MAP: Record<string, string> = {
-      'REV': 'revenue', 'COGS': 'cogs', 'OPX': 'opex', 'PAY': 'opex',
-      'DEP': 'depreciation', 'INT': 'interestExpense', 'TAX': 'taxExpense',
-    };
-    const BS_MAP: Record<string, string> = {
-      'AST-001': 'cash', 'AST-002': 'accountsReceivable', 'AST-003': 'inventory',
-      'AST-005': 'ppe', 'AST-006': 'intangibleAssets', 'AST-007': 'goodwill',
-      'LIA-001': 'accountsPayable', 'LIA-002': 'shortTermDebt', 'LIA-007': 'accountsPayable',
-      'LIA-004': 'longTermDebt', 'EQY-001': 'shareCapital', 'EQY-002': 'retainedEarnings',
-      'EQY-003': 'minorityEquity',
-    };
-    const CF_MAP: Record<string, string> = {
-      'CFA-001': 'changesInWorkingCapital', 'CFA-002': 'capex',
-      'CFA-003': 'debtIssuance', 'CFA-004': 'debtRepayment', 'CFA-005': 'dividendsPaid',
-    };
-    const summaryAccounts = new Set([
-      'AST-004', 'AST-008', 'AST-009', 'AST-010',
-      'LIA-003', 'LIA-005', 'LIA-006', 'LIA-008', 'LIA-009', 'LIA-010',
-      'EQY-004', 'EQY-005',
-    ]);
-
-    for (const tb of trialBalances) {
-      if (summaryAccounts.has(tb.groupCOACode)) continue;
-      let amountEUR = tb.amountEUR;
-      if (!amountEUR && tb.amountLocal) {
-        amountEUR = tb.amountLocal / (tb.exchangeRateUsed || rate || 1);
-      }
-      const isPrefix = Object.keys(IS_MAP).find((p) => tb.groupCOACode.startsWith(p + '-'));
-      if (isPrefix) { isData[IS_MAP[isPrefix]] += amountEUR; continue; }
-      if (BS_MAP[tb.groupCOACode]) { bsData[BS_MAP[tb.groupCOACode]] += amountEUR; continue; }
-      if (CF_MAP[tb.groupCOACode]) { cfData[CF_MAP[tb.groupCOACode]] += amountEUR; continue; }
-    }
-
-    if (entity.consolidationMethod === 'proportional') {
-      const ownership = entity.ownershipPercentage;
-      for (const key of Object.keys(isData)) isData[key] *= ownership;
-      for (const key of Object.keys(bsData)) bsData[key] *= ownership;
-      for (const key of Object.keys(cfData)) cfData[key] *= ownership;
-    }
-
-    isData.grossProfit = isData.revenue + isData.cogs;
-    isData.ebitda = isData.grossProfit + isData.opex;
-    isData.ebit = isData.ebitda + isData.depreciation;
-    isData.ebt = isData.ebit + isData.interestExpense;
-    isData.netIncome = isData.ebt + isData.taxExpense;
-    if (entity.consolidationMethod === 'full' && entity.ownershipPercentage < 1.0) {
-      isData.minorityInterest = -(isData.netIncome * (1 - entity.ownershipPercentage));
-    }
-
-    bsData.currentAssets = bsData.cash + bsData.accountsReceivable + bsData.inventory;
-    bsData.nonCurrentAssets = bsData.ppe + bsData.intangibleAssets + bsData.goodwill;
-    bsData.totalAssets = bsData.currentAssets + bsData.nonCurrentAssets;
-    bsData.currentLiabilities = bsData.accountsPayable + bsData.shortTermDebt;
-    bsData.nonCurrentLiabilities = bsData.longTermDebt;
-    bsData.totalLiabilities = bsData.currentLiabilities + bsData.nonCurrentLiabilities;
-    bsData.totalEquity = bsData.shareCapital + bsData.retainedEarnings + bsData.minorityEquity;
-
-    cfData.netIncome = isData.netIncome;
-    cfData.depreciation = Math.abs(isData.depreciation);
-    cfData.operatingCashFlow = cfData.netIncome + cfData.depreciation + cfData.changesInWorkingCapital;
-    cfData.investingCashFlow = cfData.capex;
-    cfData.financingCashFlow = cfData.debtIssuance - cfData.debtRepayment - cfData.dividendsPaid;
-    cfData.netChangeInCash = cfData.operatingCashFlow + cfData.investingCashFlow + cfData.financingCashFlow;
-
-    results.push({
-      entityCode: entity.code,
-      legalName: entity.legalName,
-      localCurrency: entity.localCurrency,
-      ownershipPercentage: entity.ownershipPercentage,
-      consolidationMethod: entity.consolidationMethod,
-      is: isData, bs: bsData, cf: cfData,
-    });
-  }
-
-  return results;
-}
-
 function fmt(value: number): string {
   if (value === 0) return '—';
   return new Intl.NumberFormat('en-US', {
@@ -224,35 +89,6 @@ function fmt(value: number): string {
     maximumFractionDigits: 0,
     signDisplay: 'auto',
   }).format(Math.round(value));
-}
-
-function computeConsolidated(entityFinancials: EntityFinancials[], type: 'is' | 'bs' | 'cf'): Record<string, number> {
-  const consolidated: Record<string, number> = {};
-  if (entityFinancials.length === 0) return consolidated;
-  for (const key of Object.keys(entityFinancials[0][type])) {
-    consolidated[key] = entityFinancials.reduce((sum, e) => sum + (e[type][key] || 0), 0);
-  }
-  if (type === 'is') {
-    consolidated.grossProfit = consolidated.revenue + consolidated.cogs;
-    consolidated.ebitda = consolidated.grossProfit + consolidated.opex;
-    consolidated.ebit = consolidated.ebitda + consolidated.depreciation;
-    consolidated.ebt = consolidated.ebit + consolidated.interestExpense;
-    consolidated.netIncome = consolidated.ebt + consolidated.taxExpense;
-  } else if (type === 'bs') {
-    consolidated.currentAssets = consolidated.cash + consolidated.accountsReceivable + consolidated.inventory;
-    consolidated.nonCurrentAssets = consolidated.ppe + consolidated.intangibleAssets + consolidated.goodwill;
-    consolidated.totalAssets = consolidated.currentAssets + consolidated.nonCurrentAssets;
-    consolidated.currentLiabilities = consolidated.accountsPayable + consolidated.shortTermDebt;
-    consolidated.nonCurrentLiabilities = consolidated.longTermDebt;
-    consolidated.totalLiabilities = consolidated.currentLiabilities + consolidated.nonCurrentLiabilities;
-    consolidated.totalEquity = consolidated.shareCapital + consolidated.retainedEarnings + consolidated.minorityEquity;
-  } else if (type === 'cf') {
-    consolidated.operatingCashFlow = consolidated.netIncome + consolidated.depreciation + consolidated.changesInWorkingCapital;
-    consolidated.investingCashFlow = consolidated.capex;
-    consolidated.financingCashFlow = consolidated.debtIssuance - consolidated.debtRepayment - consolidated.dividendsPaid;
-    consolidated.netChangeInCash = consolidated.operatingCashFlow + consolidated.investingCashFlow + consolidated.financingCashFlow;
-  }
-  return consolidated;
 }
 
 // Color helpers for jsPDF (RGB arrays)
@@ -304,9 +140,9 @@ function addReportHeader(doc: jsPDF, title: string, period: string, scenarioType
 
 function buildTableData(
   lineItems: Array<{ key?: string; label?: string; section?: string; indent?: boolean; isSubtotal?: boolean; isTotal?: boolean }>,
-  entityFinancials: EntityFinancials[],
+  entityFinancials: ReportEntity[],
   consolidated: Record<string, number>,
-  type: 'is' | 'bs' | 'cf',
+  type: StatementKind,
 ): { head: string[][]; body: (string | { content: string; styles?: Record<string, unknown> })[][] } {
   const entityCodes = entityFinancials.map(e => e.entityCode);
 
@@ -398,12 +234,9 @@ export async function GET(request: NextRequest) {
 
     const entityCodesArray = params.entityCodes ? params.entityCodes.split(',').filter(Boolean) : undefined;
 
-    // Fetch financial data
-    const entityFinancials = await fetchEntityFinancials(
-      params.period,
-      params.scenarioType,
-      entityCodesArray
-    );
+    // Fetch consolidated report data (engine-driven, IC eliminations applied).
+    const data = await buildReportData(params.period, params.scenarioType, entityCodesArray);
+    const entityFinancials = data.entities;
 
     if (entityFinancials.length === 0) {
       return NextResponse.json(
@@ -436,7 +269,7 @@ export async function GET(request: NextRequest) {
 
       let title = '';
       let lineItems: Array<{ key?: string; label?: string; section?: string; indent?: boolean; isSubtotal?: boolean; isTotal?: boolean }> = [];
-      let type: 'is' | 'bs' | 'cf' = 'is';
+      let type: StatementKind = 'is';
 
       switch (reportType) {
         case 'income_statement':
@@ -459,8 +292,8 @@ export async function GET(request: NextRequest) {
       // Add header
       addReportHeader(doc, title, params.period, params.scenarioType, entityCodes);
 
-      // Compute consolidated
-      const consolidated = computeConsolidated(entityFinancials, type);
+      // Consolidated (IC-eliminated) statement from the engine.
+      const consolidated = data.consolidated[type];
 
       // Build table data
       const { head, body } = buildTableData(lineItems, entityFinancials, consolidated, type);
@@ -513,8 +346,9 @@ export async function GET(request: NextRequest) {
         },
       });
 
-      // Amounts note after table
-      const finalY = (doc as unknown as Record<string, number>).lastAutoTable?.finalY || 200;
+      // Amounts note after table. jspdf-autotable augments the doc with
+      // `lastAutoTable.finalY`, which isn't in the base jsPDF types.
+      const finalY = (doc as unknown as { lastAutoTable?: { finalY?: number } }).lastAutoTable?.finalY ?? 200;
       if (finalY < doc.internal.pageSize.getHeight() - 25) {
         doc.setFont('helvetica', 'italic');
         doc.setFontSize(6);
@@ -544,7 +378,7 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: 'Validation failed', details: error.errors },
+        { error: 'Validation failed', details: error.issues },
         { status: 400 }
       );
     }

@@ -1,19 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-
-// Account category mapping
-function getCategory(code: string): string {
-  if (code.startsWith('REV-')) return 'Revenue';
-  if (code.startsWith('COGS-')) return 'COGS';
-  if (code.startsWith('OPX-') || code.startsWith('PAY-')) return 'OPEX';
-  if (code.startsWith('DEP-')) return 'D&A';
-  if (code.startsWith('INT-')) return 'Interest';
-  if (code.startsWith('TAX-')) return 'Tax';
-  if (code.startsWith('AST-')) return 'Assets';
-  if (code.startsWith('LIA-')) return 'Liabilities';
-  if (code.startsWith('EQ-')) return 'Equity';
-  return 'Other';
-}
+import { categorizeCoaCode } from '@/lib/coa-data';
 
 export async function GET(request: NextRequest) {
   try {
@@ -98,7 +85,7 @@ export async function GET(request: NextRequest) {
         groupCOACode: coaCode,
         accountName: coaInfo?.name || coaCode,
         accountType: coaInfo?.accountType || 'unknown',
-        category: getCategory(coaCode),
+        category: categorizeCoaCode(coaCode),
         budgetAmount: Math.round(budget),
         actualAmount: Math.round(actual),
         variance: Math.round(variance),

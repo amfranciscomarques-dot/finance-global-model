@@ -4,7 +4,9 @@ const nextConfig: NextConfig = {
   output: "standalone",
   /* config options here */
   typescript: {
-    ignoreBuildErrors: true,
+    // The codebase typechecks cleanly under `strict` (verified via `tsc --noEmit`
+    // and `next build`), so build-time type errors are no longer suppressed.
+    ignoreBuildErrors: false,
   },
   reactStrictMode: false,
 };

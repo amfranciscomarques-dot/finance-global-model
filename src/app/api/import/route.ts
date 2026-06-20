@@ -20,7 +20,6 @@ const importRequestSchema = z.object({
   records: z.array(importRecordSchema).min(1),
 });
 
-// In-memory import history (persisted in DB would be better for production)
 interface ImportHistoryRecord {
   id: string;
   fileName: string;
@@ -32,8 +31,6 @@ interface ImportHistoryRecord {
   importedAt: string;
   errors: string[];
 }
-
-const importHistory: ImportHistoryRecord[] = [];
 
 export async function POST(request: NextRequest) {
   try {
@@ -111,19 +108,34 @@ export async function POST(request: NextRequest) {
     const periods = validated.records.map(r => r.period).sort(); // YYYY-MM sorts lexicographically
     const totalAmount = validated.records.reduce((sum, r) => sum + Math.abs(r.amountLocal), 0);
 
+    const status: 'completed' | 'failed' =
+      errors.length === 0 ? 'completed' : (imported > 0 ? 'completed' : 'failed');
+
+    // Persist the batch so import history survives restarts and is consistent
+    // across instances (it used to live in a module-level array).
+    const batch = await db.importBatch.create({
+      data: {
+        fileName: 'csv-upload',
+        recordCount: validated.records.length,
+        entityCount: entityCodes.length,
+        dateRange: periods.length > 0 ? `${periods[0]} to ${periods[periods.length - 1]}` : '',
+        totalAmount,
+        status,
+        errors: JSON.stringify(errors),
+      },
+    });
+
     const historyEntry: ImportHistoryRecord = {
-      id: `imp-${Date.now()}`,
-      fileName: 'csv-upload',
-      recordCount: validated.records.length,
-      entityCount: entityCodes.length,
-      dateRange: periods.length > 0 ? `${periods[0]} to ${periods[periods.length - 1]}` : '',
-      totalAmount,
-      status: errors.length === 0 ? 'completed' : (imported > 0 ? 'completed' : 'failed'),
-      importedAt: new Date().toISOString(),
+      id: batch.id,
+      fileName: batch.fileName,
+      recordCount: batch.recordCount,
+      entityCount: batch.entityCount,
+      dateRange: batch.dateRange,
+      totalAmount: batch.totalAmount,
+      status,
+      importedAt: batch.createdAt.toISOString(),
       errors,
     };
-
-    importHistory.unshift(historyEntry);
 
     return NextResponse.json({
       imported,
@@ -196,8 +208,27 @@ export async function GET() {
       importedAt: group.firstCreatedAt.toISOString(),
     }));
 
-    // Merge with in-memory history
-    const allHistory = [...importHistory, ...historyFromDB];
+    // Explicitly recorded import batches (from POST /api/import), now persisted.
+    const batches = await db.importBatch.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+    });
+    const recordedHistory = batches.map(b => ({
+      id: b.id,
+      fileName: b.fileName,
+      recordCount: b.recordCount,
+      entityCount: b.entityCount,
+      dateRange: b.dateRange,
+      totalAmount: b.totalAmount,
+      status: b.status as 'completed' | 'failed',
+      importedAt: b.createdAt.toISOString(),
+    }));
+
+    // Recorded batches first, then the trial-balance-derived view (which surfaces
+    // seeded data that never went through this endpoint), newest first.
+    const allHistory = [...recordedHistory, ...historyFromDB].sort(
+      (a, b) => new Date(b.importedAt).getTime() - new Date(a.importedAt).getTime(),
+    );
 
     return NextResponse.json({ history: allHistory });
   } catch (error) {

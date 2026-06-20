@@ -351,7 +351,7 @@ export function TrendAnalysisView() {
     const band = forecastConfidenceBand(consolidatedValues, forecasts);
 
     const futureMonths = ['2025-01', '2025-02', '2025-03'];
-    const extendedChart = [...chartData];
+    const extendedChart: Record<string, string | number | boolean>[] = [...chartData];
 
     // Add the last real period to connect the line
     const lastPeriod = data.periods[data.periods.length - 1];
@@ -364,7 +364,7 @@ export function TrendAnalysisView() {
         'Forecast Upper': band.upper[i],
         'Forecast Lower': band.lower[i],
         forecastOnly: true,
-      } as Record<string, string | number | boolean>);
+      });
     }
 
     return { extendedChart, forecasts, band, futureMonths, lastPeriod };
