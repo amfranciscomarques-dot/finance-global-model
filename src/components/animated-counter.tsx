@@ -25,21 +25,23 @@ export function AnimatedCounter({
   const ref = useRef<HTMLSpanElement>(null);
   const isInView = useInView(ref, { once: true, margin: '-50px' });
   const [displayValue, setDisplayValue] = useState(0);
-  const hasAnimated = useRef(false);
+  const prevValue = useRef(0);
 
   useEffect(() => {
-    if (isInView && !hasAnimated.current) {
-      hasAnimated.current = true;
-      const controls = animate(0, value, {
-        duration,
-        delay,
-        ease: [0.25, 0.46, 0.45, 0.94],
-        onUpdate: (v) => {
-          setDisplayValue(v);
-        },
-      });
-      return () => controls.stop();
-    }
+    if (!isInView) return;
+    // Animate from the last shown value to the new one. This re-runs whenever
+    // `value` changes (e.g. when real data replaces the initial placeholder),
+    // so the counter never gets stuck on its first render value.
+    const controls = animate(prevValue.current, value, {
+      duration,
+      delay,
+      ease: [0.25, 0.46, 0.45, 0.94],
+      onUpdate: (v) => {
+        setDisplayValue(v);
+      },
+    });
+    prevValue.current = value;
+    return () => controls.stop();
   }, [isInView, value, duration, delay]);
 
   const formattedValue = decimals > 0

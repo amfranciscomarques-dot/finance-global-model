@@ -77,15 +77,30 @@ export interface CashFlowStatement {
   endingCash: number;
 }
 
+export interface EntityBreakdown {
+  entityCode: string;
+  legalName: string;
+  localCurrency: string;
+  ownershipPercentage: number;
+  consolidationMethod: string;
+  incomeStatement: IncomeStatement;
+  balanceSheet: BalanceSheet;
+  cashFlow: CashFlowStatement;
+}
+
 export interface ConsolidatedResult {
   period: string;
   entities: string[];
   scenario: string;
+  status?: string;
+  balanceCheck?: number;
   incomeStatement: IncomeStatement;
   balanceSheet: BalanceSheet;
   cashFlow: CashFlowStatement;
   kpis: KPIs;
   eliminationsApplied: number;
+  entityBreakdown?: EntityBreakdown[];
+  eliminationDetails?: string[];
 }
 
 export interface Scenario {

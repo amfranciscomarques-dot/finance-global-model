@@ -4,6 +4,26 @@ Multi-entity financial consolidation model — Next.js 16, Prisma/SQLite, shadcn
 
 Designed as a **template for any company group**: the core (consolidation engine, finance domain math, API, UI) is company-agnostic; company data and country tax rules plug in as modules.
 
+## Screenshots
+
+All figures below are the fictional **Meridian Group** demo, computed live by the consolidation engine (the UI reads the engine output, not static mock data) and reconciling to the cent.
+
+**Consolidated statements.** Per-entity columns, the intercompany elimination column and the consolidated result, side by side. Internal sales from Meridian Subcontracting to Meridian Components are netted out, so group revenue falls from the €49.0M entity sum to €41.5M consolidated, and the balance sheet ties to zero.
+
+![Consolidated financial statements](docs/screenshots/02-consolidation.png)
+
+**Group dashboard.** Consolidated KPIs, an FX snapshot and a financial-health scorecard derived from the live numbers.
+
+![Group dashboard](docs/screenshots/01-dashboard.png)
+
+**Intercompany transactions.** Matched IC flows between entities and the eliminations that remove them on consolidation.
+
+![Intercompany transactions](docs/screenshots/03-ic-transactions.png)
+
+**Investment appraisal.** NPV, IRR and discounted payback for a capital project, including the Portuguese RFAI tax credit.
+
+![Project investment appraisal](docs/screenshots/04-projects.png)
+
 ## Quick start
 
 ```bash

@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useAppStore } from '@/lib/store';
-import { runConsolidation, getEntities } from '@/lib/api';
+import { runConsolidation, getEntities, getCOA, getExchangeRates } from '@/lib/api';
 import { KPIs, Entity } from '@/lib/types';
 import { formatEUR } from '@/lib/utils';
 import { AnimatedCounter } from '@/components/animated-counter';
@@ -391,6 +391,8 @@ export function DashboardView() {
   const [entityContribution, setEntityContribution] = useState(fallbackEntityContribution);
   const [revenueTrend] = useState(fallbackRevenueTrend);
   const [lastUpdated] = useState('Dec 31, 2024 · 14:30');
+  const [coaCount, setCoaCount] = useState(0);
+  const [fxCount, setFxCount] = useState(0);
 
   const ebitdaMarginTrend = revenueTrend.map(r => ({
     month: r.month,
@@ -402,6 +404,13 @@ export function DashboardView() {
     try {
       const entitiesData = await getEntities();
       setEntities(entitiesData);
+
+      // Real counts for the quick-stats row (best-effort).
+      try {
+        const [coa, rates] = await Promise.all([getCOA(), getExchangeRates()]);
+        if (Array.isArray(coa)) setCoaCount(coa.length);
+        if (Array.isArray(rates)) setFxCount(rates.length);
+      } catch {}
 
       const entityCodes = entitiesData.map((e: Entity) => e.code);
       if (entityCodes.length > 0) {
@@ -546,12 +555,14 @@ export function DashboardView() {
   const greeting = today.getHours() < 12 ? 'Good morning' : today.getHours() < 18 ? 'Good afternoon' : 'Good evening';
   const dateStr = today.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
 
-  // Quick Stats row data
+  // Quick Stats row data (derived from the loaded group, not hardcoded)
+  const countries = Array.from(new Set(entities.map((e) => e.countryCode).filter(Boolean)));
+  const currencies = Array.from(new Set(entities.map((e) => e.localCurrency).filter(Boolean)));
   const quickStats = [
-    { label: 'Entities Active', value: '5', icon: Building2, color: 'text-emerald-600 dark:text-emerald-400', detail: '5 subsidiaries across 5 countries (PT, ES, DE, UK, FR)' },
-    { label: 'COA Accounts', value: '76', icon: BarChart3, color: 'text-teal-600 dark:text-teal-400', detail: '76 group chart of accounts with entity mappings' },
-    { label: 'FX Pairs', value: '14', icon: DollarSign, color: 'text-amber-600 dark:text-amber-400', detail: '14 active exchange rate pairs (ECB + manual)' },
-    { label: 'Validation Rules', value: '10', icon: Shield, color: 'text-emerald-600 dark:text-emerald-400', detail: '10 active data validation rules across all entities' },
+    { label: 'Entities Active', value: String(entities.length || '—'), icon: Building2, color: 'text-emerald-600 dark:text-emerald-400', detail: `${entities.length} consolidated entities across ${countries.length} ${countries.length === 1 ? 'country' : 'countries'}${countries.length ? ` (${countries.join(', ')})` : ''}` },
+    { label: 'COA Accounts', value: String(coaCount || '—'), icon: BarChart3, color: 'text-teal-600 dark:text-teal-400', detail: `${coaCount} group chart-of-accounts codes with entity mappings` },
+    { label: 'FX Rates', value: String(fxCount || '—'), icon: DollarSign, color: 'text-amber-600 dark:text-amber-400', detail: `${fxCount} exchange-rate entries (ECB convention: 1 EUR = X)` },
+    { label: 'Currencies', value: String(currencies.length || '—'), icon: Shield, color: 'text-emerald-600 dark:text-emerald-400', detail: `Reporting in EUR; group currencies: ${currencies.join(', ') || '—'}` },
   ];
 
   // Recent Activity Feed

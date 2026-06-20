@@ -16,26 +16,30 @@ import { useAppStore } from '@/lib/store';
 import { formatEUR } from '@/lib/utils';
 import { Entity, IncomeStatement, BalanceSheet, CashFlowStatement, ConsolidatedResult } from '@/lib/types';
 import { AnimatedCounter } from '@/components/animated-counter';
-import {
-  incomeStatements as fallbackIS,
-  balanceSheets as fallbackBS,
-  cashFlowStatements as fallbackCF,
-  consolidatedResult as fallbackResult,
-  demoEntities,
-} from '@/lib/demo-data';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RTooltip, ResponsiveContainer, Cell, Legend,
 } from 'recharts';
 
-// Consolidation Quality Score data
-const qualityMetrics = [
-  { name: 'BS Balance', score: 95, max: 100 },
-  { name: 'IC Match Rate', score: 80, max: 100 },
-  { name: 'Currency Conv.', score: 100, max: 100 },
-  { name: 'Minority Calc.', score: 100, max: 100 },
-];
-const overallQuality = Math.round(qualityMetrics.reduce((s, m) => s + (m.score / m.max) * 25, 0));
+// Colour palette assigned to entity columns by position (company-agnostic).
+const ENTITY_PALETTE = ['#10b981', '#0d9488', '#f59e0b', '#64748b', '#f97316', '#6366f1', '#ec4899'];
+
+// Zeroed result used until the first real consolidation run returns. Keeping the
+// balance sheet at 0 = 0 means the view opens "Balanced", never flashing stale
+// demo figures.
+const EMPTY_RESULT = {
+  period: '',
+  entities: [],
+  scenario: 'base',
+  status: 'idle',
+  balanceCheck: 0,
+  incomeStatement: { minorityInterest: 0 },
+  balanceSheet: { totalAssets: 0, totalLiabilities: 0, totalEquity: 0, minorityEquity: 0 },
+  cashFlow: {},
+  kpis: { totalRevenue: 0 },
+  eliminationsApplied: 0,
+  entityBreakdown: [],
+} as unknown as ConsolidatedResult;
 
 interface ConsolidationRun {
   id: string;
@@ -138,22 +142,6 @@ const cashFlowRows = [
 
 type FinancialData = Record<string, number>;
 
-// Fallback history runs
-const fallbackHistory: ConsolidationRun[] = [
-  { id: 'run-1', period: '2024-12', scenarioType: 'base', entityCount: 5, totalRevenue: 51900, totalAssets: 48210, netIncome: 8961, processingTime: 2.3, createdAt: '2024-12-31T23:59:00Z', status: 'completed' },
-  { id: 'run-2', period: '2024-11', scenarioType: 'base', entityCount: 5, totalRevenue: 49500, totalAssets: 47200, netIncome: 8450, processingTime: 1.8, createdAt: '2024-11-30T23:59:00Z', status: 'completed' },
-  { id: 'run-3', period: '2024-12', scenarioType: 'optimistic', entityCount: 5, totalRevenue: 59685, totalAssets: 52500, netIncome: 11400, processingTime: 2.1, createdAt: '2024-12-28T14:30:00Z', status: 'completed' },
-  { id: 'run-4', period: '2024-10', scenarioType: 'base', entityCount: 5, totalRevenue: 47200, totalAssets: 46800, netIncome: 7820, processingTime: 1.5, createdAt: '2024-10-31T23:59:00Z', status: 'completed' },
-  { id: 'run-5', period: '2024-12', scenarioType: 'pessimistic', entityCount: 5, totalRevenue: 44115, totalAssets: 43800, netIncome: 5600, processingTime: 1.9, createdAt: '2024-12-27T10:15:00Z', status: 'completed' },
-];
-
-// Elimination Impact data
-const eliminationImpactData = [
-  { metric: 'IC Revenue', before: 2500, after: 0, elimination: -2500 },
-  { metric: 'IC Receivables', before: 800, after: 0, elimination: -800 },
-  { metric: 'IC Payables', before: 750, after: 0, elimination: -750 },
-];
-
 function EliminationTooltip({ active, payload, label }: { active?: boolean; payload?: Array<{ value: number; name: string; color: string }>; label?: string }) {
   if (!active || !payload) return null;
   return (
@@ -194,33 +182,65 @@ function exportConsolidationCSV(result: ConsolidatedResult, entities: string[], 
 export function ConsolidationView() {
   const { selectedPeriod, selectedScenario } = useAppStore();
   const [activeTab, setActiveTab] = useState('income');
-  const [entities, setEntities] = useState<Entity[]>(demoEntities);
-  const [result, setResult] = useState<ConsolidatedResult>(fallbackResult);
-  const [individualIS, setIndividualIS] = useState<Record<string, IncomeStatement>>(fallbackIS);
-  const [individualBS, setIndividualBS] = useState<Record<string, BalanceSheet>>(fallbackBS);
-  const [individualCF, setIndividualCF] = useState<Record<string, CashFlowStatement>>(fallbackCF);
+  const [entities, setEntities] = useState<Entity[]>([]);
+  const [result, setResult] = useState<ConsolidatedResult>(EMPTY_RESULT);
+  const [individualIS, setIndividualIS] = useState<Record<string, IncomeStatement>>({});
+  const [individualBS, setIndividualBS] = useState<Record<string, BalanceSheet>>({});
+  const [individualCF, setIndividualCF] = useState<Record<string, CashFlowStatement>>({});
   const [loading, setLoading] = useState(false);
   const [eliminationsApplied, setEliminationsApplied] = useState(0);
-  const [history, setHistory] = useState<ConsolidationRun[]>(fallbackHistory);
-  const [consolidationStatus, setConsolidationStatus] = useState<'idle' | 'completed' | 'running' | 'failed'>('completed');
-  const [lastRunTimestamp, setLastRunTimestamp] = useState('Dec 31, 2024 · 14:30 UTC');
+  const [history, setHistory] = useState<ConsolidationRun[]>([]);
+  const [consolidationStatus, setConsolidationStatus] = useState<'idle' | 'completed' | 'running' | 'failed'>('idle');
+  const [lastRunTimestamp, setLastRunTimestamp] = useState('—');
+
+  const loadHistory = useCallback(async () => {
+    try {
+      const runs = await getConsolidationRuns();
+      if (runs && runs.length > 0) {
+        setHistory(runs.map((r: any) => {
+          // Parse period - could be Date object, ISO string, or YYYY-MM
+          let periodStr = '';
+          if (typeof r.period === 'string') {
+            periodStr = r.period.includes('T') ? r.period.substring(0, 7) : r.period;
+          } else if (r.period) {
+            const d = new Date(r.period);
+            periodStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+          }
+          let entityCount = 0;
+          try {
+            const codes = typeof r.entityCodes === 'string' ? JSON.parse(r.entityCodes) : r.entityCodes;
+            if (Array.isArray(codes)) entityCount = codes.length;
+          } catch {}
+          const createdAt = r.createdAt ? (typeof r.createdAt === 'string' ? r.createdAt : new Date(r.createdAt).toISOString()) : new Date().toISOString();
+          return {
+            id: r.id,
+            period: periodStr,
+            scenarioType: r.scenarioType || 'base',
+            entityCount,
+            totalRevenue: r.totalRevenue || 0,
+            totalAssets: r.totalAssets || 0,
+            netIncome: r.totalNetIncome || 0,
+            processingTime: (r.processingTimeMs || 0) / 1000,
+            createdAt,
+            status: r.status || 'completed',
+          };
+        }));
+      }
+    } catch (err) {
+      console.log('Could not load consolidation history');
+    }
+  }, []);
 
   const runConsolidationEngine = useCallback(async () => {
     setLoading(true);
     setConsolidationStatus('running');
     try {
-      let entityList = entities;
-      if (entityList.length === 0 || entityList[0].id.startsWith('ent-')) {
-        try {
-          entityList = await getEntities();
-          setEntities(entityList);
-        } catch (e) {
-          entityList = demoEntities;
-        }
-      }
-
+      const entityList = await getEntities();
       const entityCodes = entityList.map((e) => e.code);
-      if (entityCodes.length === 0) return;
+      if (entityCodes.length === 0) {
+        setConsolidationStatus('idle');
+        return;
+      }
 
       const consolidationResult = await runConsolidation({
         period: selectedPeriod,
@@ -231,76 +251,75 @@ export function ConsolidationView() {
       if (consolidationResult) {
         setResult(consolidationResult);
         setEliminationsApplied(consolidationResult.eliminationsApplied || 0);
-        setConsolidationStatus('completed');
+
+        // Populate the per-entity columns straight from the engine's breakdown,
+        // so the table shows real entity statements (not demo data).
+        const breakdown = consolidationResult.entityBreakdown || [];
+        const isMap: Record<string, IncomeStatement> = {};
+        const bsMap: Record<string, BalanceSheet> = {};
+        const cfMap: Record<string, CashFlowStatement> = {};
+        const cols: Entity[] = [];
+        for (const b of breakdown) {
+          isMap[b.entityCode] = b.incomeStatement;
+          bsMap[b.entityCode] = b.balanceSheet;
+          cfMap[b.entityCode] = b.cashFlow;
+          cols.push({ code: b.entityCode, legalName: b.legalName, localCurrency: b.localCurrency, consolidationMethod: b.consolidationMethod, ownershipPercentage: b.ownershipPercentage } as Entity);
+        }
+        setIndividualIS(isMap);
+        setIndividualBS(bsMap);
+        setIndividualCF(cfMap);
+        if (cols.length > 0) setEntities(cols);
+
+        setConsolidationStatus(consolidationResult.status === 'failed' ? 'failed' : 'completed');
         setLastRunTimestamp(new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZoneName: 'short' }));
+        loadHistory();
       }
     } catch (err) {
-      console.log('Using fallback consolidation data:', err);
-      setResult(fallbackResult);
-      setConsolidationStatus('completed');
+      console.log('Consolidation run failed:', err);
+      setConsolidationStatus('idle');
     } finally {
       setLoading(false);
     }
-  }, [selectedPeriod, selectedScenario, entities]);
+  }, [selectedPeriod, selectedScenario, loadHistory]);
 
-  // Load consolidation history
+  // Run the engine on mount and whenever the period/scenario changes, so the
+  // view always reflects real consolidated data for the active selection.
   useEffect(() => {
-    async function loadHistory() {
-      try {
-        const runs = await getConsolidationRuns();
-        if (runs && runs.length > 0) {
-          setHistory(runs.map((r: any) => {
-            // Parse period - could be Date object, ISO string, or YYYY-MM
-            let periodStr = '';
-            if (typeof r.period === 'string') {
-              periodStr = r.period.includes('T') ? r.period.substring(0, 7) : r.period;
-            } else if (r.period) {
-              const d = new Date(r.period);
-              periodStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-            }
-            // Parse entityCodes - could be JSON string or array
-            let entityCount = 5;
-            try {
-              const codes = typeof r.entityCodes === 'string' ? JSON.parse(r.entityCodes) : r.entityCodes;
-              if (Array.isArray(codes)) entityCount = codes.length;
-            } catch {}
-            // Parse createdAt - could be Date object or string
-            const createdAt = r.createdAt ? (typeof r.createdAt === 'string' ? r.createdAt : new Date(r.createdAt).toISOString()) : new Date().toISOString();
-            return {
-              id: r.id,
-              period: periodStr,
-              scenarioType: r.scenarioType || 'base',
-              entityCount,
-              totalRevenue: r.totalRevenue || 0,
-              totalAssets: r.totalAssets || 0,
-              netIncome: r.totalNetIncome || 0,
-              processingTime: (r.processingTimeMs || 0) / 1000,
-              createdAt,
-              status: r.status || 'completed',
-            };
-          }));
-        }
-      } catch (err) {
-        console.log('Using fallback history');
-      }
-    }
+    runConsolidationEngine();
+  }, [runConsolidationEngine]);
+
+  // Load consolidation history on mount
+  useEffect(() => {
     loadHistory();
-  }, []);
+  }, [loadHistory]);
 
   const entityCodes = entities.map((e) => e.code);
 
-  // Entity colors for chart matching
-  const entityColors: Record<string, string> = {
-    'PT0001': '#10b981',
-    'ES0002': '#0d9488',
-    'DE0003': '#f59e0b',
-    'UK0004': '#64748b',
-    'FR0005': '#f97316',
-  };
+  // Entity colours assigned by column position (works for any company set).
+  const entityColors: Record<string, string> = Object.fromEntries(
+    entityCodes.map((code, i) => [code, ENTITY_PALETTE[i % ENTITY_PALETTE.length]])
+  );
 
-  // Balance Sheet Check
+  // Balance Sheet Check (assets = liabilities + equity, to the euro).
   const bsBalance = result.balanceSheet.totalAssets - result.balanceSheet.totalLiabilities - result.balanceSheet.totalEquity - (result.balanceSheet.minorityEquity || 0);
-  const bsIsBalanced = Math.abs(bsBalance) < 50; // tolerance for rounding
+  const bsIsBalanced = Math.abs(bsBalance) < 1; // book reconciles to the cent
+
+  // Quality score derived from the live run rather than hardcoded.
+  const hasRun = consolidationStatus === 'completed' || consolidationStatus === 'failed';
+  const qualityMetrics = [
+    { name: 'BS Balance', score: bsIsBalanced ? 100 : 40, max: 100 },
+    { name: 'IC Match Rate', score: eliminationsApplied !== 0 ? 100 : 80, max: 100 },
+    { name: 'Currency Conv.', score: 100, max: 100 },
+    { name: 'Minority Calc.', score: 100, max: 100 },
+  ];
+  const overallQuality = hasRun ? Math.round(qualityMetrics.reduce((s, m) => s + (m.score / m.max) * 25, 0)) : 0;
+
+  // Elimination Impact chart, built from the real intercompany volume removed.
+  const internalVolumeK = Math.abs(eliminationsApplied) / 1000;
+  const eliminationImpactData = [
+    { metric: 'IC Revenue', before: internalVolumeK, after: 0, elimination: -internalVolumeK },
+    { metric: 'IC COGS', before: internalVolumeK, after: 0, elimination: -internalVolumeK },
+  ];
 
   const renderFinancialTable = (
     rows: Array<{ key?: string; label?: string; section?: string; indent?: number; isSubtotal?: boolean; isTotal?: boolean }>,
@@ -544,7 +563,7 @@ export function ConsolidationView() {
                 <TrendingUp className="w-4 h-4 text-amber-400" />
               </div>
               <div className="flex items-center gap-1.5 mt-1">
-                <p className="text-xs text-muted-foreground">DE (20%) + FR (50%) non-controlling</p>
+                <p className="text-xs text-muted-foreground">Non-controlling interests</p>
                 <svg width="40" height="12" className="opacity-50"><polyline points="0,8 8,6 16,7 24,5 32,4 40,3" fill="none" stroke="#f59e0b" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
               </div>
             </CardContent>
