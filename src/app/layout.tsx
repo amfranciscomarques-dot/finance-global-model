@@ -20,12 +20,12 @@ export const metadata: Metadata = {
   keywords: ["financial consolidation", "multi-entity", "reporting", "FX rates", "scenario analysis", "variance analysis"],
   authors: [{ name: "ConsolidaçãoFX" }],
   icons: {
-    icon: "https://z-cdn.chatglm.cn/z-ai/static/logo.svg",
+    icon: "/logo.svg",
   },
   openGraph: {
     title: "ConsolidaçãoFX - Financial Consolidation",
     description: "Professional multi-company financial consolidation platform",
-    url: "https://chat.z.ai",
+    url: "https://github.com/amfranciscomarques-dot/finance-global-model",
     siteName: "ConsolidaçãoFX",
     type: "website",
   },
