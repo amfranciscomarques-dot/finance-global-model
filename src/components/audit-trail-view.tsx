@@ -17,6 +17,8 @@ import { getAuditTrail } from '@/lib/api';
 import { AuditEntry, AuditActionType } from '@/lib/types';
 import { DataLoadError } from '@/components/data-load-error';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useTranslations, useLocale } from 'next-intl';
+import { dateLocale, type Locale } from '@/i18n/locale-context';
 
 // Demo fallback data
 const demoAuditEntries: AuditEntry[] = [
@@ -137,16 +139,15 @@ const actionTypeConfig: Record<AuditActionType, { label: string; icon: React.Ele
   },
 };
 
-function formatTimestamp(ts: string): { date: string; time: string } {
+function formatTimestamp(ts: string, locale: string): { date: string; time: string } {
   const d = new Date(ts);
   return {
-    date: d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-    time: d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+    date: d.toLocaleDateString(locale, { month: 'short', day: 'numeric', year: 'numeric' }),
+    time: d.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' }),
   };
 }
 
-function exportAuditLog(entries: AuditEntry[]) {
-  const headers = ['Timestamp', 'Action Type', 'Description', 'User', 'Affected Entities'];
+function exportAuditLog(entries: AuditEntry[], headers: string[]) {
   const rows = entries.map(e => [
     e.timestamp,
     e.actionType,
@@ -164,6 +165,8 @@ function exportAuditLog(entries: AuditEntry[]) {
 }
 
 export function AuditTrailView() {
+  const t = useTranslations('audit');
+  const loc = useLocale() as Locale;
   const [entries, setEntries] = useState<AuditEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
@@ -223,11 +226,11 @@ export function AuditTrailView() {
       {/* Summary Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
         {[
-          { label: 'Total Events', value: entries.length, icon: Clock, color: 'from-emerald-500/10 to-emerald-600/5', textColor: 'text-emerald-700 dark:text-emerald-400', borderColor: 'border-emerald-200 dark:border-emerald-800/50' },
-          { label: 'Consolidations', value: actionCounts.consolidation || 0, icon: Layers, color: 'from-emerald-500/10 to-emerald-600/5', textColor: 'text-emerald-700 dark:text-emerald-400', borderColor: 'border-emerald-200 dark:border-emerald-800/50' },
-          { label: 'Entity Changes', value: actionCounts.entity || 0, icon: Building2, color: 'from-teal-500/10 to-teal-600/5', textColor: 'text-teal-700 dark:text-teal-400', borderColor: 'border-teal-200 dark:border-teal-800/50' },
-          { label: 'Imports', value: actionCounts.import || 0, icon: FileUp, color: 'from-amber-500/10 to-amber-600/5', textColor: 'text-amber-700 dark:text-amber-400', borderColor: 'border-amber-200 dark:border-amber-800/50' },
-          { label: 'FX Updates', value: actionCounts.fx || 0, icon: DollarSign, color: 'from-slate-500/10 to-slate-600/5', textColor: 'text-slate-700 dark:text-slate-400', borderColor: 'border-slate-200 dark:border-slate-700/50' },
+          { label: t('cards.total'), value: entries.length, icon: Clock, color: 'from-emerald-500/10 to-emerald-600/5', textColor: 'text-emerald-700 dark:text-emerald-400', borderColor: 'border-emerald-200 dark:border-emerald-800/50' },
+          { label: t('cards.consolidations'), value: actionCounts.consolidation || 0, icon: Layers, color: 'from-emerald-500/10 to-emerald-600/5', textColor: 'text-emerald-700 dark:text-emerald-400', borderColor: 'border-emerald-200 dark:border-emerald-800/50' },
+          { label: t('cards.entityChanges'), value: actionCounts.entity || 0, icon: Building2, color: 'from-teal-500/10 to-teal-600/5', textColor: 'text-teal-700 dark:text-teal-400', borderColor: 'border-teal-200 dark:border-teal-800/50' },
+          { label: t('cards.imports'), value: actionCounts.import || 0, icon: FileUp, color: 'from-amber-500/10 to-amber-600/5', textColor: 'text-amber-700 dark:text-amber-400', borderColor: 'border-amber-200 dark:border-amber-800/50' },
+          { label: t('cards.fxUpdates'), value: actionCounts.fx || 0, icon: DollarSign, color: 'from-slate-500/10 to-slate-600/5', textColor: 'text-slate-700 dark:text-slate-400', borderColor: 'border-slate-200 dark:border-slate-700/50' },
         ].map((card, i) => {
           const Icon = card.icon;
           return (
@@ -258,17 +261,17 @@ export function AuditTrailView() {
             <div>
               <CardTitle className="flex items-center gap-2">
                 <Clock className="w-5 h-5 text-emerald-600" />
-                Audit Trail
+                {t('title')}
               </CardTitle>
-              <CardDescription>Complete activity log for all system operations</CardDescription>
+              <CardDescription>{t('subtitle')}</CardDescription>
             </div>
             <Button
               variant="outline"
               size="sm"
-              onClick={() => exportAuditLog(filteredEntries)}
+              onClick={() => exportAuditLog(filteredEntries, [t('csv.timestamp'), t('csv.actionType'), t('csv.description'), t('csv.user'), t('csv.affectedEntities')])}
             >
               <Download className="w-4 h-4 mr-1" />
-              Export Log
+              {t('exportLog')}
             </Button>
           </div>
         </CardHeader>
@@ -278,7 +281,7 @@ export function AuditTrailView() {
             <div className="relative flex-1 min-w-[200px]">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
-                placeholder="Search by description, user, or entity..."
+                placeholder={t('searchPlaceholder')}
                 className="pl-10 h-8 text-sm"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
@@ -289,11 +292,11 @@ export function AuditTrailView() {
               <Select value={filterAction} onValueChange={setFilterAction}>
                 <SelectTrigger className="w-36 h-8 text-xs"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Actions</SelectItem>
-                  <SelectItem value="consolidation">Consolidation</SelectItem>
-                  <SelectItem value="entity">Entity Changes</SelectItem>
-                  <SelectItem value="import">Data Imports</SelectItem>
-                  <SelectItem value="fx">FX Rate Updates</SelectItem>
+                  <SelectItem value="all">{t('filter.all')}</SelectItem>
+                  <SelectItem value="consolidation">{t('filter.consolidation')}</SelectItem>
+                  <SelectItem value="entity">{t('filter.entity')}</SelectItem>
+                  <SelectItem value="import">{t('filter.import')}</SelectItem>
+                  <SelectItem value="fx">{t('filter.fx')}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -320,7 +323,7 @@ export function AuditTrailView() {
           {loading ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-              <span className="ml-2 text-sm text-muted-foreground">Loading audit trail...</span>
+              <span className="ml-2 text-sm text-muted-foreground">{t('loading')}</span>
             </div>
           ) : (
             <div className="max-h-[600px] overflow-y-auto pr-2">
@@ -328,7 +331,7 @@ export function AuditTrailView() {
                 {filteredEntries.map((entry, index) => {
                   const config = actionTypeConfig[entry.actionType];
                   const Icon = config.icon;
-                  const { date, time } = formatTimestamp(entry.timestamp);
+                  const { date, time } = formatTimestamp(entry.timestamp, dateLocale(loc));
 
                   return (
                     <motion.div
@@ -355,13 +358,13 @@ export function AuditTrailView() {
                             <p className="text-sm font-medium leading-snug">{entry.description}</p>
                             <div className="flex items-center gap-2 mt-1.5">
                               <Badge className={`${config.bgColor} ${config.color} border ${config.borderColor} text-[10px] hover:${config.bgColor}`}>
-                                {config.label}
+                                {t(`actionTypes.${entry.actionType}`)}
                               </Badge>
                               <span className="text-[10px] text-muted-foreground flex items-center gap-1">
                                 {entry.user === 'System' || entry.user === 'ECB Feed' || entry.user === 'Data Pipeline' ? (
                                   <span className="inline-flex items-center gap-0.5">
                                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                                    Automated
+                                    {t('automated')}
                                   </span>
                                 ) : (
                                   <span className="inline-flex items-center gap-0.5">
@@ -391,7 +394,7 @@ export function AuditTrailView() {
               </AnimatePresence>
               {filteredEntries.length === 0 && (
                 <div className="text-center py-8 text-sm text-muted-foreground">
-                  No audit entries match your filters
+                  {t('noMatch')}
                 </div>
               )}
             </div>

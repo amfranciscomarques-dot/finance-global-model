@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { motion } from 'framer-motion';
+import { useTranslations } from 'next-intl';
 import {
   BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip,
   ResponsiveContainer, ReferenceLine,
@@ -47,6 +48,7 @@ function fmtMoney(n: number, currency: string): string {
 }
 
 export function ProjectsView() {
+  const t = useTranslations('projects');
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [seeding, setSeeding] = useState(false);
@@ -60,7 +62,7 @@ export function ProjectsView() {
       setProjects(data.projects ?? []);
       setError(null);
     } catch {
-      setError('Failed to load projects');
+      setError(t('loadError'));
     } finally {
       setLoading(false);
     }
@@ -91,17 +93,17 @@ export function ProjectsView() {
             <Rocket className="w-5 h-5 text-white" />
           </div>
           <div>
-            <h2 className="text-xl font-bold tracking-tight">Projects — Investment Appraisal</h2>
-            <p className="text-sm text-muted-foreground">NPV · IRR · discounted payback per project (e.g. Automation &amp; Logistics Hub)</p>
+            <h2 className="text-xl font-bold tracking-tight">{t('title')}</h2>
+            <p className="text-sm text-muted-foreground">{t('subtitle')}</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={load} disabled={loading}>
-            <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${loading ? 'animate-spin' : ''}`} /> Refresh
+            <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${loading ? 'animate-spin' : ''}`} /> {t('refresh')}
           </Button>
           <Button size="sm" onClick={seedDemo} disabled={seeding} className="bg-emerald-600 hover:bg-emerald-700">
             {seeding ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Database className="w-3.5 h-3.5 mr-1.5" />}
-            Seed demo group
+            {t('seedDemo')}
           </Button>
         </div>
       </div>
@@ -116,10 +118,10 @@ export function ProjectsView() {
         <Card>
           <CardContent className="py-12 text-center space-y-3">
             <Rocket className="w-10 h-10 mx-auto text-muted-foreground/40" />
-            <p className="text-sm text-muted-foreground">No projects yet. Seed the demo group to load the Automation &amp; Logistics Hub.</p>
+            <p className="text-sm text-muted-foreground">{t('empty')}</p>
             <Button size="sm" onClick={seedDemo} disabled={seeding} className="bg-emerald-600 hover:bg-emerald-700">
               {seeding ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Database className="w-3.5 h-3.5 mr-1.5" />}
-              Seed demo group
+              {t('seedDemo')}
             </Button>
           </CardContent>
         </Card>
@@ -143,23 +145,23 @@ export function ProjectsView() {
                         </CardDescription>
                       </div>
                       <Badge className={npvPositive ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'}>
-                        {npvPositive ? 'Value-accretive' : 'Review'}
+                        {npvPositive ? t('valueAccretive') : t('review')}
                       </Badge>
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     {/* Headline metrics */}
                     <div className="grid grid-cols-3 gap-3">
-                      <Metric icon={TrendingUp} label="NPV" value={p.npv != null ? fmtMoney(p.npv, p.currency) : '—'} accent={npvPositive} />
-                      <Metric icon={Rocket} label="IRR" value={p.irr != null ? `${(p.irr * 100).toFixed(1)}%` : '—'} accent={p.irr != null && p.irr > p.discountRate} />
-                      <Metric icon={Clock} label="Payback" value={p.paybackYears != null ? `${p.paybackYears.toFixed(1)} yr` : '—'} />
+                      <Metric icon={TrendingUp} label={t('npv')} value={p.npv != null ? fmtMoney(p.npv, p.currency) : '—'} accent={npvPositive} />
+                      <Metric icon={Rocket} label={t('irr')} value={p.irr != null ? `${(p.irr * 100).toFixed(1)}%` : '—'} accent={p.irr != null && p.irr > p.discountRate} />
+                      <Metric icon={Clock} label={t('payback')} value={p.paybackYears != null ? t('paybackYears', { years: p.paybackYears.toFixed(1) }) : '—'} />
                     </div>
 
                     {/* Capital structure */}
                     <div className="grid grid-cols-3 gap-3 text-xs">
-                      <KV icon={Banknote} label="CAPEX" value={fmtMoney(p.capexTotal, p.currency)} />
-                      <KV icon={Landmark} label={`Debt @ ${(p.debtRate * 100).toFixed(2)}%`} value={fmtMoney(p.debtAmount, p.currency)} />
-                      <KV icon={Banknote} label="Equity" value={fmtMoney(p.equityAmount, p.currency)} />
+                      <KV icon={Banknote} label={t('capex')} value={fmtMoney(p.capexTotal, p.currency)} />
+                      <KV icon={Landmark} label={t('debtLabel', { rate: (p.debtRate * 100).toFixed(2) })} value={fmtMoney(p.debtAmount, p.currency)} />
+                      <KV icon={Banknote} label={t('equity')} value={fmtMoney(p.equityAmount, p.currency)} />
                     </div>
 
                     {/* Assumptions */}

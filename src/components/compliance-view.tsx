@@ -15,6 +15,8 @@ import { getCompliance, ComplianceData } from '@/lib/api';
 import { ComplianceCheck, EntityCompliance, JurisdictionCompliance, Violation } from '@/lib/types';
 import { DataLoadError } from '@/components/data-load-error';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useTranslations, useLocale } from 'next-intl';
+import { dateLocale, type Locale } from '@/i18n/locale-context';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip,
   ResponsiveContainer, ReferenceLine,
@@ -151,7 +153,7 @@ function StatusIcon({ status, size = 'sm' }: { status: 'pass' | 'warning' | 'fai
 }
 
 // Score gauge component (SVG circular gauge)
-function ScoreGauge({ score, size = 160 }: { score: number; size?: number }) {
+function ScoreGauge({ score, size = 160, label = 'Score' }: { score: number; size?: number; label?: string }) {
   const strokeWidth = size > 120 ? 12 : 8;
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
@@ -188,7 +190,7 @@ function ScoreGauge({ score, size = 160 }: { score: number; size?: number }) {
       {/* Center text */}
       <div className="absolute inset-0 flex flex-col items-center justify-center">
         <span className="text-3xl font-bold" style={{ color }}>{score}</span>
-        <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Score</span>
+        <span className="text-[10px] text-muted-foreground uppercase tracking-wider">{label}</span>
       </div>
     </div>
   );
@@ -236,6 +238,8 @@ function CustomTooltip({ active, payload, label }: { active?: boolean; payload?:
 }
 
 export function ComplianceView() {
+  const t = useTranslations('compliance');
+  const loc = useLocale() as Locale;
   const [data, setData] = useState<ComplianceData | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
@@ -287,7 +291,7 @@ export function ComplianceView() {
 
   if (!data) return null;
 
-  const statusLabel = data.overallStatus === 'compliant' ? 'Compliant' : data.overallStatus === 'warning' ? 'Warnings' : 'Non-Compliant';
+  const statusLabel = data.overallStatus === 'compliant' ? t('statuses.compliant') : data.overallStatus === 'warning' ? t('statuses.warning') : t('statuses.nonCompliant');
   const statusColor = data.overallScore >= 80 ? 'text-emerald-600 dark:text-emerald-400' : data.overallScore >= 60 ? 'text-amber-600 dark:text-amber-400' : 'text-red-600 dark:text-red-400';
   const statusBg = data.overallScore >= 80 ? 'bg-emerald-100 dark:bg-emerald-900/30 border-emerald-300 dark:border-emerald-700' : data.overallScore >= 60 ? 'bg-amber-100 dark:bg-amber-900/30 border-amber-300 dark:border-amber-700' : 'bg-red-100 dark:bg-red-900/30 border-red-300 dark:border-red-700';
 
@@ -308,7 +312,7 @@ export function ComplianceView() {
         >
           <Card className="bg-gradient-to-br from-slate-50 to-white dark:from-slate-900 dark:to-slate-950 border shadow-md h-full">
             <CardContent className="p-6 flex flex-col items-center justify-center text-center">
-              <ScoreGauge score={data.overallScore} size={160} />
+              <ScoreGauge score={data.overallScore} size={160} label={t('score')} />
               <div className="mt-4">
                 <Badge className={`${statusBg} ${statusColor} border text-sm font-semibold px-4 py-1`}>
                   {statusLabel}
@@ -316,7 +320,7 @@ export function ComplianceView() {
               </div>
               <p className="text-xs text-muted-foreground mt-3 flex items-center gap-1">
                 <Clock className="w-3 h-3" />
-                Last checked: {new Date(data.lastChecked).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                {t('lastChecked', { date: new Date(data.lastChecked).toLocaleString(dateLocale(loc), { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) })}
               </p>
               <Button
                 variant="outline"
@@ -325,7 +329,7 @@ export function ComplianceView() {
                 onClick={loadData}
               >
                 <RefreshCw className="w-3 h-3" />
-                Re-check
+                {t('recheck')}
               </Button>
             </CardContent>
           </Card>
@@ -334,9 +338,9 @@ export function ComplianceView() {
         {/* Summary Stats */}
         <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-3 gap-4">
           {[
-            { label: 'Passing', count: passCount, total: data.checks.length, icon: CheckCircle2, color: 'text-emerald-600 dark:text-emerald-400', gradient: 'from-emerald-500/10 to-emerald-600/5', border: 'border-emerald-200 dark:border-emerald-800/50' },
-            { label: 'Warnings', count: warningCount, total: data.checks.length, icon: AlertTriangle, color: 'text-amber-600 dark:text-amber-400', gradient: 'from-amber-500/10 to-amber-600/5', border: 'border-amber-200 dark:border-amber-800/50' },
-            { label: 'Failing', count: failCount, total: data.checks.length, icon: XCircle, color: 'text-red-600 dark:text-red-400', gradient: 'from-red-500/10 to-red-600/5', border: 'border-red-200 dark:border-red-800/50' },
+            { key: 'passing', label: t('summary.passing'), count: passCount, total: data.checks.length, icon: CheckCircle2, color: 'text-emerald-600 dark:text-emerald-400', gradient: 'from-emerald-500/10 to-emerald-600/5', border: 'border-emerald-200 dark:border-emerald-800/50' },
+            { key: 'warnings', label: t('summary.warnings'), count: warningCount, total: data.checks.length, icon: AlertTriangle, color: 'text-amber-600 dark:text-amber-400', gradient: 'from-amber-500/10 to-amber-600/5', border: 'border-amber-200 dark:border-amber-800/50' },
+            { key: 'failing', label: t('summary.failing'), count: failCount, total: data.checks.length, icon: XCircle, color: 'text-red-600 dark:text-red-400', gradient: 'from-red-500/10 to-red-600/5', border: 'border-red-200 dark:border-red-800/50' },
           ].map((card, i) => {
             const Icon = card.icon;
             return (
@@ -353,14 +357,14 @@ export function ComplianceView() {
                       <Icon className={`w-5 h-5 ${card.color}`} />
                     </div>
                     <p className={`text-3xl font-bold ${card.color}`}>{card.count}</p>
-                    <p className="text-xs text-muted-foreground mt-1">of {card.total} checks</p>
+                    <p className="text-xs text-muted-foreground mt-1">{t('ofChecks', { total: card.total })}</p>
                     {/* Progress bar */}
                     <div className="mt-3 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
                       <motion.div
                         initial={{ width: 0 }}
                         animate={{ width: `${(card.count / card.total) * 100}%` }}
                         transition={{ duration: 0.8, delay: i * 0.1 }}
-                        className={`h-full rounded-full ${card.label === 'Passing' ? 'bg-emerald-500' : card.label === 'Warnings' ? 'bg-amber-500' : 'bg-red-500'}`}
+                        className={`h-full rounded-full ${card.key === 'passing' ? 'bg-emerald-500' : card.key === 'warnings' ? 'bg-amber-500' : 'bg-red-500'}`}
                       />
                     </div>
                   </CardContent>
@@ -380,9 +384,9 @@ export function ComplianceView() {
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm flex items-center gap-2">
                   <Shield className="w-4 h-4 text-emerald-600" />
-                  Compliance Trend
+                  {t('trendTitle')}
                 </CardTitle>
-                <CardDescription className="text-xs">Score over last 6 periods</CardDescription>
+                <CardDescription className="text-xs">{t('trendDesc')}</CardDescription>
               </CardHeader>
               <CardContent className="pt-0">
                 <div className="h-44">
@@ -392,7 +396,7 @@ export function ComplianceView() {
                       <XAxis dataKey="period" tick={{ fontSize: 10 }} tickFormatter={(v) => v.slice(5)} />
                       <YAxis domain={[50, 100]} tick={{ fontSize: 10 }} />
                       <RechartsTooltip content={<CustomTooltip />} />
-                      <ReferenceLine y={80} stroke="#f59e0b" strokeDasharray="5 5" strokeWidth={1} label={{ value: 'Target', position: 'right', fontSize: 10, fill: '#f59e0b' }} />
+                      <ReferenceLine y={80} stroke="#f59e0b" strokeDasharray="5 5" strokeWidth={1} label={{ value: t('target'), position: 'right', fontSize: 10, fill: '#f59e0b' }} />
                       <Line
                         type="monotone"
                         dataKey="score"
@@ -417,12 +421,14 @@ export function ComplianceView() {
       <div>
         <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-4 flex items-center gap-2">
           <Shield className="w-4 h-4 text-emerald-600" />
-          Regulatory Checks
+          {t('regulatoryChecks')}
         </h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {data.checks.map((check, i) => {
             const cat = categoryConfig[check.category];
             const isExpanded = expandedCheck === check.id;
+            const checkName = t.has(`checks.${check.id}.name`) ? t(`checks.${check.id}.name`) : check.name;
+            const checkDesc = t.has(`checks.${check.id}.description`) ? t(`checks.${check.id}.description`) : check.description;
 
             return (
               <motion.div
@@ -446,13 +452,13 @@ export function ComplianceView() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1">
                           <StatusIcon status={check.status} size="md" />
-                          <p className="text-sm font-semibold truncate">{check.name}</p>
+                          <p className="text-sm font-semibold truncate">{checkName}</p>
                         </div>
-                        <p className="text-[11px] text-muted-foreground leading-snug">{check.description}</p>
+                        <p className="text-[11px] text-muted-foreground leading-snug">{checkDesc}</p>
                       </div>
                       <div className="flex flex-col items-end shrink-0">
                         <Badge className={`${cat.bgColor} ${cat.color} border ${cat.borderColor} text-[10px]`}>
-                          {cat.label}
+                          {t(`categories.${check.category}`)}
                         </Badge>
                         <span className={`text-lg font-bold mt-1 ${check.score >= 80 ? 'text-emerald-600 dark:text-emerald-400' : check.score >= 60 ? 'text-amber-600 dark:text-amber-400' : 'text-red-600 dark:text-red-400'}`}>
                           {check.score}%
@@ -489,7 +495,7 @@ export function ComplianceView() {
                           <p className="text-xs text-muted-foreground leading-relaxed">{check.details}</p>
                           {check.affectedEntities.length > 0 && (
                             <div className="mt-2">
-                              <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Affected Entities</p>
+                              <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">{t('affectedEntities')}</p>
                               <div className="flex flex-wrap gap-1">
                                 {check.affectedEntities.map(e => (
                                   <Badge key={e} variant="outline" className="text-[10px] font-mono">{e}</Badge>
@@ -515,7 +521,7 @@ export function ComplianceView() {
       <div>
         <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-4 flex items-center gap-2">
           <Shield className="w-4 h-4 text-emerald-600" />
-          Entity Compliance Matrix
+          {t('matrixTitle')}
         </h3>
         <Card className="shadow-sm border overflow-hidden">
           <CardContent className="p-0">
@@ -523,7 +529,7 @@ export function ComplianceView() {
               <table className="w-full text-xs">
                 <thead>
                   <tr className="bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700">
-                    <th className="text-left px-4 py-3 font-semibold sticky left-0 bg-slate-50 dark:bg-slate-900 z-10 min-w-[140px]">Check / Entity</th>
+                    <th className="text-left px-4 py-3 font-semibold sticky left-0 bg-slate-50 dark:bg-slate-900 z-10 min-w-[140px]">{t('checkEntity')}</th>
                     {data.entities.map(e => (
                       <th key={e.entityCode} className="text-center px-3 py-3 font-semibold min-w-[90px]">
                         <TooltipProvider>
@@ -547,7 +553,7 @@ export function ComplianceView() {
                       <td className="px-4 py-2.5 font-medium sticky left-0 bg-white dark:bg-slate-950 z-10 border-r border-slate-100 dark:border-slate-800">
                         <div className="flex items-center gap-1.5">
                           <StatusIcon status={check.status} />
-                          <span className="truncate">{check.name}</span>
+                          <span className="truncate">{t.has(`checks.${check.id}.name`) ? t(`checks.${check.id}.name`) : check.name}</span>
                         </div>
                       </td>
                       {data.entities.map(entity => {
@@ -563,8 +569,8 @@ export function ComplianceView() {
                                   </span>
                                 </TooltipTrigger>
                                 <TooltipContent className="bg-slate-900 text-white text-xs border-slate-700 max-w-[200px]">
-                                  <p className="font-medium">{check.name}</p>
-                                  <p className="text-slate-400 text-[10px]">{entityCheck?.details || 'N/A'}</p>
+                                  <p className="font-medium">{t.has(`checks.${check.id}.name`) ? t(`checks.${check.id}.name`) : check.name}</p>
+                                  <p className="text-slate-400 text-[10px]">{entityCheck?.details || t('na')}</p>
                                 </TooltipContent>
                               </Tooltip>
                             </TooltipProvider>
@@ -576,7 +582,7 @@ export function ComplianceView() {
                   {/* Totals row */}
                   <tr className="bg-emerald-50/80 dark:bg-emerald-900/20 border-t-2 border-emerald-200 dark:border-emerald-700">
                     <td className="px-4 py-2.5 font-bold sticky left-0 bg-emerald-50/80 dark:bg-emerald-900/20 z-10 border-r border-slate-100 dark:border-slate-800">
-                      Overall Score
+                      {t('overallScore')}
                     </td>
                     {data.entities.map(entity => (
                       <td key={entity.entityCode} className="text-center px-3 py-2.5">
@@ -600,7 +606,7 @@ export function ComplianceView() {
       <div>
         <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-4 flex items-center gap-2">
           <Shield className="w-4 h-4 text-emerald-600" />
-          Jurisdiction Compliance
+          {t('jurisdictionTitle')}
         </h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
           {data.jurisdictions.map((jur, i) => {
@@ -654,7 +660,7 @@ export function ComplianceView() {
                           <div key={fi} className="flex items-center justify-between gap-1">
                             <p className="text-[10px] text-muted-foreground truncate flex-1">{filing.name}</p>
                             <Badge className={`${fConfig.bgColor} ${fConfig.color} text-[8px] px-1.5 py-0 shrink-0`}>
-                              {fConfig.label}
+                              {t(`filingStatuses.${filing.status}`)}
                             </Badge>
                           </div>
                         );
@@ -664,11 +670,11 @@ export function ComplianceView() {
                     {/* Summary */}
                     <div className="mt-3 pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
                       <span className="text-[10px] text-muted-foreground">
-                        {filedCount}/{jur.filings.length} filed
+                        {t('filedCount', { filed: filedCount, total: jur.filings.length })}
                       </span>
                       {overdueCount > 0 && (
                         <span className="text-[10px] text-red-600 dark:text-red-400 font-medium">
-                          {overdueCount} overdue
+                          {t('overdueCount', { count: overdueCount })}
                         </span>
                       )}
                     </div>
@@ -688,14 +694,14 @@ export function ComplianceView() {
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
             <AlertTriangle className="w-4 h-4 text-amber-600" />
-            Recent Violations & Warnings
+            {t('violationsTitle')}
           </h3>
           <Button
             variant="outline"
             size="sm"
             className="text-xs gap-1"
             onClick={() => {
-              const headers = ['Severity', 'Entity', 'Description', 'Status', 'Detected'];
+              const headers = [t('csv.severity'), t('csv.entity'), t('csv.description'), t('csv.status'), t('csv.detected')];
               const rows = data.recentViolations.map(v => [v.severity, v.entityCode, v.description, v.status, v.detectedAt]);
               const csv = [headers.join(','), ...rows.map(r => r.map(v => `"${v}"`).join(','))].join('\n');
               const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -707,7 +713,7 @@ export function ComplianceView() {
             }}
           >
             <Download className="w-3 h-3" />
-            Export
+            {t('export')}
           </Button>
         </div>
         <Card className="shadow-sm border">
@@ -716,7 +722,7 @@ export function ComplianceView() {
               {data.recentViolations.length === 0 ? (
                 <div className="text-center py-12 text-sm text-muted-foreground">
                   <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto mb-2" />
-                  No violations found — all checks passing!
+                  {t('noViolations')}
                 </div>
               ) : (
                 <AnimatePresence>
@@ -724,8 +730,8 @@ export function ComplianceView() {
                     const sevConfig = severityConfig[violation.severity];
                     const stConfig = violationStatusConfig[violation.status];
                     const detected = new Date(violation.detectedAt);
-                    const dateStr = detected.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-                    const timeStr = detected.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+                    const dateStr = detected.toLocaleDateString(dateLocale(loc), { month: 'short', day: 'numeric' });
+                    const timeStr = detected.toLocaleTimeString(dateLocale(loc), { hour: '2-digit', minute: '2-digit' });
 
                     return (
                       <motion.div
@@ -753,11 +759,11 @@ export function ComplianceView() {
                               <p className="text-sm font-medium leading-snug">{violation.description}</p>
                               <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                                 <Badge className={`${sevConfig.bgColor} ${sevConfig.color} border ${sevConfig.borderColor} text-[10px]`}>
-                                  {sevConfig.label}
+                                  {t(`severities.${violation.severity}`)}
                                 </Badge>
                                 <Badge variant="outline" className="text-[10px] font-mono">{violation.entityCode}</Badge>
                                 <Badge className={`${stConfig.bgColor} ${stConfig.color} text-[10px]`}>
-                                  {stConfig.label}
+                                  {t(`violationStatuses.${violation.status}`)}
                                 </Badge>
                               </div>
                             </div>

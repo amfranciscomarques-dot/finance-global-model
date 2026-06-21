@@ -41,6 +41,8 @@ import { getForecast, saveForecastAssumptions } from '@/lib/api';
 import { formatEUR } from '@/lib/utils';
 import { DataLoadError } from '@/components/data-load-error';
 import { CashFlowForecast, ForecastPeriod } from '@/lib/types';
+import { useTranslations, useLocale } from 'next-intl';
+import { dateLocale, type Locale } from '@/i18n/locale-context';
 
 // ============================================================
 // DEMO FALLBACK DATA
@@ -155,10 +157,10 @@ function formatK(value: number): string {
   return formatEUR(value);
 }
 
-function formatMonth(month: string): string {
+function formatMonth(month: string, locale = 'en-US'): string {
   try {
     const d = new Date(month + '-01');
-    return d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+    return d.toLocaleDateString(locale, { month: 'short', year: '2-digit' });
   } catch {
     return month;
   }
@@ -179,39 +181,45 @@ const itemVariants: Variants = {
 // ============================================================
 // CUSTOM TOOLTIP
 // ============================================================
-function ForecastTooltip({ active, payload, label }: { active?: boolean; payload?: Array<{ payload: ForecastPeriod }>; label?: string }) {
+function ForecastTooltip({ active, payload, label, t, dl }: {
+  active?: boolean;
+  payload?: Array<{ payload: ForecastPeriod }>;
+  label?: string;
+  t: (k: string) => string;
+  dl: string;
+}) {
   if (!active || !payload?.length) return null;
   const data = payload[0]?.payload as ForecastPeriod | undefined;
   if (!data) return null;
 
   return (
     <div className="bg-slate-900 dark:bg-slate-800 text-white rounded-lg shadow-xl p-3 text-xs border border-slate-700">
-      <p className="font-semibold mb-1.5 text-emerald-400">{formatMonth(label ?? '')}</p>
-      {data.isForecast && <Badge className="text-[8px] bg-amber-500/20 text-amber-400 mb-1.5 h-4">Forecast</Badge>}
+      <p className="font-semibold mb-1.5 text-emerald-400">{formatMonth(label ?? '', dl)}</p>
+      {data.isForecast && <Badge className="text-[8px] bg-amber-500/20 text-amber-400 mb-1.5 h-4">{t('tooltip.forecast')}</Badge>}
       <div className="space-y-1">
         <div className="flex justify-between gap-4">
-          <span className="text-slate-400">Cumulative Cash:</span>
+          <span className="text-slate-400">{t('tooltip.cumulativeCash')}</span>
           <span className="font-semibold">{formatK(data.cumulativeCash)}</span>
         </div>
         <div className="flex justify-between gap-4">
-          <span className="text-slate-400">Operating CF:</span>
+          <span className="text-slate-400">{t('tooltip.operatingCF')}</span>
           <span className={data.operatingCF >= 0 ? 'text-emerald-400' : 'text-red-400'}>{formatK(data.operatingCF)}</span>
         </div>
         <div className="flex justify-between gap-4">
-          <span className="text-slate-400">Investing CF:</span>
+          <span className="text-slate-400">{t('tooltip.investingCF')}</span>
           <span className={data.investingCF >= 0 ? 'text-emerald-400' : 'text-red-400'}>{formatK(data.investingCF)}</span>
         </div>
         <div className="flex justify-between gap-4">
-          <span className="text-slate-400">Financing CF:</span>
+          <span className="text-slate-400">{t('tooltip.financingCF')}</span>
           <span className={data.financingCF >= 0 ? 'text-emerald-400' : 'text-red-400'}>{formatK(data.financingCF)}</span>
         </div>
         <div className="flex justify-between gap-4 border-t border-slate-700 pt-1">
-          <span className="text-slate-300 font-medium">Net Change:</span>
+          <span className="text-slate-300 font-medium">{t('tooltip.netChange')}</span>
           <span className={data.netChange >= 0 ? 'text-emerald-400 font-bold' : 'text-red-400 font-bold'}>{formatK(data.netChange)}</span>
         </div>
         {data.isForecast && (
           <div className="flex justify-between gap-4 text-[9px] text-slate-500 pt-0.5">
-            <span>Range:</span>
+            <span>{t('tooltip.range')}</span>
             <span>{formatK(data.cumulativeCashLow)} – {formatK(data.cumulativeCashHigh)}</span>
           </div>
         )}
@@ -223,10 +231,13 @@ function ForecastTooltip({ active, payload, label }: { active?: boolean; payload
 // ============================================================
 // CSV EXPORT
 // ============================================================
-function exportCSV(periods: ForecastPeriod[]) {
-  const headers = ['Month', 'Type', 'Operating CF', 'Investing CF', 'Financing CF', 'Net Change', 'Cumulative Cash'];
+function exportCSV(periods: ForecastPeriod[], t: (k: string) => string) {
+  const headers = [
+    t('csv.month'), t('csv.type'), t('csv.operatingCF'), t('csv.investingCF'),
+    t('csv.financingCF'), t('csv.netChange'), t('csv.cumulativeCash'),
+  ];
   const rows = periods.map((p) => [
-    p.month, p.isForecast ? 'Forecast' : 'Actual',
+    p.month, p.isForecast ? t('csv.forecastType') : t('csv.actualType'),
     p.operatingCF, p.investingCF, p.financingCF, p.netChange, p.cumulativeCash,
   ]);
   const csv = [headers, ...rows].map((r) => r.join(',')).join('\n');
@@ -243,6 +254,9 @@ function exportCSV(periods: ForecastPeriod[]) {
 // MAIN COMPONENT
 // ============================================================
 export function CashFlowForecastView() {
+  const t = useTranslations('forecast');
+  const loc = useLocale() as Locale;
+  const dl = dateLocale(loc);
   const { selectedPeriod, selectedScenario } = useAppStore();
   const [data, setData] = useState<CashFlowForecast | null>(null);
   const [loading, setLoading] = useState(true);
@@ -329,7 +343,7 @@ export function CashFlowForecastView() {
   // ============================================================
   const chartData = data.periods.map((p) => ({
     month: p.month,
-    monthLabel: formatMonth(p.month),
+    monthLabel: formatMonth(p.month, dl),
     isForecast: p.isForecast,
     cumulativeCash: p.cumulativeCash / 1000,
     cumulativeCashHigh: p.cumulativeCashHigh / 1000,
@@ -340,11 +354,11 @@ export function CashFlowForecastView() {
   // Find the forecast start index for the reference line
   const forecastStartMonth = data.periods.find((p) => p.isForecast)?.month || '';
 
-  // Scenario comparison data
+  // Scenario comparison data — keys map to t('scenario.{key}')
   const scenarioData = [
-    { name: 'Optimistic', value: data.scenarioComparison.optimistic.totalNetChange / 1000, color: '#10b981' },
-    { name: 'Base', value: data.scenarioComparison.base.totalNetChange / 1000, color: '#14b8a6' },
-    { name: 'Pessimistic', value: data.scenarioComparison.pessimistic.totalNetChange / 1000, color: '#f59e0b' },
+    { key: 'optimistic', value: data.scenarioComparison.optimistic.totalNetChange / 1000, color: '#10b981' },
+    { key: 'base', value: data.scenarioComparison.base.totalNetChange / 1000, color: '#14b8a6' },
+    { key: 'pessimistic', value: data.scenarioComparison.pessimistic.totalNetChange / 1000, color: '#f59e0b' },
   ];
 
   return (
@@ -362,14 +376,14 @@ export function CashFlowForecastView() {
           <div className="absolute inset-0 bg-gradient-to-br from-emerald-50/80 to-white dark:from-emerald-950/20 dark:to-slate-950" />
           <CardContent className="relative p-4">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Current Cash Position</span>
+              <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">{t('cards.currentCashPosition')}</span>
               <div className="w-8 h-8 rounded-lg bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center">
                 <Wallet className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
               </div>
             </div>
             <p className="text-2xl font-bold text-foreground">{formatK(data.keyMetrics.currentCashPosition)}</p>
             <p className="text-[10px] text-emerald-600 dark:text-emerald-400 mt-1 flex items-center gap-1">
-              <ArrowUpRight className="w-3 h-3" /> As of {formatMonth(selectedPeriod)}
+              <ArrowUpRight className="w-3 h-3" /> {t('cards.asOf', { month: formatMonth(selectedPeriod, dl) })}
             </p>
           </CardContent>
         </Card>
@@ -379,7 +393,7 @@ export function CashFlowForecastView() {
           <div className="absolute inset-0 bg-gradient-to-br from-teal-50/80 to-white dark:from-teal-950/20 dark:to-slate-950" />
           <CardContent className="relative p-4">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">6M Projected Cash</span>
+              <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">{t('cards.projected6m')}</span>
               <div className="w-8 h-8 rounded-lg bg-teal-100 dark:bg-teal-900/30 flex items-center justify-center">
                 <TrendingUp className="w-4 h-4 text-teal-600 dark:text-teal-400" />
               </div>
@@ -387,9 +401,9 @@ export function CashFlowForecastView() {
             <p className="text-2xl font-bold text-foreground">{formatK(data.keyMetrics.projected6MCash)}</p>
             <p className="text-[10px] text-teal-600 dark:text-teal-400 mt-1 flex items-center gap-1">
               {data.keyMetrics.projected6MCash >= data.keyMetrics.currentCashPosition ? (
-                <><ArrowUpRight className="w-3 h-3" /> +{formatK(data.keyMetrics.projected6MCash - data.keyMetrics.currentCashPosition)} growth</>
+                <><ArrowUpRight className="w-3 h-3" /> +{formatK(data.keyMetrics.projected6MCash - data.keyMetrics.currentCashPosition)} {t('cards.growth')}</>
               ) : (
-                <><ArrowDownRight className="w-3 h-3" /> {formatK(data.keyMetrics.projected6MCash - data.keyMetrics.currentCashPosition)} decline</>
+                <><ArrowDownRight className="w-3 h-3" /> {formatK(data.keyMetrics.projected6MCash - data.keyMetrics.currentCashPosition)} {t('cards.decline')}</>
               )}
             </p>
           </CardContent>
@@ -400,14 +414,14 @@ export function CashFlowForecastView() {
           <div className="absolute inset-0 bg-gradient-to-br from-emerald-50/80 to-white dark:from-emerald-950/20 dark:to-slate-950" />
           <CardContent className="relative p-4">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Operating CF Forecast</span>
+              <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">{t('cards.operatingCFForecast')}</span>
               <div className="w-8 h-8 rounded-lg bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center">
                 <BarChart3 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
               </div>
             </div>
             <p className="text-2xl font-bold text-foreground">{formatK(data.keyMetrics.operatingCFForecast)}</p>
             <p className="text-[10px] text-emerald-600 dark:text-emerald-400 mt-1 flex items-center gap-1">
-              <TrendingUp className="w-3 h-3" /> 6-month total
+              <TrendingUp className="w-3 h-3" /> {t('cards.monthTotal')}
             </p>
           </CardContent>
         </Card>
@@ -417,7 +431,7 @@ export function CashFlowForecastView() {
           <div className="absolute inset-0 bg-gradient-to-br from-amber-50/80 to-white dark:from-amber-950/20 dark:to-slate-950" />
           <CardContent className="relative p-4">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Free Cash Flow Forecast</span>
+              <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">{t('cards.freeCashFlow')}</span>
               <div className="w-8 h-8 rounded-lg bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
                 <Target className="w-4 h-4 text-amber-600 dark:text-amber-400" />
               </div>
@@ -425,9 +439,9 @@ export function CashFlowForecastView() {
             <p className="text-2xl font-bold text-foreground">{formatK(data.keyMetrics.freeCashFlowForecast)}</p>
             <p className="text-[10px] mt-1 flex items-center gap-1">
               {data.keyMetrics.freeCashFlowForecast >= 0 ? (
-                <span className="text-emerald-600 dark:text-emerald-400"><ArrowUpRight className="w-3 h-3 inline" /> Positive FCF</span>
+                <span className="text-emerald-600 dark:text-emerald-400"><ArrowUpRight className="w-3 h-3 inline" /> {t('cards.positiveFCF')}</span>
               ) : (
-                <span className="text-red-600 dark:text-red-400"><ArrowDownRight className="w-3 h-3 inline" /> Negative FCF</span>
+                <span className="text-red-600 dark:text-red-400"><ArrowDownRight className="w-3 h-3 inline" /> {t('cards.negativeFCF')}</span>
               )}
             </p>
           </CardContent>
@@ -443,11 +457,11 @@ export function CashFlowForecastView() {
             <div className="flex items-center justify-between">
               <CardTitle className="text-sm font-semibold flex items-center gap-2">
                 <TrendingUp className="w-4 h-4 text-emerald-500" />
-                Cash Flow Forecast
+                {t('mainChart.title')}
               </CardTitle>
               <div className="flex items-center gap-2">
                 <Badge variant="outline" className="text-[9px] border-emerald-200 dark:border-emerald-800/50 text-emerald-700 dark:text-emerald-400">
-                  <Clock className="w-3 h-3 mr-1" /> Updated just now
+                  <Clock className="w-3 h-3 mr-1" /> {t('mainChart.updatedJustNow')}
                 </Badge>
               </div>
             </div>
@@ -473,7 +487,7 @@ export function CashFlowForecastView() {
                   <CartesianGrid strokeDasharray="3 3" opacity={0.3} vertical={false} />
                   <XAxis
                     dataKey="month"
-                    tickFormatter={(v: string) => formatMonth(v)}
+                    tickFormatter={(v: string) => formatMonth(v, dl)}
                     tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
                     axisLine={false}
                     tickLine={false}
@@ -484,7 +498,7 @@ export function CashFlowForecastView() {
                     tickLine={false}
                     tickFormatter={(v: number) => `€${v.toFixed(1)}M`}
                   />
-                  <Tooltip content={<ForecastTooltip />} />
+                  <Tooltip content={<ForecastTooltip t={t} dl={dl} />} />
 
                   {/* Confidence band for forecast */}
                   <Area
@@ -519,7 +533,7 @@ export function CashFlowForecastView() {
                       strokeDasharray="6 4"
                       strokeWidth={1.5}
                       label={{
-                        value: 'Forecast →',
+                        value: t('mainChart.forecastArrow'),
                         position: 'top',
                         fill: '#f59e0b',
                         fontSize: 10,
@@ -541,10 +555,10 @@ export function CashFlowForecastView() {
                     verticalAlign="bottom"
                     height={36}
                     formatter={(value: string) => {
-                      if (value === 'cumulativeCash') return 'Cumulative Cash';
-                      if (value === 'cumulativeCashHigh') return 'Confidence High';
-                      if (value === 'cumulativeCashLow') return 'Confidence Low';
-                      if (value === 'netChange') return 'Net Change';
+                      if (value === 'cumulativeCash') return t('legend.cumulativeCash');
+                      if (value === 'cumulativeCashHigh') return t('legend.confidenceHigh');
+                      if (value === 'cumulativeCashLow') return t('legend.confidenceLow');
+                      if (value === 'netChange') return t('legend.netChange');
                       return value;
                     }}
                     wrapperStyle={{ fontSize: 10 }}
@@ -565,30 +579,30 @@ export function CashFlowForecastView() {
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-semibold flex items-center gap-2">
               <Target className="w-4 h-4 text-emerald-500" />
-              Key Metrics
+              {t('keyMetrics')}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="flex items-center justify-between p-2.5 rounded-lg bg-emerald-50/50 dark:bg-emerald-950/10">
               <div className="flex items-center gap-2">
                 <Clock className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                <span className="text-xs text-muted-foreground">Cash Runway</span>
+                <span className="text-xs text-muted-foreground">{t('metrics.cashRunway')}</span>
               </div>
-              <span className="text-sm font-bold text-emerald-600 dark:text-emerald-400">{data.keyMetrics.cashRunwayMonths} months</span>
+              <span className="text-sm font-bold text-emerald-600 dark:text-emerald-400">{t('metrics.runwayMonths', { n: data.keyMetrics.cashRunwayMonths })}</span>
             </div>
             <div className="flex items-center justify-between p-2.5 rounded-lg bg-teal-50/50 dark:bg-teal-950/10">
               <div className="flex items-center gap-2">
                 <TrendingUp className="w-4 h-4 text-teal-600 dark:text-teal-400" />
-                <span className="text-xs text-muted-foreground">Breakeven Month</span>
+                <span className="text-xs text-muted-foreground">{t('metrics.breakevenMonth')}</span>
               </div>
               <span className="text-sm font-bold text-teal-600 dark:text-teal-400">
-                {data.keyMetrics.breakevenMonth ? formatMonth(data.keyMetrics.breakevenMonth) : 'N/A'}
+                {data.keyMetrics.breakevenMonth ? formatMonth(data.keyMetrics.breakevenMonth, dl) : t('metrics.na')}
               </span>
             </div>
             <div className="flex items-center justify-between p-2.5 rounded-lg bg-amber-50/50 dark:bg-amber-950/10">
               <div className="flex items-center gap-2">
                 <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400" />
-                <span className="text-xs text-muted-foreground">Min Cash Position</span>
+                <span className="text-xs text-muted-foreground">{t('metrics.minCashPosition')}</span>
               </div>
               <span className="text-sm font-bold text-amber-600 dark:text-amber-400">
                 {formatK(data.keyMetrics.minCashPosition)}
@@ -597,10 +611,10 @@ export function CashFlowForecastView() {
             <div className="flex items-center justify-between p-2.5 rounded-lg bg-slate-50/50 dark:bg-slate-800/50">
               <div className="flex items-center gap-2">
                 <TrendingDown className="w-4 h-4 text-slate-600 dark:text-slate-400" />
-                <span className="text-xs text-muted-foreground">Min Cash Month</span>
+                <span className="text-xs text-muted-foreground">{t('metrics.minCashMonth')}</span>
               </div>
               <span className="text-sm font-bold text-foreground">
-                {data.keyMetrics.minCashMonth ? formatMonth(data.keyMetrics.minCashMonth) : 'N/A'}
+                {data.keyMetrics.minCashMonth ? formatMonth(data.keyMetrics.minCashMonth, dl) : t('metrics.na')}
               </span>
             </div>
           </CardContent>
@@ -612,7 +626,7 @@ export function CashFlowForecastView() {
             <div className="flex items-center justify-between">
               <CardTitle className="text-sm font-semibold flex items-center gap-2">
                 <Settings className="w-4 h-4 text-teal-500" />
-                Forecast Assumptions
+                {t('assumptions.title')}
               </CardTitle>
               <Button
                 size="sm"
@@ -621,14 +635,14 @@ export function CashFlowForecastView() {
                 disabled={recalculating}
               >
                 <RefreshCw className={`w-3 h-3 mr-1 ${recalculating ? 'animate-spin' : ''}`} />
-                {recalculating ? 'Recalculating...' : 'Recalculate'}
+                {recalculating ? t('assumptions.recalculating') : t('assumptions.recalculate')}
               </Button>
             </div>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label className="text-xs font-medium">Revenue Growth Rate (%)</Label>
+                <Label className="text-xs font-medium">{t('assumptions.revenueGrowth')}</Label>
                 <div className="flex items-center gap-2">
                   <Input
                     type="number"
@@ -637,7 +651,7 @@ export function CashFlowForecastView() {
                     onChange={(e) => setRevenueGrowth(parseFloat(e.target.value) || 0)}
                     className="h-8 text-sm"
                   />
-                  <span className="text-[10px] text-muted-foreground whitespace-nowrap">Annual %</span>
+                  <span className="text-[10px] text-muted-foreground whitespace-nowrap">{t('assumptions.annual')}</span>
                 </div>
                 <input
                   type="range"
@@ -651,7 +665,7 @@ export function CashFlowForecastView() {
               </div>
 
               <div className="space-y-2">
-                <Label className="text-xs font-medium">Capex Growth Rate (%)</Label>
+                <Label className="text-xs font-medium">{t('assumptions.capexGrowth')}</Label>
                 <div className="flex items-center gap-2">
                   <Input
                     type="number"
@@ -660,7 +674,7 @@ export function CashFlowForecastView() {
                     onChange={(e) => setCapexGrowth(parseFloat(e.target.value) || 0)}
                     className="h-8 text-sm"
                   />
-                  <span className="text-[10px] text-muted-foreground whitespace-nowrap">Annual %</span>
+                  <span className="text-[10px] text-muted-foreground whitespace-nowrap">{t('assumptions.annual')}</span>
                 </div>
                 <input
                   type="range"
@@ -674,7 +688,7 @@ export function CashFlowForecastView() {
               </div>
 
               <div className="space-y-2">
-                <Label className="text-xs font-medium">Working Capital Days</Label>
+                <Label className="text-xs font-medium">{t('assumptions.workingCapitalDays')}</Label>
                 <div className="flex items-center gap-2">
                   <Input
                     type="number"
@@ -682,12 +696,12 @@ export function CashFlowForecastView() {
                     onChange={(e) => setWorkingCapitalDays(parseInt(e.target.value) || 0)}
                     className="h-8 text-sm"
                   />
-                  <span className="text-[10px] text-muted-foreground whitespace-nowrap">Days</span>
+                  <span className="text-[10px] text-muted-foreground whitespace-nowrap">{t('assumptions.days')}</span>
                 </div>
               </div>
 
               <div className="space-y-2">
-                <Label className="text-xs font-medium">Debt Repayment Schedule</Label>
+                <Label className="text-xs font-medium">{t('assumptions.debtRepayment')}</Label>
                 <div className="flex items-center gap-2">
                   <Input
                     type="number"
@@ -696,7 +710,7 @@ export function CashFlowForecastView() {
                     onChange={(e) => setDebtRepayment(parseInt(e.target.value) || 0)}
                     className="h-8 text-sm"
                   />
-                  <span className="text-[10px] text-muted-foreground whitespace-nowrap">€K/month</span>
+                  <span className="text-[10px] text-muted-foreground whitespace-nowrap">{t('assumptions.perMonth')}</span>
                 </div>
               </div>
             </div>
@@ -716,15 +730,15 @@ export function CashFlowForecastView() {
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-semibold flex items-center gap-2">
               <BarChart3 className="w-4 h-4 text-teal-500" />
-              Scenario Comparison
+              {t('scenario.title')}
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
               {scenarioData.map((s) => (
-                <div key={s.name} className="space-y-1.5">
+                <div key={s.key} className="space-y-1.5">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-medium text-muted-foreground">{s.name}</span>
+                    <span className="text-xs font-medium text-muted-foreground">{t(`scenario.${s.key}`)}</span>
                     <span className="text-sm font-bold" style={{ color: s.color }}>
                       {formatK(s.value * 1000)}
                     </span>
@@ -743,9 +757,9 @@ export function CashFlowForecastView() {
             </div>
             <Separator className="my-4" />
             <div className="text-[10px] text-muted-foreground space-y-1">
-              <p>• Optimistic: +25% revenue, -10% costs</p>
-              <p>• Base: Current assumptions applied</p>
-              <p>• Pessimistic: -25% revenue, +10% costs</p>
+              <p>{t('scenario.optimisticDesc')}</p>
+              <p>{t('scenario.baseDesc')}</p>
+              <p>{t('scenario.pessimisticDesc')}</p>
             </div>
           </CardContent>
         </Card>
@@ -756,15 +770,15 @@ export function CashFlowForecastView() {
             <div className="flex items-center justify-between">
               <CardTitle className="text-sm font-semibold flex items-center gap-2">
                 <Wallet className="w-4 h-4 text-emerald-500" />
-                Monthly Breakdown
+                {t('monthlyBreakdown.title')}
               </CardTitle>
               <Button
                 variant="outline"
                 size="sm"
                 className="h-7 text-xs border-emerald-200 dark:border-emerald-800/50 text-emerald-700 dark:text-emerald-400"
-                onClick={() => exportCSV(data.periods)}
+                onClick={() => exportCSV(data.periods, t)}
               >
-                <Download className="w-3 h-3 mr-1" /> CSV
+                <Download className="w-3 h-3 mr-1" /> {t('monthlyBreakdown.csv')}
               </Button>
             </div>
           </CardHeader>
@@ -773,12 +787,12 @@ export function CashFlowForecastView() {
               <table className="w-full text-xs">
                 <thead className="sticky top-0 bg-white dark:bg-slate-900 z-10 border-b-2 border-emerald-200 dark:border-emerald-800/50">
                   <tr>
-                    <th className="text-left p-2.5 font-semibold text-muted-foreground">Month</th>
-                    <th className="text-right p-2.5 font-semibold text-muted-foreground">Operating CF</th>
-                    <th className="text-right p-2.5 font-semibold text-muted-foreground">Investing CF</th>
-                    <th className="text-right p-2.5 font-semibold text-muted-foreground">Financing CF</th>
-                    <th className="text-right p-2.5 font-semibold text-muted-foreground">Net Change</th>
-                    <th className="text-right p-2.5 font-semibold text-muted-foreground">Cumulative</th>
+                    <th className="text-left p-2.5 font-semibold text-muted-foreground">{t('monthlyBreakdown.headers.month')}</th>
+                    <th className="text-right p-2.5 font-semibold text-muted-foreground">{t('monthlyBreakdown.headers.operatingCF')}</th>
+                    <th className="text-right p-2.5 font-semibold text-muted-foreground">{t('monthlyBreakdown.headers.investingCF')}</th>
+                    <th className="text-right p-2.5 font-semibold text-muted-foreground">{t('monthlyBreakdown.headers.financingCF')}</th>
+                    <th className="text-right p-2.5 font-semibold text-muted-foreground">{t('monthlyBreakdown.headers.netChange')}</th>
+                    <th className="text-right p-2.5 font-semibold text-muted-foreground">{t('monthlyBreakdown.headers.cumulative')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -793,10 +807,10 @@ export function CashFlowForecastView() {
                     >
                       <td className="p-2.5 font-medium">
                         <div className="flex items-center gap-1.5">
-                          {formatMonth(p.month)}
+                          {formatMonth(p.month, dl)}
                           {p.isForecast && (
                             <Badge className="text-[7px] h-3.5 px-1 bg-amber-500/20 text-amber-700 dark:text-amber-400">
-                              FC
+                              {t('monthlyBreakdown.fc')}
                             </Badge>
                           )}
                         </div>

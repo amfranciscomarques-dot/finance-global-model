@@ -79,16 +79,17 @@ import {
   buildFinancialRatios,
 } from '@/components/entities/helpers';
 import { useToast } from '@/hooks/use-toast';
+import { useTranslations } from 'next-intl';
 import { motion, AnimatePresence } from 'framer-motion';
 
-function getMethodBadge(method: string) {
+function getMethodBadge(method: string, t: (key: string) => string) {
   switch (method) {
     case 'full':
-      return <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 hover:bg-emerald-100 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800">Full</Badge>;
+      return <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 hover:bg-emerald-100 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800">{t('method.full')}</Badge>;
     case 'proportional':
-      return <Badge className="bg-amber-100 text-amber-700 border-amber-200 hover:bg-amber-100 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-800">Proportional</Badge>;
+      return <Badge className="bg-amber-100 text-amber-700 border-amber-200 hover:bg-amber-100 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-800">{t('method.proportional')}</Badge>;
     case 'equity':
-      return <Badge className="bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-100 dark:bg-slate-800/30 dark:text-slate-400 dark:border-slate-700">Equity</Badge>;
+      return <Badge className="bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-100 dark:bg-slate-800/30 dark:text-slate-400 dark:border-slate-700">{t('method.equity')}</Badge>;
     default:
       return <Badge variant="outline">{method}</Badge>;
   }
@@ -134,6 +135,7 @@ function ComparisonTooltip({ active, payload, label }: { active?: boolean; paylo
 }
 
 export function EntitiesView() {
+  const t = useTranslations('entities');
   const [search, setSearch] = useState('');
   const [entities, setEntities] = useState<Entity[]>([]);
   const [loadError, setLoadError] = useState(false);
@@ -191,9 +193,9 @@ export function EntitiesView() {
         code: '', legalName: '', countryCode: '', localCurrency: 'EUR',
         consolidationMethod: 'full', ownershipPercentage: 100, sector: 'Technology', isActive: true,
       });
-      toast({ title: 'Entity Created', description: `${created.code} - ${created.legalName}` });
+      toast({ title: t('createdTitle'), description: `${created.code} - ${created.legalName}` });
     } catch (err) {
-      toast({ title: 'Error', description: err instanceof Error ? err.message : 'Failed to create entity', variant: 'destructive' });
+      toast({ title: t('errorTitle'), description: err instanceof Error ? err.message : t('createError'), variant: 'destructive' });
     } finally {
       setSaving(false);
     }
@@ -257,12 +259,12 @@ export function EntitiesView() {
 
   return (
     <div className="space-y-6">
-      {loadError && <DataLoadError message="Could not load entities from the server. Try refreshing." />}
+      {loadError && <DataLoadError message={t('loadError')} />}
       {/* Geographic Map Section */}
       <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
         <div className="flex items-center gap-2 mb-3">
           <Globe className="w-4 h-4 text-emerald-600" />
-          <h3 className="text-sm font-semibold">Geographic Distribution</h3>
+          <h3 className="text-sm font-semibold">{t('geoTitle')}</h3>
           <div className="flex-1 h-px bg-gradient-to-r from-emerald-200 to-transparent dark:from-emerald-800 dark:to-transparent" />
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
@@ -302,9 +304,9 @@ export function EntitiesView() {
             <div>
               <CardTitle className="flex items-center gap-2">
                 <Building2 className="w-5 h-5 text-emerald-600" />
-                Group Entities
+                {t('groupEntities')}
               </CardTitle>
-              <CardDescription>Manage subsidiaries and their consolidation parameters</CardDescription>
+              <CardDescription>{t('groupEntitiesDesc')}</CardDescription>
             </div>
             <div className="flex items-center gap-2">
               <Button
@@ -313,49 +315,49 @@ export function EntitiesView() {
                 onClick={() => exportToCSV(filteredEntities, 'entities-export.csv')}
               >
                 <Download className="w-4 h-4 mr-1" />
-                Export
+                {t('export')}
               </Button>
               <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
                 <DialogTrigger asChild>
                   <Button className="bg-emerald-600 hover:bg-emerald-700">
                     <Plus className="w-4 h-4 mr-1" />
-                    Add Entity
+                    {t('addEntity')}
                   </Button>
                 </DialogTrigger>
                 <DialogContent className="sm:max-w-md">
                   <DialogHeader>
-                    <DialogTitle>Add New Entity</DialogTitle>
-                    <DialogDescription>Register a new subsidiary in the consolidation group</DialogDescription>
+                    <DialogTitle>{t('addNewEntity')}</DialogTitle>
+                    <DialogDescription>{t('addNewEntityDesc')}</DialogDescription>
                   </DialogHeader>
                   <div className="grid gap-4 py-4">
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label htmlFor="code">Entity Code</Label>
+                        <Label htmlFor="code">{t('entityCode')}</Label>
                         <Input id="code" placeholder="e.g. IT0006" value={newEntity.code || ''}
                           onChange={(e) => setNewEntity({ ...newEntity, code: e.target.value })} />
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="country">Country</Label>
+                        <Label htmlFor="country">{t('country')}</Label>
                         <Select value={newEntity.countryCode || ''} onValueChange={(v) => setNewEntity({ ...newEntity, countryCode: v })}>
-                          <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                          <SelectTrigger><SelectValue placeholder={t('select')} /></SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="PT">Portugal</SelectItem><SelectItem value="ES">Spain</SelectItem>
-                            <SelectItem value="DE">Germany</SelectItem><SelectItem value="GB">United Kingdom</SelectItem>
-                            <SelectItem value="FR">France</SelectItem><SelectItem value="IT">Italy</SelectItem>
-                            <SelectItem value="NL">Netherlands</SelectItem><SelectItem value="US">United States</SelectItem>
-                            <SelectItem value="CH">Switzerland</SelectItem>
+                            <SelectItem value="PT">{t('countries.PT')}</SelectItem><SelectItem value="ES">{t('countries.ES')}</SelectItem>
+                            <SelectItem value="DE">{t('countries.DE')}</SelectItem><SelectItem value="GB">{t('countries.GB')}</SelectItem>
+                            <SelectItem value="FR">{t('countries.FR')}</SelectItem><SelectItem value="IT">{t('countries.IT')}</SelectItem>
+                            <SelectItem value="NL">{t('countries.NL')}</SelectItem><SelectItem value="US">{t('countries.US')}</SelectItem>
+                            <SelectItem value="CH">{t('countries.CH')}</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="legalName">Legal Name</Label>
+                      <Label htmlFor="legalName">{t('legalName')}</Label>
                       <Input id="legalName" placeholder="e.g. TechNova Italia S.r.l." value={newEntity.legalName || ''}
                         onChange={(e) => setNewEntity({ ...newEntity, legalName: e.target.value })} />
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label htmlFor="currency">Local Currency</Label>
+                        <Label htmlFor="currency">{t('localCurrency')}</Label>
                         <Select value={newEntity.localCurrency || 'EUR'} onValueChange={(v) => setNewEntity({ ...newEntity, localCurrency: v })}>
                           <SelectTrigger><SelectValue /></SelectTrigger>
                           <SelectContent>
@@ -365,40 +367,40 @@ export function EntitiesView() {
                         </Select>
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="method">Consolidation Method</Label>
+                        <Label htmlFor="method">{t('consolidationMethod')}</Label>
                         <Select value={newEntity.consolidationMethod || 'full'} onValueChange={(v) => setNewEntity({ ...newEntity, consolidationMethod: v })}>
                           <SelectTrigger><SelectValue /></SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="full">Full Consolidation</SelectItem>
-                            <SelectItem value="proportional">Proportional</SelectItem>
-                            <SelectItem value="equity">Equity Method</SelectItem>
+                            <SelectItem value="full">{t('fullConsolidation')}</SelectItem>
+                            <SelectItem value="proportional">{t('proportional')}</SelectItem>
+                            <SelectItem value="equity">{t('equityMethod')}</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label htmlFor="ownership">Ownership %</Label>
+                        <Label htmlFor="ownership">{t('ownershipPct')}</Label>
                         <Input id="ownership" type="number" min={0} max={100} value={newEntity.ownershipPercentage || 100}
                           onChange={(e) => setNewEntity({ ...newEntity, ownershipPercentage: parseFloat(e.target.value) })} />
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="sector">Sector</Label>
+                        <Label htmlFor="sector">{t('sector')}</Label>
                         <Select value={newEntity.sector || 'Technology'} onValueChange={(v) => setNewEntity({ ...newEntity, sector: v })}>
                           <SelectTrigger><SelectValue /></SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="Technology">Technology</SelectItem><SelectItem value="Consulting">Consulting</SelectItem>
-                            <SelectItem value="Services">Services</SelectItem><SelectItem value="Manufacturing">Manufacturing</SelectItem>
+                            <SelectItem value="Technology">{t('sectors.Technology')}</SelectItem><SelectItem value="Consulting">{t('sectors.Consulting')}</SelectItem>
+                            <SelectItem value="Services">{t('sectors.Services')}</SelectItem><SelectItem value="Manufacturing">{t('sectors.Manufacturing')}</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
                     </div>
                   </div>
                   <DialogFooter>
-                    <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
+                    <Button variant="outline" onClick={() => setDialogOpen(false)}>{t('cancel')}</Button>
                     <Button className="bg-emerald-600 hover:bg-emerald-700" onClick={handleAddEntity} disabled={saving}>
                       {saving ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : null}
-                      Add Entity
+                      {t('addEntity')}
                     </Button>
                   </DialogFooter>
                 </DialogContent>
@@ -407,7 +409,7 @@ export function EntitiesView() {
           </div>
           <div className="relative mt-4">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input placeholder="Search entities by code, name, country, currency..." className="pl-10"
+            <Input placeholder={t('searchPlaceholder')} className="pl-10"
               value={search} onChange={(e) => setSearch(e.target.value)} />
           </div>
         </CardHeader>
@@ -430,13 +432,13 @@ export function EntitiesView() {
               <Table className="premium-table">
                 <TableHeader>
                   <TableRow className="cursor-pointer transition-colors duration-150 sticky top-0 bg-white dark:bg-slate-900 z-10 border-b-2 border-slate-200 dark:border-slate-700">
-                    <TableHead>Code</TableHead><TableHead>Legal Name</TableHead>
-                    <TableHead>Country</TableHead><TableHead>Currency</TableHead>
-                    <TableHead>Method</TableHead><TableHead className="text-right">Ownership %</TableHead>
-                    <TableHead>Health</TableHead>
-                    <TableHead className="hidden sm:table-cell">Revenue Trend</TableHead>
-                    <TableHead>Sector</TableHead><TableHead>Status</TableHead>
-                    <TableHead className="hidden lg:table-cell">Last Updated</TableHead>
+                    <TableHead>{t('table.code')}</TableHead><TableHead>{t('table.legalName')}</TableHead>
+                    <TableHead>{t('table.country')}</TableHead><TableHead>{t('table.currency')}</TableHead>
+                    <TableHead>{t('table.method')}</TableHead><TableHead className="text-right">{t('table.ownership')}</TableHead>
+                    <TableHead>{t('table.health')}</TableHead>
+                    <TableHead className="hidden sm:table-cell">{t('table.revenueTrend')}</TableHead>
+                    <TableHead>{t('table.sector')}</TableHead><TableHead>{t('table.status')}</TableHead>
+                    <TableHead className="hidden lg:table-cell">{t('table.lastUpdated')}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -459,7 +461,7 @@ export function EntitiesView() {
                         </span>
                       </TableCell>
                       <TableCell><Badge variant="outline" className="font-mono text-xs">{entity.localCurrency}</Badge></TableCell>
-                      <TableCell>{getMethodBadge(entity.consolidationMethod)}</TableCell>
+                      <TableCell>{getMethodBadge(entity.consolidationMethod, t)}</TableCell>
                       <TableCell className="text-right font-medium">{Math.round(normalizeOwnership(entity.ownershipPercentage))}%</TableCell>
                       <TableCell>
                         <span className="flex items-center gap-1">
@@ -469,7 +471,7 @@ export function EntitiesView() {
                             'bg-emerald-500'
                           }`} style={{ boxShadow: entity.code === 'FR0005' ? '0 0 6px rgba(245,158,11,0.5)' : '0 0 6px rgba(16,185,129,0.5)' }} />
                           <span className="text-[10px] text-muted-foreground">
-                            {entity.code === 'FR0005' ? 'Amber' : entity.code === 'DE0003' ? 'Fair' : 'Strong'}
+                            {entity.code === 'FR0005' ? t('health.amber') : entity.code === 'DE0003' ? t('health.fair') : t('health.strong')}
                           </span>
                         </span>
                       </TableCell>
@@ -480,10 +482,10 @@ export function EntitiesView() {
                           <span className="text-xs text-muted-foreground">—</span>
                         )}
                       </TableCell>
-                      <TableCell><span className="text-sm text-muted-foreground">{entity.sector || '—'}</span></TableCell>
+                      <TableCell><span className="text-sm text-muted-foreground">{entity.sector ? t(`sectors.${entity.sector}`) : '—'}</span></TableCell>
                       <TableCell>
                         <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 hover:bg-emerald-100 text-xs dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800">
-                          {entity.isActive ? 'Active' : 'Inactive'}
+                          {entity.isActive ? t('active') : t('inactive')}
                         </Badge>
                       </TableCell>
                       <TableCell className="hidden lg:table-cell">
@@ -512,9 +514,9 @@ export function EntitiesView() {
               <div>
                 <CardTitle className="text-base flex items-center gap-2">
                   <GitCompare className="w-4 h-4 text-teal-600" />
-                  Entity Comparison
+                  {t('comparison.title')}
                 </CardTitle>
-                <CardDescription>Compare financial data between two entities side by side</CardDescription>
+                <CardDescription>{t('comparison.desc')}</CardDescription>
               </div>
               <Button
                 variant="outline"
@@ -523,7 +525,7 @@ export function EntitiesView() {
                 className="gap-1"
               >
                 <GitCompare className="w-3.5 h-3.5" />
-                {comparisonOpen ? 'Hide' : 'Compare Entities'}
+                {comparisonOpen ? t('comparison.hide') : t('comparison.compareEntities')}
                 {comparisonOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
               </Button>
             </div>
@@ -542,10 +544,10 @@ export function EntitiesView() {
                   {/* Entity Selector Row */}
                   <div className="flex flex-col sm:flex-row items-start sm:items-end gap-3 p-4 bg-gradient-to-r from-emerald-50/50 to-teal-50/50 dark:from-emerald-950/20 dark:to-teal-950/20 rounded-xl border border-emerald-100 dark:border-emerald-900/50">
                     <div className="flex-1 w-full sm:w-auto">
-                      <Label className="text-xs text-muted-foreground">Entity A</Label>
+                      <Label className="text-xs text-muted-foreground">{t('comparison.entityA')}</Label>
                       <Select value={compareEntityA} onValueChange={(v) => { setCompareEntityA(v); setShowComparison(false); }}>
                         <SelectTrigger className="mt-1">
-                          <SelectValue placeholder="Select entity" />
+                          <SelectValue placeholder={t('comparison.selectEntity')} />
                         </SelectTrigger>
                         <SelectContent>
                           {entities.map(e => (
@@ -560,10 +562,10 @@ export function EntitiesView() {
                       <GitCompare className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
                     </div>
                     <div className="flex-1 w-full sm:w-auto">
-                      <Label className="text-xs text-muted-foreground">Entity B</Label>
+                      <Label className="text-xs text-muted-foreground">{t('comparison.entityB')}</Label>
                       <Select value={compareEntityB} onValueChange={(v) => { setCompareEntityB(v); setShowComparison(false); }}>
                         <SelectTrigger className="mt-1">
-                          <SelectValue placeholder="Select entity" />
+                          <SelectValue placeholder={t('comparison.selectEntity')} />
                         </SelectTrigger>
                         <SelectContent>
                           {entities.map(e => (
@@ -580,7 +582,7 @@ export function EntitiesView() {
                       disabled={!canCompare}
                     >
                       <GitCompare className="w-4 h-4 mr-1.5" />
-                      Compare
+                      {t('comparison.compare')}
                     </Button>
                   </div>
 
@@ -596,7 +598,7 @@ export function EntitiesView() {
                       >
                         {/* Visual Bar Chart Comparison */}
                         <div>
-                          <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Financial Overview Comparison</h4>
+                          <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">{t('comparison.financialOverview')}</h4>
                           <Card className="shadow-sm border border-slate-200/60 dark:border-slate-700/40">
                             <CardContent className="p-4">
                               <div className="h-64">
@@ -628,16 +630,16 @@ export function EntitiesView() {
 
                         {/* Income Statement Comparison */}
                         <div>
-                          <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Income Statement Comparison (€K)</h4>
+                          <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">{t('comparison.incomeComparison')}</h4>
                           <div className="overflow-x-auto">
                             <Table className="premium-table">
                               <TableHeader>
                                 <TableRow className="cursor-pointer transition-colors duration-150 border-b-2 border-slate-200 dark:border-slate-700">
-                                  <TableHead className="w-36">Metric</TableHead>
+                                  <TableHead className="w-36">{t('comparison.metric')}</TableHead>
                                   <TableHead className="text-right">{entityA!.code}</TableHead>
                                   <TableHead className="text-right">{entityB!.code}</TableHead>
-                                  <TableHead className="text-right">Variance</TableHead>
-                                  <TableHead className="text-right">% Diff</TableHead>
+                                  <TableHead className="text-right">{t('comparison.variance')}</TableHead>
+                                  <TableHead className="text-right">{t('comparison.pctDiff')}</TableHead>
                                 </TableRow>
                               </TableHeader>
                               <TableBody>
@@ -651,7 +653,7 @@ export function EntitiesView() {
                                       transition={{ delay: index * 0.05 }}
                                       className={index % 2 === 1 ? 'bg-slate-50/50 dark:bg-slate-800/20' : ''}
                                     >
-                                      <TableCell className="font-medium text-sm">{metric.label}</TableCell>
+                                      <TableCell className="font-medium text-sm">{t(`metrics.${metric.label}`)}</TableCell>
                                       <TableCell className="text-right font-mono text-sm">{formatMetricValue(metric.entityA, metric.format)}</TableCell>
                                       <TableCell className="text-right font-mono text-sm">{formatMetricValue(metric.entityB, metric.format)}</TableCell>
                                       <TableCell className={`text-right font-mono text-sm font-semibold ${isPositive ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
@@ -673,16 +675,16 @@ export function EntitiesView() {
 
                         {/* Balance Sheet Comparison */}
                         <div>
-                          <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Balance Sheet Comparison (€K)</h4>
+                          <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">{t('comparison.balanceComparison')}</h4>
                           <div className="overflow-x-auto">
                             <Table className="premium-table">
                               <TableHeader>
                                 <TableRow className="cursor-pointer transition-colors duration-150 border-b-2 border-slate-200 dark:border-slate-700">
-                                  <TableHead className="w-36">Metric</TableHead>
+                                  <TableHead className="w-36">{t('comparison.metric')}</TableHead>
                                   <TableHead className="text-right">{entityA!.code}</TableHead>
                                   <TableHead className="text-right">{entityB!.code}</TableHead>
-                                  <TableHead className="text-right">Variance</TableHead>
-                                  <TableHead className="text-right">% Diff</TableHead>
+                                  <TableHead className="text-right">{t('comparison.variance')}</TableHead>
+                                  <TableHead className="text-right">{t('comparison.pctDiff')}</TableHead>
                                 </TableRow>
                               </TableHeader>
                               <TableBody>
@@ -696,7 +698,7 @@ export function EntitiesView() {
                                       transition={{ delay: index * 0.05 }}
                                       className={index % 2 === 1 ? 'bg-slate-50/50 dark:bg-slate-800/20' : ''}
                                     >
-                                      <TableCell className="font-medium text-sm">{metric.label}</TableCell>
+                                      <TableCell className="font-medium text-sm">{t(`metrics.${metric.label}`)}</TableCell>
                                       <TableCell className="text-right font-mono text-sm">{formatMetricValue(metric.entityA, metric.format)}</TableCell>
                                       <TableCell className="text-right font-mono text-sm">{formatMetricValue(metric.entityB, metric.format)}</TableCell>
                                       <TableCell className={`text-right font-mono text-sm font-semibold ${isPositive ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
@@ -718,7 +720,7 @@ export function EntitiesView() {
 
                         {/* Key Ratios Comparison */}
                         <div>
-                          <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Key Ratios Comparison</h4>
+                          <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">{t('comparison.keyRatios')}</h4>
                           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
                             {ratioMetrics.map((metric, index) => {
                               const diff = metric.entityA - metric.entityB;
@@ -732,14 +734,14 @@ export function EntitiesView() {
                                 >
                                   <Card className="shadow-sm hover:shadow-lg hover:shadow-emerald-500/5 transition-shadow duration-300">
                                     <CardContent className="p-3">
-                                      <p className="text-[10px] text-muted-foreground uppercase font-semibold mb-1">{metric.label}</p>
+                                      <p className="text-[10px] text-muted-foreground uppercase font-semibold mb-1">{t(`metrics.${metric.label}`)}</p>
                                       <div className="flex items-baseline gap-2 mb-1">
                                         <span className="text-sm font-bold text-emerald-700 dark:text-emerald-400">{formatMetricValue(metric.entityA, metric.format)}</span>
                                         <span className="text-xs text-muted-foreground">vs</span>
                                         <span className="text-sm font-bold text-amber-700 dark:text-amber-400">{formatMetricValue(metric.entityB, metric.format)}</span>
                                       </div>
                                       <div className={`text-xs font-medium ${isPositive ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
-                                        {isPositive ? '↑' : '↓'} {entityA!.code} {isPositive ? 'leads' : 'trails'}
+                                        {isPositive ? '↑' : '↓'} {entityA!.code} {isPositive ? t('comparison.leads') : t('comparison.trails')}
                                       </div>
                                     </CardContent>
                                   </Card>
@@ -751,38 +753,38 @@ export function EntitiesView() {
 
                         {/* Variance Summary */}
                         <div>
-                          <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Variance Analysis Summary</h4>
+                          <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">{t('comparison.varianceSummary')}</h4>
                           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
                               <Card className="bg-gradient-to-br from-emerald-50 to-white dark:from-emerald-950/20 dark:to-slate-900 border-emerald-100 dark:border-emerald-900/50">
                                 <CardContent className="p-4">
-                                  <p className="text-xs text-muted-foreground uppercase font-semibold mb-1">{entityA!.code} Leads In</p>
+                                  <p className="text-xs text-muted-foreground uppercase font-semibold mb-1">{t('comparison.leadsIn', { code: entityA!.code })}</p>
                                   <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
                                     {metricLeads.a}
                                   </p>
-                                  <p className="text-xs text-muted-foreground">out of {comparisonMetrics.length} metrics</p>
+                                  <p className="text-xs text-muted-foreground">{t('comparison.outOfMetrics', { count: comparisonMetrics.length })}</p>
                                 </CardContent>
                               </Card>
                             </motion.div>
                             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
                               <Card className="bg-gradient-to-br from-amber-50 to-white dark:from-amber-950/20 dark:to-slate-900 border-amber-100 dark:border-amber-900/50">
                                 <CardContent className="p-4">
-                                  <p className="text-xs text-muted-foreground uppercase font-semibold mb-1">{entityB!.code} Leads In</p>
+                                  <p className="text-xs text-muted-foreground uppercase font-semibold mb-1">{t('comparison.leadsIn', { code: entityB!.code })}</p>
                                   <p className="text-2xl font-bold text-amber-600 dark:text-amber-400">
                                     {metricLeads.b}
                                   </p>
-                                  <p className="text-xs text-muted-foreground">out of {comparisonMetrics.length} metrics</p>
+                                  <p className="text-xs text-muted-foreground">{t('comparison.outOfMetrics', { count: comparisonMetrics.length })}</p>
                                 </CardContent>
                               </Card>
                             </motion.div>
                             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
                               <Card className="bg-gradient-to-br from-teal-50 to-white dark:from-teal-950/20 dark:to-slate-900 border-teal-100 dark:border-teal-900/50">
                                 <CardContent className="p-4">
-                                  <p className="text-xs text-muted-foreground uppercase font-semibold mb-1">Revenue Gap</p>
+                                  <p className="text-xs text-muted-foreground uppercase font-semibold mb-1">{t('comparison.revenueGap')}</p>
                                   <p className="text-2xl font-bold text-teal-600 dark:text-teal-400">
                                     {isA && isB ? `€${(Math.abs(isA.revenue - isB.revenue) / 1000).toFixed(1)}M` : '—'}
                                   </p>
-                                  <p className="text-xs text-muted-foreground">absolute difference</p>
+                                  <p className="text-xs text-muted-foreground">{t('comparison.absoluteDifference')}</p>
                                 </CardContent>
                               </Card>
                             </motion.div>
@@ -791,19 +793,19 @@ export function EntitiesView() {
 
                         {/* Ownership Impact / Minority Interest Waterfall */}
                         <div>
-                          <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Ownership Impact — Minority Interest Waterfall</h4>
+                          <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">{t('comparison.ownershipImpact')}</h4>
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             {entityA && ownershipWaterfallA.length > 0 && (
                               <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
                                 <Card className="shadow-sm border border-slate-200/60 dark:border-slate-700/40">
                                   <CardContent className="p-4">
                                     <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
-                                      {entityA.code} — Ownership: {Math.round(normalizeOwnership(entityA.ownershipPercentage))}%
+                                      {t('comparison.ownershipLabel', { code: entityA.code, pct: Math.round(normalizeOwnership(entityA.ownershipPercentage)) })}
                                     </p>
                                     <div className="space-y-2">
                                       {ownershipWaterfallA.map((item) => (
                                         <div key={item.name} className="flex items-center gap-3">
-                                          <span className="text-xs text-muted-foreground w-28">{item.name}</span>
+                                          <span className="text-xs text-muted-foreground w-28">{t(`metrics.${item.name}`)}</span>
                                           <div className="flex-1 bg-slate-100 dark:bg-slate-800 rounded-full h-5 overflow-hidden relative">
                                             <motion.div
                                               className="h-full rounded-full"
@@ -828,12 +830,12 @@ export function EntitiesView() {
                                 <Card className="shadow-sm border border-slate-200/60 dark:border-slate-700/40">
                                   <CardContent className="p-4">
                                     <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
-                                      {entityB.code} — Ownership: {Math.round(normalizeOwnership(entityB.ownershipPercentage))}%
+                                      {t('comparison.ownershipLabel', { code: entityB.code, pct: Math.round(normalizeOwnership(entityB.ownershipPercentage)) })}
                                     </p>
                                     <div className="space-y-2">
                                       {ownershipWaterfallB.map((item) => (
                                         <div key={item.name} className="flex items-center gap-3">
-                                          <span className="text-xs text-muted-foreground w-28">{item.name}</span>
+                                          <span className="text-xs text-muted-foreground w-28">{t(`metrics.${item.name}`)}</span>
                                           <div className="flex-1 bg-slate-100 dark:bg-slate-800 rounded-full h-5 overflow-hidden relative">
                                             <motion.div
                                               className="h-full rounded-full"
@@ -886,31 +888,31 @@ export function EntitiesView() {
               {/* Tab Navigation */}
               <Tabs defaultValue="overview" className="w-full">
                 <TabsList className="w-full grid grid-cols-4 h-9">
-                  <TabsTrigger value="overview" className="text-xs">Overview</TabsTrigger>
-                  <TabsTrigger value="financials" className="text-xs">Financials</TabsTrigger>
-                  <TabsTrigger value="ratios" className="text-xs">Ratios</TabsTrigger>
-                  <TabsTrigger value="history" className="text-xs">History</TabsTrigger>
+                  <TabsTrigger value="overview" className="text-xs">{t('drawer.overview')}</TabsTrigger>
+                  <TabsTrigger value="financials" className="text-xs">{t('drawer.financials')}</TabsTrigger>
+                  <TabsTrigger value="ratios" className="text-xs">{t('drawer.ratios')}</TabsTrigger>
+                  <TabsTrigger value="history" className="text-xs">{t('drawer.history')}</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="overview" className="mt-4 space-y-4">
                   {/* Key Financials */}
                   <div>
-                    <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Key Financials (€K)</h4>
+                    <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">{t('drawer.keyFinancials')}</h4>
                     <div className="grid grid-cols-3 gap-3">
                       <div className="bg-emerald-50 dark:bg-emerald-900/20 rounded-lg p-3">
-                        <p className="text-[10px] text-muted-foreground uppercase">Revenue</p>
+                        <p className="text-[10px] text-muted-foreground uppercase">{t('metrics.Revenue')}</p>
                         <p className="text-lg font-bold text-emerald-700 dark:text-emerald-400">
                           {entityIS ? `€${(entityIS.revenue / 1000).toFixed(1)}M` : '—'}
                         </p>
                       </div>
                       <div className="bg-teal-50 dark:bg-teal-900/20 rounded-lg p-3">
-                        <p className="text-[10px] text-muted-foreground uppercase">EBITDA</p>
+                        <p className="text-[10px] text-muted-foreground uppercase">{t('metrics.EBITDA')}</p>
                         <p className="text-lg font-bold text-teal-700 dark:text-teal-400">
                           {entityIS ? `€${(entityIS.ebitda / 1000).toFixed(1)}M` : '—'}
                         </p>
                       </div>
                       <div className="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-3">
-                        <p className="text-[10px] text-muted-foreground uppercase">Net Income</p>
+                        <p className="text-[10px] text-muted-foreground uppercase">{t('metrics.Net Income')}</p>
                         <p className="text-lg font-bold text-amber-700 dark:text-amber-400">
                           {entityIS ? `€${(entityIS.netIncome / 1000).toFixed(1)}M` : '—'}
                         </p>
@@ -922,7 +924,7 @@ export function EntitiesView() {
 
                   {/* Ownership Structure Pie Chart */}
                   <div>
-                    <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Ownership Structure</h4>
+                    <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">{t('drawer.ownershipStructure')}</h4>
                     <div className="flex items-center gap-4">
                       <div className="w-32 h-32">
                         <ResponsiveContainer width="100%" height="100%">
@@ -947,11 +949,11 @@ export function EntitiesView() {
                       <div className="space-y-2">
                         <div className="flex items-center gap-2">
                           <div className="w-3 h-3 rounded-full bg-emerald-500" />
-                          <span className="text-sm">Group: {Math.round(normalizeOwnership(selectedEntity.ownershipPercentage))}%</span>
+                          <span className="text-sm">{t('drawer.group', { pct: Math.round(normalizeOwnership(selectedEntity.ownershipPercentage)) })}</span>
                         </div>
                         <div className="flex items-center gap-2">
                           <div className="w-3 h-3 rounded-full bg-amber-500" />
-                          <span className="text-sm">Minority: {100 - Math.round(normalizeOwnership(selectedEntity.ownershipPercentage))}%</span>
+                          <span className="text-sm">{t('drawer.minority', { pct: 100 - Math.round(normalizeOwnership(selectedEntity.ownershipPercentage)) })}</span>
                         </div>
                       </div>
                     </div>
@@ -961,24 +963,24 @@ export function EntitiesView() {
 
                   {/* Currency & Consolidation Info */}
                   <div>
-                    <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Consolidation Details</h4>
+                    <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">{t('drawer.consolidationDetails')}</h4>
                     <div className="space-y-3">
                       <div className="flex justify-between items-center">
-                        <span className="text-sm text-muted-foreground">Local Currency</span>
+                        <span className="text-sm text-muted-foreground">{t('drawer.localCurrency')}</span>
                         <Badge variant="outline" className="font-mono">{selectedEntity.localCurrency}</Badge>
                       </div>
                       <div className="flex justify-between items-center">
-                        <span className="text-sm text-muted-foreground">Consolidation Method</span>
-                        {getMethodBadge(selectedEntity.consolidationMethod)}
+                        <span className="text-sm text-muted-foreground">{t('drawer.consolidationMethod')}</span>
+                        {getMethodBadge(selectedEntity.consolidationMethod, t)}
                       </div>
                       <div className="flex justify-between items-center">
-                        <span className="text-sm text-muted-foreground">Sector</span>
-                        <span className="text-sm font-medium">{selectedEntity.sector || '—'}</span>
+                        <span className="text-sm text-muted-foreground">{t('drawer.sector')}</span>
+                        <span className="text-sm font-medium">{selectedEntity.sector ? t(`sectors.${selectedEntity.sector}`) : '—'}</span>
                       </div>
                       <div className="flex justify-between items-center">
-                        <span className="text-sm text-muted-foreground">Status</span>
+                        <span className="text-sm text-muted-foreground">{t('drawer.status')}</span>
                         <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800">
-                          {selectedEntity.isActive ? 'Active' : 'Inactive'}
+                          {selectedEntity.isActive ? t('active') : t('inactive')}
                         </Badge>
                       </div>
                     </div>
@@ -988,7 +990,7 @@ export function EntitiesView() {
                 <TabsContent value="financials" className="mt-4 space-y-4">
                   {entityIS ? (
                     <div>
-                      <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Income Statement (€K)</h4>
+                      <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">{t('drawer.incomeStatement')}</h4>
                       <div className="space-y-2">
                         {[
                           { label: 'Revenue', value: entityIS.revenue, color: 'text-emerald-600 dark:text-emerald-400' },
@@ -999,20 +1001,20 @@ export function EntitiesView() {
                           { label: 'Net Income', value: entityIS.netIncome, color: 'text-emerald-600 dark:text-emerald-400 font-semibold' },
                         ].map((row) => (
                           <div key={row.label} className="flex justify-between text-sm py-1 border-b border-slate-100 dark:border-slate-800 last:border-0">
-                            <span className="text-muted-foreground">{row.label}</span>
+                            <span className="text-muted-foreground">{t(`metrics.${row.label}`)}</span>
                             <span className={`font-medium tabular-nums ${row.color}`}>{formatNumber(row.value)}</span>
                           </div>
                         ))}
                       </div>
                     </div>
                   ) : (
-                    <p className="text-sm text-muted-foreground">No financial data available</p>
+                    <p className="text-sm text-muted-foreground">{t('drawer.noFinancialData')}</p>
                   )}
                   {entityBS && (
                     <>
                       <Separator />
                       <div>
-                        <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Balance Sheet (€K)</h4>
+                        <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">{t('drawer.balanceSheet')}</h4>
                         <div className="space-y-2">
                           {[
                             { label: 'Total Assets', value: entityBS.totalAssets },
@@ -1021,7 +1023,7 @@ export function EntitiesView() {
                             { label: 'Total Liabilities', value: entityBS.totalLiabilities, color: 'text-amber-600' },
                           ].map((row) => (
                             <div key={row.label} className="flex justify-between text-sm py-1 border-b border-slate-100 dark:border-slate-800 last:border-0">
-                              <span className="text-muted-foreground">{row.label}</span>
+                              <span className="text-muted-foreground">{t(`metrics.${row.label}`)}</span>
                               <span className={`font-medium tabular-nums ${row.color || ''}`}>{formatNumber(row.value)}</span>
                             </div>
                           ))}
@@ -1034,31 +1036,31 @@ export function EntitiesView() {
                 <TabsContent value="ratios" className="mt-4 space-y-4">
                   {financialRatios.length > 0 ? (
                     <div>
-                      <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Key Financial Ratios</h4>
+                      <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">{t('drawer.keyRatios')}</h4>
                       <div className="grid grid-cols-2 gap-3">
                         {financialRatios.map((ratio) => (
                           <div key={ratio.label} className="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-3 border border-slate-100 dark:border-slate-700/50">
-                            <p className="text-[10px] text-muted-foreground uppercase">{ratio.label}</p>
+                            <p className="text-[10px] text-muted-foreground uppercase">{t(`metrics.${ratio.label}`)}</p>
                             <p className={`text-lg font-bold ${ratio.color}`}>{ratio.value}</p>
                           </div>
                         ))}
                       </div>
                     </div>
                   ) : (
-                    <p className="text-sm text-muted-foreground">No ratio data available</p>
+                    <p className="text-sm text-muted-foreground">{t('drawer.noRatioData')}</p>
                   )}
                 </TabsContent>
 
                 <TabsContent value="history" className="mt-4 space-y-4">
                   <div>
-                    <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Entity Timeline</h4>
+                    <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">{t('drawer.entityTimeline')}</h4>
                     <div className="space-y-3">
                       {[
-                        { date: 'Dec 2024', event: 'Trial balance imported', icon: '📥' },
-                        { date: 'Nov 2024', event: 'Consolidation run completed', icon: '✅' },
-                        { date: 'Oct 2024', event: 'FX rate updated', icon: '💱' },
-                        { date: 'Sep 2024', event: 'Budget entry saved', icon: '📊' },
-                        { date: 'Aug 2024', event: 'COA mapping updated', icon: '📋' },
+                        { date: 'Dec 2024', event: t('timeline.trialBalanceImported'), icon: '📥' },
+                        { date: 'Nov 2024', event: t('timeline.consolidationCompleted'), icon: '✅' },
+                        { date: 'Oct 2024', event: t('timeline.fxUpdated'), icon: '💱' },
+                        { date: 'Sep 2024', event: t('timeline.budgetSaved'), icon: '📊' },
+                        { date: 'Aug 2024', event: t('timeline.coaUpdated'), icon: '📋' },
                       ].map((item, i) => (
                         <div key={i} className="flex items-start gap-3">
                           <span className="text-sm">{item.icon}</span>

@@ -82,6 +82,19 @@ describe('buildComparisonMetrics', () => {
     const roe = metrics.find(m => m.label === 'ROE')!;
     expect(roe.entityA).toBeCloseTo(50); // 2500/5000 * 100
   });
+
+  it('keeps ratio metrics finite when an entity is empty (zero revenue/equity/assets)', () => {
+    // An entity created empty (no statements yet, e.g. the pack's España/USA) has
+    // all-zero figures; the ratio divisions must yield 0, never NaN/Infinity.
+    const zeroIS = { ...IS, revenue: 0, ebitda: 0, netIncome: 0 } as IncomeStatement;
+    const zeroBS = { ...BS, totalEquity: 0, totalAssets: 0, currentLiabilities: 0, totalLiabilities: 0 } as BalanceSheet;
+    const metrics = buildComparisonMetrics(zeroIS, zeroBS, IS_B, BS_B);
+    for (const label of ['ROE', 'ROA', 'EBITDA Margin', 'Current Ratio', 'Debt/Equity']) {
+      const m = metrics.find(x => x.label === label)!;
+      expect(Number.isFinite(m.entityA)).toBe(true);
+      expect(m.entityA).toBe(0);
+    }
+  });
 });
 
 describe('formatMetricValue', () => {
@@ -160,5 +173,16 @@ describe('buildFinancialRatios', () => {
     expect(ratios.find(r => r.label === 'ROE')!.value).toBe('50.0%'); // 2500/5000
     expect(ratios.find(r => r.label === 'Current Ratio')!.value).toBe('2.50x'); // 2500/1000
     expect(ratios.find(r => r.label === 'Debt/Equity')!.value).toBe('0.60x'); // 3000/5000
+  });
+
+  it('renders 0, not NaN/Infinity, for an empty entity with zero denominators', () => {
+    const zeroIS = { ...IS, revenue: 0, ebitda: 0, netIncome: 0 } as IncomeStatement;
+    const zeroBS = { ...BS, totalEquity: 0, totalAssets: 0, currentLiabilities: 0, totalLiabilities: 0 } as BalanceSheet;
+    const ratios = buildFinancialRatios(zeroIS, zeroBS);
+    expect(ratios.find(r => r.label === 'ROE')!.value).toBe('0.0%');
+    expect(ratios.find(r => r.label === 'ROA')!.value).toBe('0.0%');
+    expect(ratios.find(r => r.label === 'Current Ratio')!.value).toBe('0.00x');
+    expect(ratios.find(r => r.label === 'Debt/Equity')!.value).toBe('0.00x');
+    for (const r of ratios) expect(r.value).not.toMatch(/NaN|Infinity/);
   });
 });

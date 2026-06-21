@@ -6,6 +6,14 @@ import type { Entity, IncomeStatement, BalanceSheet } from '@/lib/types';
 
 export const PIE_COLORS = ['#10b981', '#f59e0b', '#64748b'];
 
+// Ratio divide that returns 0 (not NaN/Infinity) when the denominator is 0 —
+// mirrors the finance engine's `x !== 0 ? a / x : 0` convention so an entity
+// with no statements yet (e.g. an entity created empty, with zero revenue/
+// equity/assets) renders 0.0%, not "NaN%"/"Infinityx".
+function safeDiv(numerator: number, denominator: number): number {
+  return denominator !== 0 ? numerator / denominator : 0;
+}
+
 export const countryFlags: Record<string, string> = {
   PT: '🇵🇹', ES: '🇪🇸', DE: '🇩🇪', GB: '🇬🇧', FR: '🇫🇷',
   IT: '🇮🇹', NL: '🇳🇱', US: '🇺🇸', CH: '🇨🇭', JP: '🇯🇵',
@@ -84,11 +92,11 @@ export function buildComparisonMetrics(isA: IncomeStatement, bsA: BalanceSheet, 
     { label: 'Total Liabilities', entityA: bsA.totalLiabilities, entityB: bsB.totalLiabilities, format: 'currency', higherIsBetter: false },
     { label: 'Total Equity', entityA: bsA.totalEquity, entityB: bsB.totalEquity, format: 'currency', higherIsBetter: true },
     // Key Ratios
-    { label: 'ROE', entityA: (isA.netIncome / bsA.totalEquity) * 100, entityB: (isB.netIncome / bsB.totalEquity) * 100, format: 'percent', higherIsBetter: true },
-    { label: 'ROA', entityA: (isA.netIncome / bsA.totalAssets) * 100, entityB: (isB.netIncome / bsB.totalAssets) * 100, format: 'percent', higherIsBetter: true },
-    { label: 'EBITDA Margin', entityA: (isA.ebitda / isA.revenue) * 100, entityB: (isB.ebitda / isB.revenue) * 100, format: 'percent', higherIsBetter: true },
-    { label: 'Current Ratio', entityA: bsA.currentAssets / bsA.currentLiabilities, entityB: bsB.currentAssets / bsB.currentLiabilities, format: 'ratio', higherIsBetter: true },
-    { label: 'Debt/Equity', entityA: bsA.totalLiabilities / bsA.totalEquity, entityB: bsB.totalLiabilities / bsB.totalEquity, format: 'ratio', higherIsBetter: false },
+    { label: 'ROE', entityA: safeDiv(isA.netIncome, bsA.totalEquity) * 100, entityB: safeDiv(isB.netIncome, bsB.totalEquity) * 100, format: 'percent', higherIsBetter: true },
+    { label: 'ROA', entityA: safeDiv(isA.netIncome, bsA.totalAssets) * 100, entityB: safeDiv(isB.netIncome, bsB.totalAssets) * 100, format: 'percent', higherIsBetter: true },
+    { label: 'EBITDA Margin', entityA: safeDiv(isA.ebitda, isA.revenue) * 100, entityB: safeDiv(isB.ebitda, isB.revenue) * 100, format: 'percent', higherIsBetter: true },
+    { label: 'Current Ratio', entityA: safeDiv(bsA.currentAssets, bsA.currentLiabilities), entityB: safeDiv(bsB.currentAssets, bsB.currentLiabilities), format: 'ratio', higherIsBetter: true },
+    { label: 'Debt/Equity', entityA: safeDiv(bsA.totalLiabilities, bsA.totalEquity), entityB: safeDiv(bsB.totalLiabilities, bsB.totalEquity), format: 'ratio', higherIsBetter: false },
   ];
 }
 
@@ -169,9 +177,9 @@ export function buildOwnershipData(entity: Entity): Array<{ name: string; value:
 // The four headline ratios shown in the entity detail drawer.
 export function buildFinancialRatios(is: IncomeStatement, bs: BalanceSheet): Array<{ label: string; value: string; color: string }> {
   return [
-    { label: 'ROE', value: ((is.netIncome / bs.totalEquity) * 100).toFixed(1) + '%', color: 'text-emerald-600 dark:text-emerald-400' },
-    { label: 'ROA', value: ((is.netIncome / bs.totalAssets) * 100).toFixed(1) + '%', color: 'text-teal-600 dark:text-teal-400' },
-    { label: 'Current Ratio', value: (bs.currentAssets / bs.currentLiabilities).toFixed(2) + 'x', color: 'text-emerald-600 dark:text-emerald-400' },
-    { label: 'Debt/Equity', value: (bs.totalLiabilities / bs.totalEquity).toFixed(2) + 'x', color: 'text-amber-600 dark:text-amber-400' },
+    { label: 'ROE', value: (safeDiv(is.netIncome, bs.totalEquity) * 100).toFixed(1) + '%', color: 'text-emerald-600 dark:text-emerald-400' },
+    { label: 'ROA', value: (safeDiv(is.netIncome, bs.totalAssets) * 100).toFixed(1) + '%', color: 'text-teal-600 dark:text-teal-400' },
+    { label: 'Current Ratio', value: safeDiv(bs.currentAssets, bs.currentLiabilities).toFixed(2) + 'x', color: 'text-emerald-600 dark:text-emerald-400' },
+    { label: 'Debt/Equity', value: safeDiv(bs.totalLiabilities, bs.totalEquity).toFixed(2) + 'x', color: 'text-amber-600 dark:text-amber-400' },
   ];
 }

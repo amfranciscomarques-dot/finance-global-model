@@ -1,0 +1,1370 @@
+{
+  "common": {
+    "language": "Language",
+    "english": "English",
+    "portuguese": "Português",
+    "interfaceLanguage": "Interface language",
+    "interfaceLanguageHint": "Choose the language for labels and navigation. Figures and currency formatting are unaffected."
+  },
+  "scenario": {
+    "base": "Base Case",
+    "optimistic": "Optimistic",
+    "pessimistic": "Pessimistic"
+  },
+  "nav": {
+    "dashboard": { "label": "Dashboard", "desc": "Group KPIs and financial overview" },
+    "entities": { "label": "Entities", "desc": "Manage subsidiaries and parameters" },
+    "consolidation": { "label": "Consolidation", "desc": "Consolidated financial statements" },
+    "ic-transactions": { "label": "IC Transactions", "desc": "Intercompany transaction matching" },
+    "journal": { "label": "Journal Entry", "desc": "Manual journal entry editor" },
+    "scenarios": { "label": "Scenarios", "desc": "Scenario analysis and modelling" },
+    "variance": { "label": "Variance", "desc": "Budget vs actual variance" },
+    "budget": { "label": "Budget vs Actual", "desc": "Budget tracking and analysis" },
+    "trends": { "label": "Trend Analysis", "desc": "Multi-period trend analysis" },
+    "forecast": { "label": "Cash Flow Forecast", "desc": "Cash flow projections" },
+    "projects": { "label": "Projects", "desc": "Investment appraisal (NPV/IRR)" },
+    "fx-rates": { "label": "FX Rates", "desc": "Exchange rate management" },
+    "coa": { "label": "Chart of Accounts", "desc": "Group COA and mappings" },
+    "reports": { "label": "Reports", "desc": "Generate financial reports" },
+    "ai-insights": { "label": "AI Insights", "desc": "AI-powered financial analysis" },
+    "compliance": { "label": "Compliance", "desc": "Regulatory checks and compliance" },
+    "import": { "label": "Data Import", "desc": "CSV import wizard" },
+    "audit": { "label": "Audit Trail", "desc": "Activity log and audit" },
+    "workflow": { "label": "Workflow", "desc": "Consolidation workflow tracker" },
+    "settings": { "label": "Settings", "desc": "System configuration" }
+  },
+  "viewTitles": {
+    "dashboard": "Dashboard",
+    "entities": "Entity Management",
+    "consolidation": "Consolidation",
+    "scenarios": "Scenario Analysis",
+    "variance": "Variance Analysis",
+    "budget": "Budget vs Actual",
+    "trends": "Trend Analysis",
+    "forecast": "Cash Flow Forecast",
+    "projects": "Projects",
+    "fx-rates": "FX Rates",
+    "coa": "Chart of Accounts",
+    "import": "Data Import",
+    "ic-transactions": "IC Transactions",
+    "reports": "Reports",
+    "ai-insights": "AI Insights",
+    "compliance": "Compliance",
+    "journal": "Journal Entry",
+    "workflow": "Workflow",
+    "audit": "Audit Trail",
+    "settings": "Settings"
+  },
+  "header": {
+    "switchGroup": "Switch group",
+    "dataAsOf": "Data as of {date}",
+    "allSystemsOperational": "All systems operational"
+  },
+  "footer": {
+    "tagline": "Multi-Company Financial Consolidation Platform",
+    "quickSearch": "Press ⌘K for quick search",
+    "lastSync": "Last sync: {date}",
+    "database": "SQLite · {entities} Entities · 18K+ Records",
+    "entitiesShort": "{entities} Entities"
+  },
+  "sidebar": {
+    "financialGroup": "Financial Group",
+    "groupSummary": "Group Summary",
+    "entities": "Entities",
+    "revenue": "Revenue",
+    "lastRun": "Last Run",
+    "quickSearch": "Quick search...",
+    "period": "Period",
+    "scenario": "Scenario",
+    "recentlyViewed": "Recently Viewed",
+    "online": "Online",
+    "entitiesOnline": "{count} entities online",
+    "expand": "Expand sidebar",
+    "collapse": "Collapse sidebar",
+    "views": "{count} Views",
+    "new": "New"
+  },
+  "groupSelect": {
+    "eyebrow": "Multi-Entity Financial Consolidation",
+    "subtitle": "Select a group to load all its companies, or create a new one",
+    "companies": "{count, plural, one {# company} other {# companies}}",
+    "addNewGroup": "Add New Group",
+    "dialogDescription": "Creates an empty group. You'll then add its companies. This replaces the currently loaded group.",
+    "groupName": "Group Name",
+    "groupNamePlaceholder": "e.g. Acme Group",
+    "reportingPeriod": "Reporting Period",
+    "cancel": "Cancel",
+    "create": "Create Group",
+    "footer": "Multi-Company Financial Consolidation Platform",
+    "loadErrorTitle": "Error",
+    "loadErrorDesc": "Could not load groups",
+    "createdTitle": "Group Created",
+    "createdDesc": "{name} — add companies to begin."
+  },
+  "dashboard": {
+    "greetingMorning": "Good morning",
+    "greetingAfternoon": "Good afternoon",
+    "greetingEvening": "Good evening",
+    "financeTeam": "Finance Team",
+    "lastUpdated": "Last updated: {time}",
+    "runConsolidation": "Run Consolidation",
+    "exportReport": "Export Report",
+    "viewScenarios": "View Scenarios",
+    "viewDetails": "View Details",
+    "dataError": "Could not load live data from the server. Showing placeholder figures below.",
+    "noEntities": "No entities found — load a company pack to see live figures.",
+    "quickStats": {
+      "entitiesActive": "Entities Active",
+      "entitiesActiveDetail": "{n} consolidated entities across {c, plural, one {# country} other {# countries}}{list}",
+      "coaAccounts": "COA Accounts",
+      "coaAccountsDetail": "{n} group chart-of-accounts codes with entity mappings",
+      "fxRates": "FX Rates",
+      "fxRatesDetail": "{n} exchange-rate entries (ECB convention: 1 EUR = X)",
+      "currencies": "Currencies",
+      "currenciesDetail": "Reporting in EUR; group currencies: {list}"
+    },
+    "kpi": {
+      "totalRevenue": "Total Revenue",
+      "totalRevenueDesc": "Consolidated group revenue",
+      "ebitdaMargin": "EBITDA Margin",
+      "ebitdaMarginDesc": "Operating profitability",
+      "netIncome": "Net Income",
+      "netIncomeDesc": "Bottom-line earnings",
+      "totalAssets": "Total Assets",
+      "totalAssetsDesc": "Total group assets",
+      "leverage": "Net Debt / EBITDA",
+      "leverageDesc": "Leverage ratio",
+      "roce": "ROCE",
+      "roceDesc": "Return on capital employed"
+    },
+    "scorecard": {
+      "title": "Financial Health Scorecard",
+      "overallGroupHealth": "Overall Group Health",
+      "outOf100": "out of 100",
+      "strong": "Strong",
+      "moderate": "Moderate",
+      "atRisk": "At Risk",
+      "strongLegend": "Strong (≥75)",
+      "moderateLegend": "Moderate (50-74)",
+      "atRiskLegend": "At Risk (<50)"
+    },
+    "indicators": {
+      "revenueGrowth": "Revenue Growth",
+      "ebitdaMargin": "EBITDA Margin",
+      "leverageRatio": "Leverage Ratio",
+      "liquidityRatio": "Liquidity Ratio",
+      "roe": "ROE",
+      "interestCoverage": "Interest Coverage"
+    },
+    "recentRuns": {
+      "title": "Recent Consolidation Runs",
+      "viewAll": "View All →",
+      "date": "Date",
+      "status": "Status",
+      "revenue": "Revenue",
+      "netIncome": "Net Income",
+      "completed": "✓ Completed"
+    },
+    "entityHealth": {
+      "title": "Entity Health Comparison",
+      "desc": "Each entity's contribution to the overall group health score"
+    },
+    "waterfall": {
+      "title": "Revenue Waterfall",
+      "desc": "Income statement walk from Revenue to Net Income (€)"
+    },
+    "cashFlowBridge": "Cash Flow Bridge",
+    "cf": {
+      "Operating CF": "Operating CF",
+      "Investing CF": "Investing CF",
+      "Financing CF": "Financing CF",
+      "Net Change": "Net Change"
+    },
+    "recentActivity": "Recent Activity",
+    "charts": {
+      "revenueByEntity": "Revenue by Entity",
+      "revenueByEntityDesc": "Annual revenue breakdown (€)",
+      "ebitdaMarginTrend": "EBITDA Margin Trend",
+      "ebitdaMarginTrendDesc": "Monthly margin progression (%)",
+      "revenueEbitdaTrend": "Revenue & EBITDA Trend",
+      "revenueEbitdaTrendDesc": "Monthly progression (€)",
+      "entityContribution": "Entity Revenue Contribution",
+      "entityContributionDesc": "Proportional contribution to group revenue"
+    }
+  },
+  "entities": {
+    "geoTitle": "Geographic Distribution",
+    "groupEntities": "Group Entities",
+    "groupEntitiesDesc": "Manage subsidiaries and their consolidation parameters",
+    "export": "Export",
+    "addEntity": "Add Entity",
+    "addNewEntity": "Add New Entity",
+    "addNewEntityDesc": "Register a new subsidiary in the consolidation group",
+    "entityCode": "Entity Code",
+    "country": "Country",
+    "select": "Select",
+    "legalName": "Legal Name",
+    "localCurrency": "Local Currency",
+    "consolidationMethod": "Consolidation Method",
+    "fullConsolidation": "Full Consolidation",
+    "proportional": "Proportional",
+    "equityMethod": "Equity Method",
+    "ownershipPct": "Ownership %",
+    "sector": "Sector",
+    "cancel": "Cancel",
+    "searchPlaceholder": "Search entities by code, name, country, currency...",
+    "loadError": "Could not load entities from the server. Try refreshing.",
+    "createdTitle": "Entity Created",
+    "errorTitle": "Error",
+    "createError": "Failed to create entity",
+    "active": "Active",
+    "inactive": "Inactive",
+    "method": {
+      "full": "Full",
+      "proportional": "Proportional",
+      "equity": "Equity"
+    },
+    "health": {
+      "amber": "Amber",
+      "fair": "Fair",
+      "strong": "Strong"
+    },
+    "sectors": {
+      "Technology": "Technology",
+      "Consulting": "Consulting",
+      "Services": "Services",
+      "Manufacturing": "Manufacturing"
+    },
+    "table": {
+      "code": "Code",
+      "legalName": "Legal Name",
+      "country": "Country",
+      "currency": "Currency",
+      "method": "Method",
+      "ownership": "Ownership %",
+      "health": "Health",
+      "revenueTrend": "Revenue Trend",
+      "sector": "Sector",
+      "status": "Status",
+      "lastUpdated": "Last Updated"
+    },
+    "comparison": {
+      "title": "Entity Comparison",
+      "desc": "Compare financial data between two entities side by side",
+      "hide": "Hide",
+      "compareEntities": "Compare Entities",
+      "entityA": "Entity A",
+      "entityB": "Entity B",
+      "selectEntity": "Select entity",
+      "compare": "Compare",
+      "financialOverview": "Financial Overview Comparison",
+      "incomeComparison": "Income Statement Comparison (€K)",
+      "balanceComparison": "Balance Sheet Comparison (€K)",
+      "metric": "Metric",
+      "variance": "Variance",
+      "pctDiff": "% Diff",
+      "keyRatios": "Key Ratios Comparison",
+      "leads": "leads",
+      "trails": "trails",
+      "varianceSummary": "Variance Analysis Summary",
+      "leadsIn": "{code} Leads In",
+      "outOfMetrics": "out of {count} metrics",
+      "revenueGap": "Revenue Gap",
+      "absoluteDifference": "absolute difference",
+      "ownershipImpact": "Ownership Impact — Minority Interest Waterfall",
+      "ownershipLabel": "{code} — Ownership: {pct}%"
+    },
+    "drawer": {
+      "overview": "Overview",
+      "financials": "Financials",
+      "ratios": "Ratios",
+      "history": "History",
+      "keyFinancials": "Key Financials (€K)",
+      "ownershipStructure": "Ownership Structure",
+      "group": "Group: {pct}%",
+      "minority": "Minority: {pct}%",
+      "consolidationDetails": "Consolidation Details",
+      "localCurrency": "Local Currency",
+      "consolidationMethod": "Consolidation Method",
+      "sector": "Sector",
+      "status": "Status",
+      "incomeStatement": "Income Statement (€K)",
+      "noFinancialData": "No financial data available",
+      "balanceSheet": "Balance Sheet (€K)",
+      "keyRatios": "Key Financial Ratios",
+      "noRatioData": "No ratio data available",
+      "entityTimeline": "Entity Timeline"
+    },
+    "metrics": {
+      "Revenue": "Revenue",
+      "COGS": "COGS",
+      "Gross Profit": "Gross Profit",
+      "EBITDA": "EBITDA",
+      "EBIT": "EBIT",
+      "Net Income": "Net Income",
+      "Total Assets": "Total Assets",
+      "Current Assets": "Current Assets",
+      "Total Liabilities": "Total Liabilities",
+      "Total Equity": "Total Equity",
+      "ROE": "ROE",
+      "ROA": "ROA",
+      "EBITDA Margin": "EBITDA Margin",
+      "Current Ratio": "Current Ratio",
+      "Debt/Equity": "Debt/Equity",
+      "Minority Share": "Minority Share",
+      "Group Share": "Group Share"
+    },
+    "countries": {
+      "PT": "Portugal",
+      "ES": "Spain",
+      "DE": "Germany",
+      "GB": "United Kingdom",
+      "FR": "France",
+      "IT": "Italy",
+      "NL": "Netherlands",
+      "US": "United States",
+      "CH": "Switzerland",
+      "JP": "Japan"
+    },
+    "timeline": {
+      "trialBalanceImported": "Trial balance imported",
+      "consolidationCompleted": "Consolidation run completed",
+      "fxUpdated": "FX rate updated",
+      "budgetSaved": "Budget entry saved",
+      "coaUpdated": "COA mapping updated"
+    }
+  },
+  "consolidation": {
+    "statusCompleted": "Completed",
+    "statusInProgress": "In Progress",
+    "statusFailed": "Failed",
+    "lastRun": "Last run: {time}",
+    "consolidating": "Consolidating...",
+    "processingEntities": "Processing {count} entities",
+    "title": "Consolidated Financial Statements",
+    "subtitle": "Period: {period} · {scenario} · All entities consolidated",
+    "entitiesEliminations": "{count} Entities · {amount} IC Eliminations",
+    "runConsolidation": "Run Consolidation",
+    "tabs": {
+      "income": "Income Statement",
+      "balance": "Balance Sheet",
+      "cashflow": "Cash Flow"
+    },
+    "lineItem": "Line Item",
+    "icElim": "IC Elim.",
+    "icElimTooltip": "Intercompany eliminations",
+    "consolidated": "Consolidated",
+    "cards": {
+      "consolidatedRevenue": "Consolidated Revenue",
+      "entitiesConsolidated": "{count} entities consolidated",
+      "icEliminations": "IC Eliminations",
+      "icEliminationsDesc": "Intercompany revenue & receivables",
+      "minorityInterest": "Minority Interest",
+      "minorityInterestDesc": "Non-controlling interests",
+      "bsCheck": "Balance Sheet Check",
+      "balanced": "Balanced ✓",
+      "offBy": "Off by €{amount}K",
+      "bsEquation": "Assets = Liabilities + Equity",
+      "qualityScore": "Quality Score"
+    },
+    "quality": {
+      "bsBalance": "BS Balance",
+      "icMatchRate": "IC Match Rate",
+      "currencyConv": "Currency Conv.",
+      "minorityCalc": "Minority Calc."
+    },
+    "elimImpact": {
+      "title": "Elimination Impact",
+      "desc": "Before and after intercompany eliminations (€K)",
+      "before": "Before Elimination",
+      "after": "After Elimination",
+      "icRevenue": "IC Revenue",
+      "icCogs": "IC COGS"
+    },
+    "history": {
+      "title": "Consolidation History",
+      "desc": "Past consolidation runs and their key results",
+      "revenue": "Revenue: ",
+      "assets": "Assets: ",
+      "netIncome": "Net Income: ",
+      "entities": "{count} entities",
+      "na": "N/A"
+    },
+    "sections": {
+      "assets": "Assets",
+      "liabilitiesEquity": "Liabilities & Equity",
+      "operatingActivities": "Operating Activities",
+      "investingActivities": "Investing Activities",
+      "financingActivities": "Financing Activities",
+      "netChange": "Net Change"
+    },
+    "lines": {
+      "revenue": "Revenue",
+      "cogs": "Cost of Goods Sold",
+      "grossProfit": "Gross Profit",
+      "opex": "Operating Expenses",
+      "ebitda": "EBITDA",
+      "depreciation": "Depreciation & Amortization",
+      "ebit": "EBIT",
+      "interestExpense": "Interest Expense",
+      "ebt": "Earnings Before Tax",
+      "taxExpense": "Tax Expense",
+      "netIncome": "Net Income",
+      "minorityInterest": "Minority Interest",
+      "cash": "Cash & Cash Equivalents",
+      "accountsReceivable": "Accounts Receivable",
+      "inventory": "Inventory",
+      "currentAssets": "Total Current Assets",
+      "ppe": "Property, Plant & Equipment",
+      "intangibleAssets": "Intangible Assets",
+      "goodwill": "Goodwill",
+      "nonCurrentAssets": "Total Non-Current Assets",
+      "totalAssets": "TOTAL ASSETS",
+      "accountsPayable": "Accounts Payable",
+      "shortTermDebt": "Short-Term Debt",
+      "currentLiabilities": "Total Current Liabilities",
+      "longTermDebt": "Long-Term Debt",
+      "nonCurrentLiabilities": "Total Non-Current Liabilities",
+      "totalLiabilities": "TOTAL LIABILITIES",
+      "shareCapital": "Share Capital",
+      "retainedEarnings": "Retained Earnings",
+      "minorityEquity": "Minority Interest",
+      "totalEquity": "TOTAL EQUITY",
+      "changesInWorkingCapital": "Changes in Working Capital",
+      "operatingCashFlow": "Net Cash from Operations",
+      "capex": "Capital Expenditure",
+      "investingCashFlow": "Net Cash from Investing",
+      "debtIssuance": "Debt Issuance",
+      "debtRepayment": "Debt Repayment",
+      "dividendsPaid": "Dividends Paid",
+      "financingCashFlow": "Net Cash from Financing",
+      "netChangeInCash": "Net Change in Cash",
+      "beginningCash": "Beginning Cash",
+      "endingCash": "Ending Cash"
+    }
+  },
+  "settings": {
+    "preferences": "Preferences",
+    "preferencesDesc": "Personalise how the interface is presented"
+  },
+  "scenarios": {
+    "radarTitle": "Scenario Radar Comparison",
+    "radarDesc": "Multi-dimensional comparison across scenarios",
+    "editAssumptions": "Edit Assumptions — {name}",
+    "editAssumptionsDesc": "Adjust macro and growth assumptions for scenario modelling",
+    "runScenario": "Run Scenario",
+    "running": "Running Simulation...",
+    "impactTitle": "Scenario Impact Comparison",
+    "impactDesc": "Key metrics across scenarios (€K)",
+    "sensitivityTitle": "Sensitivity Analysis",
+    "sensitivityDesc": "Impact of ±1% change in each assumption on key outputs",
+    "monteCarloTitle": "Monte Carlo Distribution",
+    "monteCarloDesc": "Probability distribution of Net Income outcomes (1,000 simulations)",
+    "comparisonTitle": "Scenario Comparison Table",
+    "comparisonDesc": "Side-by-side comparison of key financial metrics",
+    "cardFields": {
+      "inflation": "Inflation",
+      "interest": "Interest",
+      "fxVol": "FX Vol.",
+      "revGrowth": "Rev. Growth"
+    },
+    "assumptions": {
+      "inflationRate": "Inflation Rate",
+      "interestRate": "Interest Rate",
+      "fxVolatility": "FX Volatility",
+      "revenueGrowthFactor": "Revenue Growth Factor",
+      "opexGrowthFactor": "OPEX Growth Factor",
+      "capexGrowthFactor": "CAPEX Growth Factor"
+    },
+    "names": {
+      "base": "Base",
+      "optimistic": "Optimistic",
+      "pessimistic": "Pessimistic"
+    },
+    "distLabels": {
+      "pessimistic": "Pessimistic",
+      "base": "Base Case",
+      "optimistic": "Optimistic"
+    },
+    "metrics": {
+      "revenue": "Revenue",
+      "ebitda": "EBITDA",
+      "netIncome": "Net Income",
+      "ebitdaMargin": "EBITDA Margin",
+      "leverage": "Leverage",
+      "roe": "ROE"
+    },
+    "sensitivityHeaders": {
+      "assumption": "Assumption",
+      "revenue": "Revenue Impact",
+      "ebitda": "EBITDA Impact",
+      "netIncome": "Net Income Impact"
+    },
+    "sensitivityRows": {
+      "inflation": "Inflation ±1%",
+      "interest": "Interest Rate ±1%",
+      "fxVol": "FX Vol. ±1%",
+      "revGrowth": "Rev. Growth ±1%",
+      "opexGrowth": "OPEX Growth ±1%"
+    },
+    "stress": "Stress",
+    "comparisonHeaders": {
+      "metric": "Metric",
+      "base": "Base Case",
+      "optimistic": "Optimistic",
+      "pessimistic": "Pessimistic",
+      "optVsBase": "Opt. vs Base",
+      "pessVsBase": "Pess. vs Base"
+    },
+    "scenarioType": {
+      "base": "base",
+      "optimistic": "optimistic",
+      "pessimistic": "pessimistic"
+    },
+    "toast": {
+      "completedTitle": "Scenario Completed",
+      "completedDesc": "{name} simulation finished",
+      "fallbackTitle": "Scenario Run",
+      "fallbackDesc": "Simulation completed with fallback data"
+    }
+  },
+  "variance": {
+    "title": "Variance Analysis",
+    "subtitle": "Actual vs Budget vs Forecast comparison",
+    "export": "Export",
+    "cards": {
+      "revenue": "Revenue Variance",
+      "ebitda": "EBITDA Variance",
+      "netIncome": "Net Income Variance",
+      "vsBudgetSuffix": "vs Budget"
+    },
+    "heatmapTitle": "Variance Heatmap",
+    "heatmapDesc": "Visual indicator of which metrics are most off-track (% vs Budget)",
+    "waterfallTitle": "Variance Waterfall — vs Budget",
+    "waterfallDesc": "Running total of favorable (green) and unfavorable (amber) variances (€K)",
+    "waterfallBar": "Variance",
+    "tableTitle": "Detailed Variance Report",
+    "tableDesc": "Full breakdown of actuals, budget, and forecast with variance analysis",
+    "loading": "Loading variance data...",
+    "headers": {
+      "metric": "Metric",
+      "actual": "Actual",
+      "budget": "Budget",
+      "forecast": "Forecast",
+      "varVsBudget": "Var vs Budget",
+      "varVsForecast": "Var vs Forecast",
+      "pctVarBudget": "% Var (Budget)",
+      "trend": "Trend"
+    }
+  },
+  "fxRates": {
+    "title": "Exchange Rate Management",
+    "subtitle": "Rates are expressed as 1 EUR = X Foreign Currency",
+    "addRate": "Add Rate",
+    "addRateTitle": "Add Exchange Rate",
+    "addRateDesc": "Enter a new exchange rate to EUR",
+    "currency": "Currency",
+    "select": "Select",
+    "rateType": "Rate Type",
+    "closing": "Closing",
+    "average": "Average",
+    "historical": "Historical",
+    "rateInput": "Rate (1 EUR = X Currency)",
+    "rateDate": "Rate Date",
+    "source": "Source",
+    "cancel": "Cancel",
+    "rateAlert": "Rate Alert",
+    "refresh": "Refresh",
+    "tabs": {
+      "closing": "Closing Rates",
+      "average": "Average Rates",
+      "historical": "Historical Rates"
+    },
+    "loading": "Loading rates...",
+    "headers": {
+      "currency": "Currency",
+      "rateDate": "Rate Date",
+      "rate": "Rate (1 EUR =)",
+      "source": "Source",
+      "inverse": "Inverse Rate",
+      "trend": "12M Trend"
+    },
+    "alertTooltip": "Rate moved >2% from average",
+    "vsOpening": "vs opening",
+    "alert": "Alert",
+    "bid": "Bid",
+    "ask": "Ask",
+    "alertSetup": "Rate Alert Setup",
+    "alertSetupDesc": "Get notified when exchange rates exceed your thresholds",
+    "currencyPair": "Currency Pair",
+    "threshold": "Threshold (%)",
+    "direction": "Direction",
+    "dirBoth": "Both ↑↓",
+    "dirUp": "Increase only ↑",
+    "dirDown": "Decrease only ↓",
+    "notificationMethod": "Notification Method",
+    "email": "Email",
+    "inApp": "In-App",
+    "both": "Both",
+    "createAlert": "Create Alert",
+    "toast": {
+      "addedTitle": "Rate Added",
+      "addedDesc": "{currency} rate added successfully",
+      "errorTitle": "Error",
+      "addError": "Failed to add rate",
+      "alertCreatedTitle": "Alert Created",
+      "alertCreatedDesc": "Rate alert has been set up"
+    }
+  },
+  "projects": {
+    "title": "Projects — Investment Appraisal",
+    "subtitle": "NPV · IRR · discounted payback per project (e.g. Automation & Logistics Hub)",
+    "refresh": "Refresh",
+    "seedDemo": "Seed demo group",
+    "loadError": "Failed to load projects",
+    "empty": "No projects yet. Seed the demo group to load the Automation & Logistics Hub.",
+    "valueAccretive": "Value-accretive",
+    "review": "Review",
+    "npv": "NPV",
+    "irr": "IRR",
+    "payback": "Payback",
+    "paybackYears": "{years} yr",
+    "capex": "CAPEX",
+    "debtLabel": "Debt @ {rate}%",
+    "equity": "Equity"
+  },
+  "audit": {
+    "title": "Audit Trail",
+    "subtitle": "Complete activity log for all system operations",
+    "exportLog": "Export Log",
+    "searchPlaceholder": "Search by description, user, or entity...",
+    "loading": "Loading audit trail...",
+    "noMatch": "No audit entries match your filters",
+    "automated": "Automated",
+    "cards": {
+      "total": "Total Events",
+      "consolidations": "Consolidations",
+      "entityChanges": "Entity Changes",
+      "imports": "Imports",
+      "fxUpdates": "FX Updates"
+    },
+    "filter": {
+      "all": "All Actions",
+      "consolidation": "Consolidation",
+      "entity": "Entity Changes",
+      "import": "Data Imports",
+      "fx": "FX Rate Updates"
+    },
+    "actionTypes": {
+      "consolidation": "Consolidation",
+      "entity": "Entity Change",
+      "import": "Data Import",
+      "fx": "FX Rate Update"
+    },
+    "csv": {
+      "timestamp": "Timestamp",
+      "actionType": "Action Type",
+      "description": "Description",
+      "user": "User",
+      "affectedEntities": "Affected Entities"
+    }
+  },
+  "coa": {
+    "title": "Chart of Accounts",
+    "subtitle": "Group COA structure and entity-level mapping configuration",
+    "cards": {
+      "total": "Total Accounts",
+      "ic": "IC Accounts",
+      "mappings": "Entity Mappings",
+      "types": "Account Types"
+    },
+    "tabs": {
+      "groupCoa": "Group COA",
+      "entityMappings": "Entity Mappings"
+    },
+    "searchAccounts": "Search accounts...",
+    "addAccount": "Add Account",
+    "createAccount": "Create Account",
+    "cancel": "Cancel",
+    "dialog": {
+      "title": "Add New COA Account",
+      "desc": "Create a new account in the group chart of accounts",
+      "code": "Account Code",
+      "name": "Account Name",
+      "accountType": "Account Type",
+      "statementType": "Statement Type",
+      "level": "Level",
+      "sortOrder": "Sort Order",
+      "intercompany": "Intercompany",
+      "no": "No",
+      "yes": "Yes"
+    },
+    "accountTypes": {
+      "revenue": "Revenue",
+      "expense": "Expense",
+      "asset": "Asset",
+      "liability": "Liability",
+      "equity": "Equity"
+    },
+    "statementTypes": {
+      "income": "Income",
+      "balance": "Balance Sheet",
+      "cashflow": "Cash Flow"
+    },
+    "statementTypesLong": {
+      "income": "Income Statement",
+      "balance": "Balance Sheet",
+      "cashflow": "Cash Flow"
+    },
+    "filters": {
+      "typeLabel": "Type:",
+      "allTypes": "All Types",
+      "statementLabel": "Statement:",
+      "allStatements": "All Statements",
+      "entityLabel": "Entity:",
+      "allEntities": "All Entities"
+    },
+    "loadingAccounts": "Loading accounts...",
+    "loadingMappings": "Loading mappings...",
+    "groupHeaders": {
+      "code": "Code",
+      "name": "Name",
+      "type": "Type",
+      "statement": "Statement",
+      "level": "Level",
+      "ic": "IC",
+      "sort": "Sort"
+    },
+    "mappingHeaders": {
+      "entity": "Entity",
+      "localCode": "Local Code",
+      "localName": "Local Account Name",
+      "localCoa": "Local COA",
+      "groupCode": "Group Code",
+      "groupName": "Group Account Name"
+    },
+    "noAccounts": "No accounts match your filters",
+    "noMappings": "No mappings match your filters",
+    "toast": {
+      "createdTitle": "Account Created",
+      "errorTitle": "Error",
+      "createError": "Failed to create account"
+    }
+  },
+  "workflow": {
+    "title": "Consolidation Workflow Tracker",
+    "subtitle": "Step-by-step wizard guiding the multi-company consolidation process",
+    "status": {
+      "complete": "Complete",
+      "inProgress": "In Progress",
+      "pending": "Pending"
+    },
+    "statusVerb": {
+      "complete": "Completed",
+      "inProgress": "In Progress",
+      "pending": "Pending"
+    },
+    "overallProgress": "Overall Progress",
+    "lastCompleted": "Last completed: {step}",
+    "noneCompleted": "No steps completed yet",
+    "percentComplete": "{pct}% complete",
+    "stepsOf": "{done} of {total} steps",
+    "estTime": "Est. Time",
+    "stepsTitle": "Consolidation Steps",
+    "stepsDesc": "Click on any step to view details and navigate to the relevant module",
+    "stepOf": "Step {idx} of {total}",
+    "currentStatus": "Current Status",
+    "metrics": "Metrics",
+    "completedOn": "Completed on {date}",
+    "navigate": "Navigate",
+    "quickActions": "Quick Actions",
+    "runFull": "Run Full Workflow",
+    "rerunFailed": "Re-run Failed Steps",
+    "stepsOverview": "Steps Overview"
+  },
+  "icTransactions": {
+    "cards": {
+      "revenue": "IC Revenue",
+      "expenses": "IC Expenses",
+      "netBalance": "Net IC Balance",
+      "uneliminated": "Uneliminated"
+    },
+    "flowTitle": "Entity Transaction Flow",
+    "matched": "Matched",
+    "collapse": "Collapse",
+    "expand": "Expand",
+    "flowDesc": "Visual representation of intercompany transaction flows",
+    "title": "IC Transactions",
+    "countForPeriod": "{count} transactions for {period}",
+    "export": "Export",
+    "runEliminations": "Run Eliminations",
+    "searchPlaceholder": "Search by ID or matching reference...",
+    "entity": "Entity",
+    "type": "Type",
+    "statusLabel": "Status",
+    "allEntities": "All Entities",
+    "allTypes": "All Types",
+    "allStatus": "All Status",
+    "types": {
+      "sale": "Sale",
+      "purchase": "Purchase",
+      "service": "Service",
+      "loan": "Loan",
+      "dividend": "Dividend"
+    },
+    "statuses": {
+      "pending": "Pending",
+      "matched": "Matched",
+      "eliminated": "Eliminated"
+    },
+    "headers": {
+      "txId": "Transaction ID",
+      "fromTo": "From → To",
+      "type": "Type",
+      "amountLocal": "Amount (Local)",
+      "amountEur": "Amount (EUR)",
+      "ccy": "CCY",
+      "period": "Period",
+      "matchRef": "Match Ref",
+      "status": "Status"
+    },
+    "noMatch": "No IC transactions match your filters",
+    "csv": {
+      "txId": "Transaction ID",
+      "from": "From Entity",
+      "to": "To Entity",
+      "type": "Type",
+      "amountLocal": "Amount (Local)",
+      "amountEur": "Amount (EUR)",
+      "currency": "Currency",
+      "period": "Period",
+      "matchRef": "Matching Ref",
+      "status": "Status"
+    }
+  },
+  "budget": {
+    "title": "Budget vs Actual Analysis",
+    "subtitle": "Compare budgeted amounts against actual performance by entity and account",
+    "export": "Export",
+    "addBudget": "Add Budget",
+    "dialog": {
+      "title": "Add Budget Entry",
+      "desc": "Create or update a budget amount for an entity and account",
+      "entity": "Entity",
+      "selectEntity": "Select entity",
+      "accountCode": "Account Code",
+      "budgetAmount": "Budget Amount (€)",
+      "cancel": "Cancel",
+      "save": "Save Budget"
+    },
+    "cards": {
+      "totalBudget": "Total Budget",
+      "totalActual": "Total Actual",
+      "totalVariance": "Total Variance",
+      "variancePct": "Variance %"
+    },
+    "trendLabels": {
+      "priorPeriod": "vs prior period",
+      "vsBudget": "vs budget",
+      "variancePct": "variance %"
+    },
+    "overviewTitle": "Entity Budget Overview",
+    "overviewDesc": "Click an entity to drill down into account-level details",
+    "searchEntities": "Search entities...",
+    "entityHeaders": {
+      "entity": "Entity",
+      "budget": "Budget",
+      "actual": "Actual",
+      "varianceEur": "Variance (€)",
+      "variancePct": "Variance (%)",
+      "status": "Status"
+    },
+    "chartTitle": "Variance Analysis by Category",
+    "chartDesc": "Budget (teal) vs Actual (emerald) with variance % overlay",
+    "budgetSeries": "Budget",
+    "actualSeries": "Actual",
+    "variancePctSeries": "Variance %",
+    "accountDetail": "{name} — Account Detail",
+    "accountDetailDesc": "Full account-level budget vs actual breakdown",
+    "csvBtn": "CSV",
+    "detailHeaders": {
+      "accountCode": "Account Code",
+      "accountName": "Account Name",
+      "category": "Category",
+      "budgetEur": "Budget (€)",
+      "actualEur": "Actual (€)",
+      "varianceEur": "Variance (€)",
+      "variancePct": "Variance %",
+      "budgetVsActual": "Budget vs Actual"
+    },
+    "favorable": "Favorable",
+    "totalBudgetLabel": "Total Budget",
+    "netVariance": "Net Variance",
+    "categories": {
+      "Revenue": "Revenue",
+      "COGS": "COGS",
+      "OPEX": "OPEX",
+      "D&A": "D&A",
+      "Interest": "Interest",
+      "Tax": "Tax"
+    },
+    "csv": {
+      "entityCode": "Entity Code",
+      "entityName": "Entity Name",
+      "accountCode": "Account Code",
+      "accountName": "Account Name",
+      "category": "Category",
+      "budget": "Budget (€)",
+      "actual": "Actual (€)",
+      "variance": "Variance (€)",
+      "variancePct": "Variance %"
+    }
+  },
+  "dataImport": {
+    "wizardTitle": "CSV Data Import Wizard",
+    "stepOf": "Step {n} of 3",
+    "steps": {
+      "upload": "Upload",
+      "map": "Map Columns",
+      "review": "Review & Import"
+    },
+    "validationErrors": "Validation Errors",
+    "requiredFieldNotMapped": "Required field \"{label}\" is not mapped",
+    "rowParseError": "Row {row}: Failed to parse values",
+    "historyLoadError": "Could not load import history from the server. Showing sample entries below.",
+    "fields": {
+      "entityCode": "Entity Code",
+      "period": "Period (YYYY-MM)",
+      "groupCOACode": "COA Code",
+      "amountLocal": "Amount (Local)",
+      "currency": "Currency",
+      "amountEUR": "Amount (EUR)",
+      "exchangeRateUsed": "Exchange Rate",
+      "isIntercompany": "Is IC (true/false)"
+    },
+    "statuses": {
+      "completed": "Completed",
+      "failed": "Failed",
+      "processing": "Processing"
+    },
+    "upload": {
+      "title": "Upload CSV File",
+      "desc": "Upload a trial balance CSV file from your ERP system",
+      "remove": "Remove",
+      "dragDrop": "Drag & drop your CSV file here",
+      "orBrowse": "or click to browse",
+      "browse": "Browse Files",
+      "preview": "File Preview (first 5 rows)",
+      "next": "Next: Map Columns"
+    },
+    "map": {
+      "title": "Map CSV Columns",
+      "desc": "Map your CSV columns to the system fields for trial balance import",
+      "selectColumn": "Select column...",
+      "notMapped": "— Not Mapped —",
+      "previewTitle": "Mapping Preview",
+      "back": "Back",
+      "next": "Next: Review"
+    },
+    "review": {
+      "title": "Review & Import",
+      "desc": "Verify the data summary before importing",
+      "cards": {
+        "records": "Records",
+        "entities": "Entities",
+        "dateRange": "Date Range",
+        "totalAmount": "Total Amount"
+      },
+      "mappingSummary": "Field Mapping Summary",
+      "notMappedShort": "Not mapped",
+      "successTitle": "Import Successful",
+      "warningsTitle": "Import Completed with {count} warnings",
+      "recordsImported": "{count} records imported successfully",
+      "back": "Back",
+      "newImport": "New Import",
+      "confirmImport": "Confirm Import"
+    },
+    "history": {
+      "title": "Import History",
+      "desc": "Previous data imports and their status",
+      "loading": "Loading history...",
+      "headers": {
+        "file": "File",
+        "records": "Records",
+        "entities": "Entities",
+        "dateRange": "Date Range",
+        "totalAmount": "Total Amount",
+        "status": "Status",
+        "date": "Date"
+      }
+    },
+    "toast": {
+      "invalidTitle": "Invalid File",
+      "invalidDesc": "Please upload a CSV file",
+      "completeTitle": "Import Complete",
+      "completeDesc": "Successfully imported records",
+      "failedTitle": "Import Failed",
+      "failedDesc": "Import failed"
+    }
+  },
+  "reports": {
+    "templatesTitle": "Report Templates",
+    "templatesSubtitle": "Generate professional financial reports for your group",
+    "period": "Period: {period}",
+    "generatedCount": "{count} Generated",
+    "downloadAll": "Download All",
+    "downloadItems": {
+      "incomeXlsx": "Income Statement (.xlsx)",
+      "incomePdf": "Income Statement (.pdf)",
+      "balanceXlsx": "Balance Sheet (.xlsx)",
+      "balancePdf": "Balance Sheet (.pdf)",
+      "cashXlsx": "Cash Flow (.xlsx)",
+      "cashPdf": "Cash Flow (.pdf)",
+      "allXlsx": "All Statements (.xlsx)",
+      "allPdf": "All Statements (.pdf)"
+    },
+    "categories": {
+      "financial": "Financial",
+      "analysis": "Analysis",
+      "compliance": "Compliance"
+    },
+    "never": "Never",
+    "generating": "Generating...",
+    "generate": "Generate",
+    "exportExcelTitle": "Export Excel",
+    "previewSubtitle": "TechNova Group · Period: {period} · Base Scenario · All Entities",
+    "asOf": "As of {date}",
+    "amountsInThousands": "Amounts in thousands (€K)",
+    "generatedOn": "Generated on {date} · ConsolidaçãoFX",
+    "pageOf": "Page 1 of 1",
+    "rowsColumns": "{rows} rows · {cols} columns",
+    "exportCSV": "Export CSV",
+    "exportExcel": "Export Excel",
+    "recentTitle": "Recent Reports",
+    "recentDesc": "Recently generated reports and exports",
+    "recentHeaders": {
+      "report": "Report",
+      "period": "Period",
+      "scenario": "Scenario",
+      "format": "Format",
+      "generated": "Generated",
+      "actions": "Actions"
+    },
+    "view": "View",
+    "loadError": "Could not load reports from the server. Try refreshing.",
+    "templates": {
+      "consolidated-income": { "title": "Consolidated Income Statement", "description": "Group-level P&L with IC eliminations and minority interest adjustments" },
+      "consolidated-balance-sheet": { "title": "Consolidated Balance Sheet", "description": "Group balance sheet with goodwill, minority interest, and IC elimination entries" },
+      "consolidated-cash-flow": { "title": "Consolidated Cash Flow Statement", "description": "Group cash flow with operating, investing, and financing activities" },
+      "variance-analysis": { "title": "Variance Analysis Report", "description": "Budget vs actual and forecast vs actual with detailed line-item breakdowns" },
+      "ic-elimination": { "title": "Intercompany Elimination Report", "description": "Detailed IC elimination journal entries with matching status and amounts" },
+      "entity-comparison": { "title": "Entity Comparison Report", "description": "Side-by-side comparison of all group entities with key financial metrics" },
+      "scenario-impact": { "title": "Scenario Impact Report", "description": "Impact analysis of optimistic, base, and pessimistic scenarios on group financials" },
+      "audit-trail": { "title": "Audit Trail Report", "description": "Complete audit log of all consolidation runs, data imports, and system changes" }
+    }
+  },
+  "aiInsights": {
+    "chatHistory": "Chat History",
+    "newChat": "New Chat",
+    "noConversations": "No conversations yet",
+    "startNew": "Start a new chat to begin",
+    "msgCount": "{count, plural, =1 {# msg} other {# msgs}}",
+    "justNow": "Just now",
+    "minutesAgo": "{m}m ago",
+    "hoursAgo": "{h}h ago",
+    "title": "AI Financial Insights",
+    "poweredBy": "Powered by ConsolidaçãoFX Analytics",
+    "welcomeSubtitle": "Ask questions about your consolidated financial data, entity performance, FX impacts, and more",
+    "placeholder": "Ask about your financial data...",
+    "context": "Context: {period} · {scenario}",
+    "pressEnter": "Press Enter to send",
+    "prompts": {
+      "revenueTrend": "What is the group's revenue trend?",
+      "compareProfit": "Compare entity profitability",
+      "icImpact": "Explain IC elimination impact",
+      "fxExposure": "Analyze FX rate exposure",
+      "budgetActual": "Budget vs actual summary",
+      "cashOutlook": "Cash flow forecast outlook"
+    }
+  },
+  "compliance": {
+    "score": "Score",
+    "statuses": {
+      "compliant": "Compliant",
+      "warning": "Warnings",
+      "nonCompliant": "Non-Compliant"
+    },
+    "lastChecked": "Last checked: {date}",
+    "recheck": "Re-check",
+    "summary": {
+      "passing": "Passing",
+      "warnings": "Warnings",
+      "failing": "Failing"
+    },
+    "ofChecks": "of {total} checks",
+    "trendTitle": "Compliance Trend",
+    "trendDesc": "Score over last 6 periods",
+    "target": "Target",
+    "regulatoryChecks": "Regulatory Checks",
+    "categories": {
+      "financial": "Financial",
+      "regulatory": "Regulatory",
+      "operational": "Operational"
+    },
+    "affectedEntities": "Affected Entities",
+    "matrixTitle": "Entity Compliance Matrix",
+    "checkEntity": "Check / Entity",
+    "overallScore": "Overall Score",
+    "na": "N/A",
+    "jurisdictionTitle": "Jurisdiction Compliance",
+    "filingStatuses": {
+      "filed": "Filed",
+      "pending": "Pending",
+      "overdue": "Overdue"
+    },
+    "filedCount": "{filed}/{total} filed",
+    "overdueCount": "{count} overdue",
+    "violationsTitle": "Recent Violations & Warnings",
+    "export": "Export",
+    "noViolations": "No violations found — all checks passing!",
+    "severities": {
+      "critical": "Critical",
+      "warning": "Warning",
+      "info": "Info"
+    },
+    "violationStatuses": {
+      "open": "Open",
+      "in_progress": "In Progress",
+      "resolved": "Resolved"
+    },
+    "csv": {
+      "severity": "Severity",
+      "entity": "Entity",
+      "description": "Description",
+      "status": "Status",
+      "detected": "Detected"
+    },
+    "checks": {
+      "bs-integrity": { "name": "Balance Sheet Integrity", "description": "Assets = Liabilities + Equity (within tolerance)" },
+      "ic-matching": { "name": "IC Transaction Matching", "description": "All IC transactions have matching pairs" },
+      "currency-translation": { "name": "Currency Translation", "description": "All non-EUR entities have valid exchange rates" },
+      "ownership-validation": { "name": "Ownership Validation", "description": "Ownership percentages between 0-100%" },
+      "tb-completeness": { "name": "Trial Balance Completeness", "description": "All entities have trial balances for the period" },
+      "coa-mapping": { "name": "COA Mapping Coverage", "description": "All entity accounts mapped to group COA" },
+      "consolidation-method": { "name": "Consolidation Method", "description": "Correct method (full/proportional/equity) per ownership %" },
+      "minority-interest": { "name": "Minority Interest Calculation", "description": "Calculated correctly for entities < 100% ownership" },
+      "disclosure-requirements": { "name": "Disclosure Requirements", "description": "Required disclosures per jurisdiction (EU, UK, DE, ES, FR, PT)" }
+    }
+  },
+  "journal": {
+    "title": "Journal Entry Editor",
+    "subtitle": "Create and manage manual journal entries with auto-balancing validation",
+    "export": "Export",
+    "cards": {
+      "totalEntries": "Total Entries",
+      "totalDebits": "Total Debits",
+      "totalCredits": "Total Credits",
+      "balanceStatus": "Balance Status"
+    },
+    "balanced": "Balanced",
+    "unbalanced": "Unbalanced",
+    "newEntry": "New Journal Entry",
+    "newEntryDesc": "Add a balanced multi-line journal entry. Total debits must equal total credits.",
+    "period": "Period",
+    "description": "Description",
+    "descriptionPlaceholder": "e.g., IC Revenue Elimination — PT → ES",
+    "formHeaders": {
+      "entity": "Entity",
+      "account": "Account",
+      "debit": "Debit (€)",
+      "credit": "Credit (€)",
+      "description": "Description"
+    },
+    "entityPlaceholder": "Entity",
+    "accountPlaceholder": "Account code",
+    "linePlaceholder": "Line description",
+    "addLine": "Add Line",
+    "debits": "Debits:",
+    "credits": "Credits:",
+    "balance": "Balance:",
+    "postEntry": "Post Entry",
+    "recentTitle": "Recent Journal Entries",
+    "recentDesc": "View and manage posted journal entries",
+    "searchEntries": "Search entries...",
+    "tableHeaders": {
+      "entryNo": "Entry #",
+      "date": "Date",
+      "description": "Description",
+      "total": "Total",
+      "lines": "Lines",
+      "status": "Status",
+      "actions": "Actions"
+    },
+    "linesCount": "{count} lines",
+    "statuses": {
+      "posted": "Posted",
+      "draft": "Draft",
+      "pending": "Pending"
+    },
+    "detail": {
+      "date": "Date",
+      "period": "Period",
+      "status": "Status",
+      "balance": "Balance",
+      "lineItems": "Line Items",
+      "entity": "Entity:",
+      "totalDebits": "Total Debits",
+      "totalCredits": "Total Credits",
+      "difference": "Difference"
+    },
+    "dr": "Dr",
+    "cr": "Cr",
+    "csv": {
+      "entryNo": "Entry #",
+      "date": "Date",
+      "description": "Description",
+      "entity": "Entity",
+      "account": "Account",
+      "debit": "Debit",
+      "credit": "Credit",
+      "status": "Status"
+    }
+  },
+  "trends": {
+    "title": "Multi-Period Trend Analysis",
+    "subtitle": "Track financial metrics across periods with QoQ/YoY changes, forecasts, and entity breakdowns",
+    "export": "Export",
+    "dateRange": "Jan 2024 — Dec 2024",
+    "metrics": {
+      "revenue": "Revenue",
+      "ebitda": "EBITDA",
+      "netIncome": "Net Income",
+      "assets": "Total Assets",
+      "leverage": "Leverage",
+      "ebitdaMargin": "EBITDA Margin"
+    },
+    "mainChartTitle": "{metric} Trend — Multi-Entity",
+    "mainChartDesc": "12-month trend with entity breakdown and consolidated total",
+    "legendConsolidated": "Consolidated",
+    "legendBudget": "Budget",
+    "legendForecast": "Forecast",
+    "consolidatedSeries": "Group Consolidated",
+    "budgetLabel": "Budget",
+    "changesTitle": "Period-over-Period Changes",
+    "changesDescQoq": "Quarter-over-Quarter change in {metric}",
+    "changesDescYoy": "Year-over-Year change in {metric}",
+    "qoq": "QoQ",
+    "yoy": "YoY",
+    "changeSeries": "Change %",
+    "comparisonTitle": "Period Comparison",
+    "comparisonDesc": "Side-by-side metric comparison between two periods",
+    "vs": "vs",
+    "comparisonHeaders": {
+      "metric": "Metric",
+      "change": "Change",
+      "changePct": "Change %"
+    },
+    "sparklinesTitle": "Entity Trend Sparklines",
+    "forecastTitle": "Trend Forecast — Linear Projection",
+    "forecastDesc": "3-period forward projection with confidence band based on historical trend",
+    "legendActual": "Actual",
+    "legendConfidence": "Confidence",
+    "forecastArrow": "Forecast →",
+    "range": "Range: {low} — {high}",
+    "insightsTitle": "Key Insights",
+    "latestQoq": "Latest QoQ",
+    "latestYoy": "Latest YoY",
+    "forecast3m": "3M Forecast",
+    "noData": "No data",
+    "by": "by {date}",
+    "csvPeriod": "Period"
+  },
+  "forecast": {
+    "tooltip": {
+      "forecast": "Forecast",
+      "cumulativeCash": "Cumulative Cash:",
+      "operatingCF": "Operating CF:",
+      "investingCF": "Investing CF:",
+      "financingCF": "Financing CF:",
+      "netChange": "Net Change:",
+      "range": "Range:"
+    },
+    "csv": {
+      "month": "Month",
+      "type": "Type",
+      "operatingCF": "Operating CF",
+      "investingCF": "Investing CF",
+      "financingCF": "Financing CF",
+      "netChange": "Net Change",
+      "cumulativeCash": "Cumulative Cash",
+      "forecastType": "Forecast",
+      "actualType": "Actual"
+    },
+    "cards": {
+      "currentCashPosition": "Current Cash Position",
+      "asOf": "As of {month}",
+      "projected6m": "6M Projected Cash",
+      "growth": "growth",
+      "decline": "decline",
+      "operatingCFForecast": "Operating CF Forecast",
+      "monthTotal": "6-month total",
+      "freeCashFlow": "Free Cash Flow Forecast",
+      "positiveFCF": "Positive FCF",
+      "negativeFCF": "Negative FCF"
+    },
+    "mainChart": {
+      "title": "Cash Flow Forecast",
+      "updatedJustNow": "Updated just now",
+      "forecastArrow": "Forecast →"
+    },
+    "legend": {
+      "cumulativeCash": "Cumulative Cash",
+      "confidenceHigh": "Confidence High",
+      "confidenceLow": "Confidence Low",
+      "netChange": "Net Change"
+    },
+    "keyMetrics": "Key Metrics",
+    "metrics": {
+      "cashRunway": "Cash Runway",
+      "runwayMonths": "{n} months",
+      "breakevenMonth": "Breakeven Month",
+      "minCashPosition": "Min Cash Position",
+      "minCashMonth": "Min Cash Month",
+      "na": "N/A"
+    },
+    "assumptions": {
+      "title": "Forecast Assumptions",
+      "recalculating": "Recalculating...",
+      "recalculate": "Recalculate",
+      "revenueGrowth": "Revenue Growth Rate (%)",
+      "capexGrowth": "Capex Growth Rate (%)",
+      "workingCapitalDays": "Working Capital Days",
+      "debtRepayment": "Debt Repayment Schedule",
+      "annual": "Annual %",
+      "days": "Days",
+      "perMonth": "€K/month"
+    },
+    "scenario": {
+      "title": "Scenario Comparison",
+      "optimistic": "Optimistic",
+      "base": "Base",
+      "pessimistic": "Pessimistic",
+      "optimisticDesc": "• Optimistic: +25% revenue, -10% costs",
+      "baseDesc": "• Base: Current assumptions applied",
+      "pessimisticDesc": "• Pessimistic: -25% revenue, +10% costs"
+    },
+    "monthlyBreakdown": {
+      "title": "Monthly Breakdown",
+      "csv": "CSV",
+      "fc": "FC",
+      "headers": {
+        "month": "Month",
+        "operatingCF": "Operating CF",
+        "investingCF": "Investing CF",
+        "financingCF": "Financing CF",
+        "netChange": "Net Change",
+        "cumulative": "Cumulative"
+      }
+    }
+  }
+}

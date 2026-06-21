@@ -25,6 +25,9 @@ import { COAAccount, COAMapping } from '@/lib/types';
 import { DataLoadError } from '@/components/data-load-error';
 import { useToast } from '@/hooks/use-toast';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useTranslations } from 'next-intl';
+
+type TFn = (key: string) => string;
 
 // Demo fallback data
 const demoCOA: COAAccount[] = [
@@ -61,31 +64,31 @@ const demoMappings: COAMapping[] = [
   { id: 'm10', entityCode: 'FR0005', localAccountCode: '5120', localAccountName: 'Banque', localCOAType: 'PCG', groupCOACode: 'AST-001', groupCOA: { code: 'AST-001', name: 'Cash & Cash Equivalents', accountType: 'asset', statementType: 'balance' } },
 ];
 
-function getTypeBadge(type: string) {
+function getTypeBadge(type: string, t: TFn) {
   switch (type) {
     case 'revenue':
-      return <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 hover:bg-emerald-100 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800 text-xs">Revenue</Badge>;
+      return <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 hover:bg-emerald-100 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800 text-xs">{t('accountTypes.revenue')}</Badge>;
     case 'expense':
-      return <Badge className="bg-amber-100 text-amber-700 border-amber-200 hover:bg-amber-100 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-800 text-xs">Expense</Badge>;
+      return <Badge className="bg-amber-100 text-amber-700 border-amber-200 hover:bg-amber-100 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-800 text-xs">{t('accountTypes.expense')}</Badge>;
     case 'asset':
-      return <Badge className="bg-teal-100 text-teal-700 border-teal-200 hover:bg-teal-100 dark:bg-teal-900/30 dark:text-teal-400 dark:border-teal-800 text-xs">Asset</Badge>;
+      return <Badge className="bg-teal-100 text-teal-700 border-teal-200 hover:bg-teal-100 dark:bg-teal-900/30 dark:text-teal-400 dark:border-teal-800 text-xs">{t('accountTypes.asset')}</Badge>;
     case 'liability':
-      return <Badge className="bg-red-100 text-red-700 border-red-200 hover:bg-red-100 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800 text-xs">Liability</Badge>;
+      return <Badge className="bg-red-100 text-red-700 border-red-200 hover:bg-red-100 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800 text-xs">{t('accountTypes.liability')}</Badge>;
     case 'equity':
-      return <Badge className="bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-100 dark:bg-slate-800/30 dark:text-slate-400 dark:border-slate-700 text-xs">Equity</Badge>;
+      return <Badge className="bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-100 dark:bg-slate-800/30 dark:text-slate-400 dark:border-slate-700 text-xs">{t('accountTypes.equity')}</Badge>;
     default:
       return <Badge variant="outline" className="text-xs">{type}</Badge>;
   }
 }
 
-function getStatementBadge(type: string) {
+function getStatementBadge(type: string, t: TFn) {
   switch (type) {
     case 'income':
-      return <Badge variant="outline" className="text-xs text-emerald-600 border-emerald-300 dark:text-emerald-400 dark:border-emerald-700">Income</Badge>;
+      return <Badge variant="outline" className="text-xs text-emerald-600 border-emerald-300 dark:text-emerald-400 dark:border-emerald-700">{t('statementTypes.income')}</Badge>;
     case 'balance':
-      return <Badge variant="outline" className="text-xs text-teal-600 border-teal-300 dark:text-teal-400 dark:border-teal-700">Balance Sheet</Badge>;
+      return <Badge variant="outline" className="text-xs text-teal-600 border-teal-300 dark:text-teal-400 dark:border-teal-700">{t('statementTypes.balance')}</Badge>;
     case 'cashflow':
-      return <Badge variant="outline" className="text-xs text-amber-600 border-amber-300 dark:text-amber-400 dark:border-amber-700">Cash Flow</Badge>;
+      return <Badge variant="outline" className="text-xs text-amber-600 border-amber-300 dark:text-amber-400 dark:border-amber-700">{t('statementTypes.cashflow')}</Badge>;
     default:
       return <Badge variant="outline" className="text-xs">{type}</Badge>;
   }
@@ -109,6 +112,7 @@ function getLocalCOABadge(type: string) {
 }
 
 export function COAView() {
+  const t = useTranslations('coa');
   const [accounts, setAccounts] = useState<COAAccount[]>([]);
   const [mappings, setMappings] = useState<COAMapping[]>([]);
   const [loading, setLoading] = useState(true);
@@ -153,9 +157,9 @@ export function COAView() {
       setAccounts([...accounts, created]);
       setDialogOpen(false);
       setNewAccount({ code: '', name: '', accountType: 'asset', statementType: 'balance', level: 1, isIntercompany: false, sortOrder: 0 });
-      toast({ title: 'Account Created', description: `${created.code} - ${created.name}` });
+      toast({ title: t('toast.createdTitle'), description: `${created.code} - ${created.name}` });
     } catch (err) {
-      toast({ title: 'Error', description: err instanceof Error ? err.message : 'Failed to create account', variant: 'destructive' });
+      toast({ title: t('toast.errorTitle'), description: err instanceof Error ? err.message : t('toast.createError'), variant: 'destructive' });
     } finally {
       setSaving(false);
     }
@@ -192,10 +196,10 @@ export function COAView() {
       {/* Summary Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {[
-          { label: 'Total Accounts', value: accounts.length, color: 'from-emerald-500/10 to-emerald-600/5', textColor: 'text-emerald-700 dark:text-emerald-400', borderColor: 'border-emerald-200 dark:border-emerald-800/50' },
-          { label: 'IC Accounts', value: icCount, color: 'from-amber-500/10 to-amber-600/5', textColor: 'text-amber-700 dark:text-amber-400', borderColor: 'border-amber-200 dark:border-amber-800/50' },
-          { label: 'Entity Mappings', value: mappings.length, color: 'from-teal-500/10 to-teal-600/5', textColor: 'text-teal-700 dark:text-teal-400', borderColor: 'border-teal-200 dark:border-teal-800/50' },
-          { label: 'Account Types', value: Object.keys(typeCounts).length, color: 'from-slate-500/10 to-slate-600/5', textColor: 'text-slate-700 dark:text-slate-400', borderColor: 'border-slate-200 dark:border-slate-700/50' },
+          { label: t('cards.total'), value: accounts.length, color: 'from-emerald-500/10 to-emerald-600/5', textColor: 'text-emerald-700 dark:text-emerald-400', borderColor: 'border-emerald-200 dark:border-emerald-800/50' },
+          { label: t('cards.ic'), value: icCount, color: 'from-amber-500/10 to-amber-600/5', textColor: 'text-amber-700 dark:text-amber-400', borderColor: 'border-amber-200 dark:border-amber-800/50' },
+          { label: t('cards.mappings'), value: mappings.length, color: 'from-teal-500/10 to-teal-600/5', textColor: 'text-teal-700 dark:text-teal-400', borderColor: 'border-teal-200 dark:border-teal-800/50' },
+          { label: t('cards.types'), value: Object.keys(typeCounts).length, color: 'from-slate-500/10 to-slate-600/5', textColor: 'text-slate-700 dark:text-slate-400', borderColor: 'border-slate-200 dark:border-slate-700/50' },
         ].map((card, i) => (
           <motion.div
             key={card.label}
@@ -218,22 +222,22 @@ export function COAView() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <BookOpen className="w-5 h-5 text-emerald-600" />
-            Chart of Accounts
+            {t('title')}
           </CardTitle>
-          <CardDescription>Group COA structure and entity-level mapping configuration</CardDescription>
+          <CardDescription>{t('subtitle')}</CardDescription>
         </CardHeader>
         <CardContent>
           <Tabs defaultValue="group-coa" className="space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <TabsList className="bg-slate-100 dark:bg-slate-800">
-                <TabsTrigger value="group-coa">Group COA</TabsTrigger>
-                <TabsTrigger value="entity-mappings">Entity Mappings</TabsTrigger>
+                <TabsTrigger value="group-coa">{t('tabs.groupCoa')}</TabsTrigger>
+                <TabsTrigger value="entity-mappings">{t('tabs.entityMappings')}</TabsTrigger>
               </TabsList>
               <div className="flex items-center gap-2">
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   <Input
-                    placeholder="Search accounts..."
+                    placeholder={t('searchAccounts')}
                     className="pl-10 w-48 h-8 text-sm"
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
@@ -243,81 +247,81 @@ export function COAView() {
                   <DialogTrigger asChild>
                     <Button className="bg-emerald-600 hover:bg-emerald-700 h-8 text-sm">
                       <Plus className="w-4 h-4 mr-1" />
-                      Add Account
+                      {t('addAccount')}
                     </Button>
                   </DialogTrigger>
                   <DialogContent className="sm:max-w-md">
                     <DialogHeader>
-                      <DialogTitle>Add New COA Account</DialogTitle>
-                      <DialogDescription>Create a new account in the group chart of accounts</DialogDescription>
+                      <DialogTitle>{t('dialog.title')}</DialogTitle>
+                      <DialogDescription>{t('dialog.desc')}</DialogDescription>
                     </DialogHeader>
                     <div className="grid gap-4 py-4">
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
-                          <Label>Account Code</Label>
+                          <Label>{t('dialog.code')}</Label>
                           <Input placeholder="e.g. REV-004" value={newAccount.code || ''}
                             onChange={(e) => setNewAccount({ ...newAccount, code: e.target.value })} />
                         </div>
                         <div className="space-y-2">
-                          <Label>Account Name</Label>
+                          <Label>{t('dialog.name')}</Label>
                           <Input placeholder="e.g. Other Revenue" value={newAccount.name || ''}
                             onChange={(e) => setNewAccount({ ...newAccount, name: e.target.value })} />
                         </div>
                       </div>
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
-                          <Label>Account Type</Label>
+                          <Label>{t('dialog.accountType')}</Label>
                           <Select value={newAccount.accountType || 'asset'} onValueChange={(v) => setNewAccount({ ...newAccount, accountType: v as COAAccount['accountType'] })}>
                             <SelectTrigger><SelectValue /></SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="revenue">Revenue</SelectItem>
-                              <SelectItem value="expense">Expense</SelectItem>
-                              <SelectItem value="asset">Asset</SelectItem>
-                              <SelectItem value="liability">Liability</SelectItem>
-                              <SelectItem value="equity">Equity</SelectItem>
+                              <SelectItem value="revenue">{t('accountTypes.revenue')}</SelectItem>
+                              <SelectItem value="expense">{t('accountTypes.expense')}</SelectItem>
+                              <SelectItem value="asset">{t('accountTypes.asset')}</SelectItem>
+                              <SelectItem value="liability">{t('accountTypes.liability')}</SelectItem>
+                              <SelectItem value="equity">{t('accountTypes.equity')}</SelectItem>
                             </SelectContent>
                           </Select>
                         </div>
                         <div className="space-y-2">
-                          <Label>Statement Type</Label>
+                          <Label>{t('dialog.statementType')}</Label>
                           <Select value={newAccount.statementType || 'balance'} onValueChange={(v) => setNewAccount({ ...newAccount, statementType: v as COAAccount['statementType'] })}>
                             <SelectTrigger><SelectValue /></SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="income">Income Statement</SelectItem>
-                              <SelectItem value="balance">Balance Sheet</SelectItem>
-                              <SelectItem value="cashflow">Cash Flow</SelectItem>
+                              <SelectItem value="income">{t('statementTypesLong.income')}</SelectItem>
+                              <SelectItem value="balance">{t('statementTypesLong.balance')}</SelectItem>
+                              <SelectItem value="cashflow">{t('statementTypesLong.cashflow')}</SelectItem>
                             </SelectContent>
                           </Select>
                         </div>
                       </div>
                       <div className="grid grid-cols-3 gap-4">
                         <div className="space-y-2">
-                          <Label>Level</Label>
+                          <Label>{t('dialog.level')}</Label>
                           <Input type="number" min={1} max={5} value={newAccount.level || 1}
                             onChange={(e) => setNewAccount({ ...newAccount, level: parseInt(e.target.value) })} />
                         </div>
                         <div className="space-y-2">
-                          <Label>Sort Order</Label>
+                          <Label>{t('dialog.sortOrder')}</Label>
                           <Input type="number" value={newAccount.sortOrder || 0}
                             onChange={(e) => setNewAccount({ ...newAccount, sortOrder: parseInt(e.target.value) })} />
                         </div>
                         <div className="space-y-2">
-                          <Label>Intercompany</Label>
+                          <Label>{t('dialog.intercompany')}</Label>
                           <Select value={newAccount.isIntercompany ? 'yes' : 'no'} onValueChange={(v) => setNewAccount({ ...newAccount, isIntercompany: v === 'yes' })}>
                             <SelectTrigger><SelectValue /></SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="no">No</SelectItem>
-                              <SelectItem value="yes">Yes</SelectItem>
+                              <SelectItem value="no">{t('dialog.no')}</SelectItem>
+                              <SelectItem value="yes">{t('dialog.yes')}</SelectItem>
                             </SelectContent>
                           </Select>
                         </div>
                       </div>
                     </div>
                     <DialogFooter>
-                      <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
+                      <Button variant="outline" onClick={() => setDialogOpen(false)}>{t('cancel')}</Button>
                       <Button className="bg-emerald-600 hover:bg-emerald-700" onClick={handleCreateAccount} disabled={saving}>
                         {saving ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : null}
-                        Create Account
+                        {t('createAccount')}
                       </Button>
                     </DialogFooter>
                   </DialogContent>
@@ -330,30 +334,30 @@ export function COAView() {
               <div className="flex flex-wrap gap-2 mb-4">
                 <div className="flex items-center gap-1.5">
                   <Filter className="w-3.5 h-3.5 text-muted-foreground" />
-                  <span className="text-xs text-muted-foreground">Type:</span>
+                  <span className="text-xs text-muted-foreground">{t('filters.typeLabel')}</span>
                 </div>
                 <Select value={filterType} onValueChange={setFilterType}>
                   <SelectTrigger className="w-32 h-7 text-xs"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">All Types</SelectItem>
-                    <SelectItem value="revenue">Revenue</SelectItem>
-                    <SelectItem value="expense">Expense</SelectItem>
-                    <SelectItem value="asset">Asset</SelectItem>
-                    <SelectItem value="liability">Liability</SelectItem>
-                    <SelectItem value="equity">Equity</SelectItem>
+                    <SelectItem value="all">{t('filters.allTypes')}</SelectItem>
+                    <SelectItem value="revenue">{t('accountTypes.revenue')}</SelectItem>
+                    <SelectItem value="expense">{t('accountTypes.expense')}</SelectItem>
+                    <SelectItem value="asset">{t('accountTypes.asset')}</SelectItem>
+                    <SelectItem value="liability">{t('accountTypes.liability')}</SelectItem>
+                    <SelectItem value="equity">{t('accountTypes.equity')}</SelectItem>
                   </SelectContent>
                 </Select>
                 <Separator orientation="vertical" className="h-7" />
                 <div className="flex items-center gap-1.5">
-                  <span className="text-xs text-muted-foreground">Statement:</span>
+                  <span className="text-xs text-muted-foreground">{t('filters.statementLabel')}</span>
                 </div>
                 <Select value={filterStatement} onValueChange={setFilterStatement}>
                   <SelectTrigger className="w-36 h-7 text-xs"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">All Statements</SelectItem>
-                    <SelectItem value="income">Income Statement</SelectItem>
-                    <SelectItem value="balance">Balance Sheet</SelectItem>
-                    <SelectItem value="cashflow">Cash Flow</SelectItem>
+                    <SelectItem value="all">{t('filters.allStatements')}</SelectItem>
+                    <SelectItem value="income">{t('statementTypesLong.income')}</SelectItem>
+                    <SelectItem value="balance">{t('statementTypesLong.balance')}</SelectItem>
+                    <SelectItem value="cashflow">{t('statementTypesLong.cashflow')}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -361,20 +365,20 @@ export function COAView() {
               {loading ? (
                 <div className="flex items-center justify-center py-12">
                   <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-                  <span className="ml-2 text-sm text-muted-foreground">Loading accounts...</span>
+                  <span className="ml-2 text-sm text-muted-foreground">{t('loadingAccounts')}</span>
                 </div>
               ) : (
                 <div className="max-h-[500px] overflow-y-auto rounded-lg border">
                   <Table className="premium-table">
                     <TableHeader>
                       <TableRow className="cursor-pointer transition-colors duration-150 bg-slate-50 dark:bg-slate-800/50">
-                        <TableHead className="w-28">Code</TableHead>
-                        <TableHead>Name</TableHead>
-                        <TableHead className="w-28">Type</TableHead>
-                        <TableHead className="w-32">Statement</TableHead>
-                        <TableHead className="w-16 text-center">Level</TableHead>
-                        <TableHead className="w-24 text-center">IC</TableHead>
-                        <TableHead className="w-20 text-right">Sort</TableHead>
+                        <TableHead className="w-28">{t('groupHeaders.code')}</TableHead>
+                        <TableHead>{t('groupHeaders.name')}</TableHead>
+                        <TableHead className="w-28">{t('groupHeaders.type')}</TableHead>
+                        <TableHead className="w-32">{t('groupHeaders.statement')}</TableHead>
+                        <TableHead className="w-16 text-center">{t('groupHeaders.level')}</TableHead>
+                        <TableHead className="w-24 text-center">{t('groupHeaders.ic')}</TableHead>
+                        <TableHead className="w-20 text-right">{t('groupHeaders.sort')}</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -392,8 +396,8 @@ export function COAView() {
                               {account.level > 1 && <span className="text-muted-foreground mr-2">{'  '.repeat(account.level - 1)}└</span>}
                               {account.name}
                             </TableCell>
-                            <TableCell>{getTypeBadge(account.accountType)}</TableCell>
-                            <TableCell>{getStatementBadge(account.statementType)}</TableCell>
+                            <TableCell>{getTypeBadge(account.accountType, t)}</TableCell>
+                            <TableCell>{getStatementBadge(account.statementType, t)}</TableCell>
                             <TableCell className="text-center text-sm text-muted-foreground">{account.level}</TableCell>
                             <TableCell className="text-center">
                               {account.isIntercompany ? (
@@ -409,7 +413,7 @@ export function COAView() {
                     </TableBody>
                   </Table>
                   {filteredAccounts.length === 0 && (
-                    <div className="text-center py-8 text-sm text-muted-foreground">No accounts match your filters</div>
+                    <div className="text-center py-8 text-sm text-muted-foreground">{t('noAccounts')}</div>
                   )}
                 </div>
               )}
@@ -420,12 +424,12 @@ export function COAView() {
               <div className="flex flex-wrap gap-2 mb-4">
                 <div className="flex items-center gap-1.5">
                   <Filter className="w-3.5 h-3.5 text-muted-foreground" />
-                  <span className="text-xs text-muted-foreground">Entity:</span>
+                  <span className="text-xs text-muted-foreground">{t('filters.entityLabel')}</span>
                 </div>
                 <Select value={mappingFilterEntity} onValueChange={setMappingFilterEntity}>
                   <SelectTrigger className="w-36 h-7 text-xs"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">All Entities</SelectItem>
+                    <SelectItem value="all">{t('filters.allEntities')}</SelectItem>
                     {entityCodes.map(code => (
                       <SelectItem key={code} value={code}>{code}</SelectItem>
                     ))}
@@ -436,20 +440,20 @@ export function COAView() {
               {loading ? (
                 <div className="flex items-center justify-center py-12">
                   <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-                  <span className="ml-2 text-sm text-muted-foreground">Loading mappings...</span>
+                  <span className="ml-2 text-sm text-muted-foreground">{t('loadingMappings')}</span>
                 </div>
               ) : (
                 <div className="max-h-[500px] overflow-y-auto rounded-lg border">
                   <Table className="premium-table">
                     <TableHeader>
                       <TableRow className="cursor-pointer transition-colors duration-150 bg-slate-50 dark:bg-slate-800/50">
-                        <TableHead className="w-28">Entity</TableHead>
-                        <TableHead className="w-24">Local Code</TableHead>
-                        <TableHead>Local Account Name</TableHead>
-                        <TableHead className="w-24">Local COA</TableHead>
+                        <TableHead className="w-28">{t('mappingHeaders.entity')}</TableHead>
+                        <TableHead className="w-24">{t('mappingHeaders.localCode')}</TableHead>
+                        <TableHead>{t('mappingHeaders.localName')}</TableHead>
+                        <TableHead className="w-24">{t('mappingHeaders.localCoa')}</TableHead>
                         <TableHead className="w-8" />
-                        <TableHead className="w-28">Group Code</TableHead>
-                        <TableHead>Group Account Name</TableHead>
+                        <TableHead className="w-28">{t('mappingHeaders.groupCode')}</TableHead>
+                        <TableHead>{t('mappingHeaders.groupName')}</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -479,7 +483,7 @@ export function COAView() {
                     </TableBody>
                   </Table>
                   {filteredMappings.length === 0 && (
-                    <div className="text-center py-8 text-sm text-muted-foreground">No mappings match your filters</div>
+                    <div className="text-center py-8 text-sm text-muted-foreground">{t('noMappings')}</div>
                   )}
                 </div>
               )}

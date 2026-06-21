@@ -24,6 +24,7 @@ import { demoFxRates } from '@/lib/demo-data';
 import { DataLoadError } from '@/components/data-load-error';
 import { useToast } from '@/hooks/use-toast';
 import { motion } from 'framer-motion';
+import { useTranslations } from 'next-intl';
 
 const currencyFlags: Record<string, string> = {
   EUR: '🇪🇺', GBP: '🇬🇧', USD: '🇺🇸', CHF: '🇨🇭', JPY: '🇯🇵',
@@ -69,6 +70,7 @@ function MiniLineChart({ data, color }: { data: number[]; color: string }) {
 }
 
 export function FxRatesView() {
+  const t = useTranslations('fxRates');
   const [activeTab, setActiveTab] = useState('closing');
   const [rates, setRates] = useState<ExchangeRateInfo[]>(demoFxRates);
   const [loading, setLoading] = useState(true);
@@ -109,9 +111,9 @@ export function FxRatesView() {
       setRates([...rates, created]);
       setDialogOpen(false);
       setNewRate({ currency: '', rateType: 'closing', rate: 0, source: 'Manual', rateDate: '2024-12-31' });
-      toast({ title: 'Rate Added', description: `${newRate.currency} rate added successfully` });
+      toast({ title: t('toast.addedTitle'), description: t('toast.addedDesc', { currency: newRate.currency ?? '' }) });
     } catch (err) {
-      toast({ title: 'Error', description: err instanceof Error ? err.message : 'Failed to add rate', variant: 'destructive' });
+      toast({ title: t('toast.errorTitle'), description: err instanceof Error ? err.message : t('toast.addError'), variant: 'destructive' });
     } finally {
       setSaving(false);
     }
@@ -129,28 +131,28 @@ export function FxRatesView() {
         <div>
           <h2 className="text-lg font-semibold flex items-center gap-2">
             <DollarSign className="w-5 h-5 text-emerald-600" />
-            Exchange Rate Management
+            {t('title')}
           </h2>
-          <p className="text-sm text-muted-foreground">Rates are expressed as 1 EUR = X Foreign Currency</p>
+          <p className="text-sm text-muted-foreground">{t('subtitle')}</p>
         </div>
         <div className="flex items-center gap-2">
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
               <Button className="bg-emerald-600 hover:bg-emerald-700 transition-colors">
-                <Plus className="w-4 h-4 mr-1" /> Add Rate
+                <Plus className="w-4 h-4 mr-1" /> {t('addRate')}
               </Button>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Add Exchange Rate</DialogTitle>
-                <DialogDescription>Enter a new exchange rate to EUR</DialogDescription>
+                <DialogTitle>{t('addRateTitle')}</DialogTitle>
+                <DialogDescription>{t('addRateDesc')}</DialogDescription>
               </DialogHeader>
               <div className="grid gap-4 py-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label>Currency</Label>
+                    <Label>{t('currency')}</Label>
                     <Select value={newRate.currency || ''} onValueChange={(v) => setNewRate({ ...newRate, currency: v })}>
-                      <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                      <SelectTrigger><SelectValue placeholder={t('select')} /></SelectTrigger>
                       <SelectContent>
                         {['EUR','GBP','USD','CHF','JPY','SEK','NOK','DKK','PLN','CZK'].map(c => (
                           <SelectItem key={c} value={c}>{c}</SelectItem>
@@ -159,30 +161,30 @@ export function FxRatesView() {
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label>Rate Type</Label>
+                    <Label>{t('rateType')}</Label>
                     <Select value={newRate.rateType || 'closing'} onValueChange={(v) => setNewRate({ ...newRate, rateType: v })}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="closing">Closing</SelectItem>
-                        <SelectItem value="average">Average</SelectItem>
-                        <SelectItem value="historical">Historical</SelectItem>
+                        <SelectItem value="closing">{t('closing')}</SelectItem>
+                        <SelectItem value="average">{t('average')}</SelectItem>
+                        <SelectItem value="historical">{t('historical')}</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <Label>Rate (1 EUR = X Currency)</Label>
+                  <Label>{t('rateInput')}</Label>
                   <Input type="number" step="0.0001" placeholder="e.g. 0.8571" value={newRate.rate || ''}
                     onChange={(e) => setNewRate({ ...newRate, rate: parseFloat(e.target.value) })} />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label>Rate Date</Label>
+                    <Label>{t('rateDate')}</Label>
                     <Input type="date" value={newRate.rateDate || '2024-12-31'}
                       onChange={(e) => setNewRate({ ...newRate, rateDate: e.target.value })} />
                   </div>
                   <div className="space-y-2">
-                    <Label>Source</Label>
+                    <Label>{t('source')}</Label>
                     <Select value={newRate.source || 'Manual'} onValueChange={(v) => setNewRate({ ...newRate, source: v })}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
@@ -195,18 +197,18 @@ export function FxRatesView() {
                 </div>
               </div>
               <DialogFooter>
-                <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
+                <Button variant="outline" onClick={() => setDialogOpen(false)}>{t('cancel')}</Button>
                 <Button className="bg-emerald-600 hover:bg-emerald-700 active:scale-95 transition-all" onClick={handleAddRate} disabled={saving}>
-                  {saving ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : null} Add Rate
+                  {saving ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : null} {t('addRate')}
                 </Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
           <Button variant="outline" className="gap-1" onClick={() => setAlertDialogOpen(true)}>
-            <Bell className="w-4 h-4" /> Rate Alert
+            <Bell className="w-4 h-4" /> {t('rateAlert')}
           </Button>
           <Button variant="outline" onClick={loadRates} className="transition-all active:scale-95">
-            <RefreshCw className="w-4 h-4 mr-1" /> Refresh
+            <RefreshCw className="w-4 h-4 mr-1" /> {t('refresh')}
           </Button>
         </div>
       </div>
@@ -217,9 +219,9 @@ export function FxRatesView() {
             <Tabs value={activeTab} onValueChange={setActiveTab}>
               <div className="px-6 pt-6">
                 <TabsList>
-                  <TabsTrigger value="closing">Closing Rates</TabsTrigger>
-                  <TabsTrigger value="average">Average Rates</TabsTrigger>
-                  <TabsTrigger value="historical">Historical Rates</TabsTrigger>
+                  <TabsTrigger value="closing">{t('tabs.closing')}</TabsTrigger>
+                  <TabsTrigger value="average">{t('tabs.average')}</TabsTrigger>
+                  <TabsTrigger value="historical">{t('tabs.historical')}</TabsTrigger>
                 </TabsList>
               </div>
 
@@ -228,19 +230,19 @@ export function FxRatesView() {
                   {loading ? (
                     <div className="flex items-center justify-center py-12">
                       <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-                      <span className="ml-2 text-sm text-muted-foreground">Loading rates...</span>
+                      <span className="ml-2 text-sm text-muted-foreground">{t('loading')}</span>
                     </div>
                   ) : (
                     <div className="max-h-[500px] overflow-y-auto">
                       <Table className="premium-table">
                         <TableHeader>
                           <TableRow className="cursor-pointer transition-colors duration-150 sticky top-0 bg-white dark:bg-slate-900 z-10 border-b-2 border-slate-200 dark:border-slate-700">
-                            <TableHead>Currency</TableHead>
-                            <TableHead>Rate Date</TableHead>
-                            <TableHead className="text-right">Rate (1 EUR =)</TableHead>
-                            <TableHead>Source</TableHead>
-                            <TableHead className="text-right">Inverse Rate</TableHead>
-                            <TableHead className="hidden sm:table-cell text-center">12M Trend</TableHead>
+                            <TableHead>{t('headers.currency')}</TableHead>
+                            <TableHead>{t('headers.rateDate')}</TableHead>
+                            <TableHead className="text-right">{t('headers.rate')}</TableHead>
+                            <TableHead>{t('headers.source')}</TableHead>
+                            <TableHead className="text-right">{t('headers.inverse')}</TableHead>
+                            <TableHead className="hidden sm:table-cell text-center">{t('headers.trend')}</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -255,7 +257,7 @@ export function FxRatesView() {
                                     <span className="font-medium">{rate.currency}</span>
                                     <span className="text-[10px] text-muted-foreground font-mono">({currencySymbols[rate.currency] || rate.currency})</span>
                                     {hasAlert && (
-                                      <span title="Rate moved >2% from average">
+                                      <span title={t('alertTooltip')}>
                                         <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
                                       </span>
                                     )}
@@ -321,11 +323,11 @@ export function FxRatesView() {
                   <div className="flex items-center justify-between mt-2">
                     <p className={`text-xs flex items-center gap-0.5 ${changeInfo?.positive ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
                       {changeInfo?.positive ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-                      {changeInfo?.change} vs opening
+                      {changeInfo?.change} {t('vsOpening')}
                     </p>
                     {hasAlert && (
                       <Badge className="bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-800 text-[9px] flex items-center gap-0.5">
-                        <AlertTriangle className="w-2.5 h-2.5" /> Alert
+                        <AlertTriangle className="w-2.5 h-2.5" /> {t('alert')}
                       </Badge>
                     )}
                   </div>
@@ -333,11 +335,11 @@ export function FxRatesView() {
                   {changeInfo && (
                     <div className="grid grid-cols-2 gap-2 mt-3 pt-2 border-t border-slate-100 dark:border-slate-800">
                       <div>
-                        <p className="text-[9px] text-muted-foreground uppercase">Bid</p>
+                        <p className="text-[9px] text-muted-foreground uppercase">{t('bid')}</p>
                         <p className="text-xs font-mono font-medium">{changeInfo.bid}</p>
                       </div>
                       <div>
-                        <p className="text-[9px] text-muted-foreground uppercase">Ask</p>
+                        <p className="text-[9px] text-muted-foreground uppercase">{t('ask')}</p>
                         <p className="text-xs font-mono font-medium">{changeInfo.ask}</p>
                       </div>
                     </div>
@@ -361,13 +363,13 @@ export function FxRatesView() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Bell className="w-5 h-5 text-amber-500" />
-              Rate Alert Setup
+              {t('alertSetup')}
             </DialogTitle>
-            <DialogDescription>Get notified when exchange rates exceed your thresholds</DialogDescription>
+            <DialogDescription>{t('alertSetupDesc')}</DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="space-y-2">
-              <Label>Currency Pair</Label>
+              <Label>{t('currencyPair')}</Label>
               <Select defaultValue="GBP">
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -379,37 +381,37 @@ export function FxRatesView() {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Threshold (%)</Label>
+                <Label>{t('threshold')}</Label>
                 <Input type="number" step="0.1" defaultValue="2.0" />
               </div>
               <div className="space-y-2">
-                <Label>Direction</Label>
+                <Label>{t('direction')}</Label>
                 <Select defaultValue="both">
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="both">Both ↑↓</SelectItem>
-                    <SelectItem value="up">Increase only ↑</SelectItem>
-                    <SelectItem value="down">Decrease only ↓</SelectItem>
+                    <SelectItem value="both">{t('dirBoth')}</SelectItem>
+                    <SelectItem value="up">{t('dirUp')}</SelectItem>
+                    <SelectItem value="down">{t('dirDown')}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </div>
             <div className="space-y-2">
-              <Label>Notification Method</Label>
+              <Label>{t('notificationMethod')}</Label>
               <Select defaultValue="email">
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="email">Email</SelectItem>
-                  <SelectItem value="inapp">In-App</SelectItem>
-                  <SelectItem value="both">Both</SelectItem>
+                  <SelectItem value="email">{t('email')}</SelectItem>
+                  <SelectItem value="inapp">{t('inApp')}</SelectItem>
+                  <SelectItem value="both">{t('both')}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setAlertDialogOpen(false)}>Cancel</Button>
-            <Button className="bg-emerald-600 hover:bg-emerald-700 active:scale-95 transition-all" onClick={() => { setAlertDialogOpen(false); toast({ title: 'Alert Created', description: 'Rate alert has been set up' }); }}>
-              Create Alert
+            <Button variant="outline" onClick={() => setAlertDialogOpen(false)}>{t('cancel')}</Button>
+            <Button className="bg-emerald-600 hover:bg-emerald-700 active:scale-95 transition-all" onClick={() => { setAlertDialogOpen(false); toast({ title: t('toast.alertCreatedTitle'), description: t('toast.alertCreatedDesc') }); }}>
+              {t('createAlert')}
             </Button>
           </DialogFooter>
         </DialogContent>

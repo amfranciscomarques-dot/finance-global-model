@@ -16,6 +16,8 @@ import { useAppStore } from '@/lib/store';
 import { formatNumber as fmt, formatCompactEUR } from '@/lib/format';
 import { Entity, IncomeStatement, BalanceSheet, CashFlowStatement, ConsolidatedResult } from '@/lib/types';
 import { AnimatedCounter } from '@/components/animated-counter';
+import { useTranslations, useLocale } from 'next-intl';
+import { dateLocale, type Locale } from '@/i18n/locale-context';
 import { motion } from 'framer-motion';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RTooltip, ResponsiveContainer, Cell, Legend,
@@ -93,7 +95,7 @@ const incomeStatementRows = [
 ];
 
 const balanceSheetRows = [
-  { section: 'Assets' },
+  { section: 'assets' },
   { key: 'cash', label: 'Cash & Cash Equivalents', indent: 1 },
   { key: 'accountsReceivable', label: 'Accounts Receivable', indent: 1 },
   { key: 'inventory', label: 'Inventory', indent: 1 },
@@ -103,7 +105,7 @@ const balanceSheetRows = [
   { key: 'goodwill', label: 'Goodwill', indent: 1 },
   { key: 'nonCurrentAssets', label: 'Total Non-Current Assets', isSubtotal: true },
   { key: 'totalAssets', label: 'TOTAL ASSETS', isTotal: true },
-  { section: 'Liabilities & Equity' },
+  { section: 'liabilitiesEquity' },
   { key: 'accountsPayable', label: 'Accounts Payable', indent: 1 },
   { key: 'shortTermDebt', label: 'Short-Term Debt', indent: 1 },
   { key: 'currentLiabilities', label: 'Total Current Liabilities', isSubtotal: true },
@@ -117,20 +119,20 @@ const balanceSheetRows = [
 ];
 
 const cashFlowRows = [
-  { section: 'Operating Activities' },
+  { section: 'operatingActivities' },
   { key: 'netIncome', label: 'Net Income', indent: 1 },
   { key: 'depreciation', label: 'Depreciation & Amortization', indent: 1 },
   { key: 'changesInWorkingCapital', label: 'Changes in Working Capital', indent: 1 },
   { key: 'operatingCashFlow', label: 'Net Cash from Operations', isSubtotal: true },
-  { section: 'Investing Activities' },
+  { section: 'investingActivities' },
   { key: 'capex', label: 'Capital Expenditure', indent: 1 },
   { key: 'investingCashFlow', label: 'Net Cash from Investing', isSubtotal: true },
-  { section: 'Financing Activities' },
+  { section: 'financingActivities' },
   { key: 'debtIssuance', label: 'Debt Issuance', indent: 1 },
   { key: 'debtRepayment', label: 'Debt Repayment', indent: 1 },
   { key: 'dividendsPaid', label: 'Dividends Paid', indent: 1 },
   { key: 'financingCashFlow', label: 'Net Cash from Financing', isSubtotal: true },
-  { section: 'Net Change' },
+  { section: 'netChange' },
   { key: 'netChangeInCash', label: 'Net Change in Cash', isSubtotal: true },
   { key: 'beginningCash', label: 'Beginning Cash', indent: 1 },
   { key: 'endingCash', label: 'Ending Cash', isTotal: true },
@@ -177,6 +179,9 @@ function exportConsolidationCSV(result: ConsolidatedResult, entities: string[], 
 
 export function ConsolidationView() {
   const { selectedPeriod, selectedScenario } = useAppStore();
+  const t = useTranslations('consolidation');
+  const tScenario = useTranslations('scenario');
+  const loc = useLocale() as Locale;
   const [activeTab, setActiveTab] = useState('income');
   const [entities, setEntities] = useState<Entity[]>([]);
   const [result, setResult] = useState<ConsolidatedResult>(EMPTY_RESULT);
@@ -267,7 +272,7 @@ export function ConsolidationView() {
         if (cols.length > 0) setEntities(cols);
 
         setConsolidationStatus(consolidationResult.status === 'failed' ? 'failed' : 'completed');
-        setLastRunTimestamp(new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZoneName: 'short' }));
+        setLastRunTimestamp(new Date().toLocaleString(dateLocale(loc), { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZoneName: 'short' }));
         loadHistory();
       }
     } catch (err) {
@@ -276,7 +281,7 @@ export function ConsolidationView() {
     } finally {
       setLoading(false);
     }
-  }, [selectedPeriod, selectedScenario, loadHistory]);
+  }, [selectedPeriod, selectedScenario, loadHistory, loc]);
 
   // Run the engine on mount and whenever the period/scenario changes, so the
   // view always reflects real consolidated data for the active selection.
@@ -303,18 +308,18 @@ export function ConsolidationView() {
   // Quality score derived from the live run rather than hardcoded.
   const hasRun = consolidationStatus === 'completed' || consolidationStatus === 'failed';
   const qualityMetrics = [
-    { name: 'BS Balance', score: bsIsBalanced ? 100 : 40, max: 100 },
-    { name: 'IC Match Rate', score: eliminationsApplied !== 0 ? 100 : 80, max: 100 },
-    { name: 'Currency Conv.', score: 100, max: 100 },
-    { name: 'Minority Calc.', score: 100, max: 100 },
+    { name: t('quality.bsBalance'), score: bsIsBalanced ? 100 : 40, max: 100 },
+    { name: t('quality.icMatchRate'), score: eliminationsApplied !== 0 ? 100 : 80, max: 100 },
+    { name: t('quality.currencyConv'), score: 100, max: 100 },
+    { name: t('quality.minorityCalc'), score: 100, max: 100 },
   ];
   const overallQuality = hasRun ? Math.round(qualityMetrics.reduce((s, m) => s + (m.score / m.max) * 25, 0)) : 0;
 
   // Elimination Impact chart, built from the real intercompany volume removed.
   const internalVolumeK = Math.abs(eliminationsApplied) / 1000;
   const eliminationImpactData = [
-    { metric: 'IC Revenue', before: internalVolumeK, after: 0, elimination: -internalVolumeK },
-    { metric: 'IC COGS', before: internalVolumeK, after: 0, elimination: -internalVolumeK },
+    { metric: t('elimImpact.icRevenue'), before: internalVolumeK, after: 0, elimination: -internalVolumeK },
+    { metric: t('elimImpact.icCogs'), before: internalVolumeK, after: 0, elimination: -internalVolumeK },
   ];
 
   const renderFinancialTable = (
@@ -326,7 +331,7 @@ export function ConsolidationView() {
       <Table className="premium-table">
         <TableHeader>
           <TableRow className="cursor-pointer transition-colors duration-150 sticky top-0 bg-white dark:bg-slate-900 z-10 border-b-2 border-slate-200 dark:border-slate-700">
-            <TableHead className="min-w-[200px]">Line Item</TableHead>
+            <TableHead className="min-w-[200px]">{t('lineItem')}</TableHead>
             {entityCodes.map((code) => (
               <TableHead key={code} className="text-right min-w-[100px]">
                 <span className="flex items-center justify-end gap-1.5">
@@ -339,13 +344,13 @@ export function ConsolidationView() {
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger className="flex items-center gap-1 ml-auto">
-                    IC Elim. <Info className="w-3 h-3 text-muted-foreground" />
+                    {t('icElim')} <Info className="w-3 h-3 text-muted-foreground" />
                   </TooltipTrigger>
-                  <TooltipContent>Intercompany eliminations</TooltipContent>
+                  <TooltipContent>{t('icElimTooltip')}</TooltipContent>
                 </Tooltip>
               </TooltipProvider>
             </TableHead>
-            <TableHead className="text-right min-w-[120px] bg-emerald-50 dark:bg-emerald-900/20 font-bold">Consolidated</TableHead>
+            <TableHead className="text-right min-w-[120px] bg-emerald-50 dark:bg-emerald-900/20 font-bold">{t('consolidated')}</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -354,7 +359,7 @@ export function ConsolidationView() {
               return (
                 <TableRow className="cursor-pointer transition-colors duration-150" key={`section-${idx}`}>
                   <TableCell colSpan={entityCodes.length + 3} className="font-bold text-xs uppercase tracking-wider text-slate-500 bg-slate-50 dark:bg-slate-800/30 pt-4 pb-2">
-                    {row.section}
+                    {t(`sections.${row.section}`)}
                   </TableCell>
                 </TableRow>
               );
@@ -367,7 +372,7 @@ export function ConsolidationView() {
 
             return (
               <TableRow key={row.key} className={`cursor-pointer transition-colors duration-150 ${row.isTotal ? 'border-t-2 border-slate-300 dark:border-slate-600' : ''}`}>
-                <LabelCell label={row.label || row.key} indent={row.indent || 0} isSubtotal={row.isSubtotal} isTotal={row.isTotal} />
+                <LabelCell label={t(`lines.${row.key}`)} indent={row.indent || 0} isSubtotal={row.isSubtotal} isTotal={row.isTotal} />
                 {entityValues.map((val, i) => (
                   <ValueCell key={entityCodes[i]} value={val} isSubtotal={row.isSubtotal} isTotal={row.isTotal} />
                 ))}
@@ -385,8 +390,8 @@ export function ConsolidationView() {
     </div>
   );
 
-  const periodLabel = new Date(selectedPeriod + '-01').toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
-  const scenarioLabel = selectedScenario === 'base' ? 'Base Case' : selectedScenario === 'optimistic' ? 'Optimistic' : 'Pessimistic';
+  const periodLabel = new Date(selectedPeriod + '-01').toLocaleDateString(dateLocale(loc), { year: 'numeric', month: 'short' });
+  const scenarioLabel = tScenario(selectedScenario);
 
   const scenarioColor: Record<string, string> = {
     base: 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400',
@@ -401,22 +406,22 @@ export function ConsolidationView() {
         {consolidationStatus === 'completed' && (
           <Badge className="text-[10px] px-1.5 py-0.5 bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800 flex items-center gap-1.5">
             <span className="w-1.5 h-1.5 rounded-full status-pulse-green" />
-            Completed
+            {t('statusCompleted')}
           </Badge>
         )}
         {consolidationStatus === 'running' && (
           <Badge className="text-[10px] px-1.5 py-0.5 bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 border-amber-200 dark:border-amber-800 flex items-center gap-1.5">
             <span className="w-1.5 h-1.5 rounded-full status-pulse-amber" />
-            In Progress
+            {t('statusInProgress')}
           </Badge>
         )}
         {consolidationStatus === 'failed' && (
           <Badge className="text-[10px] px-1.5 py-0.5 bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 border-red-200 dark:border-red-800 flex items-center gap-1.5">
             <span className="w-1.5 h-1.5 rounded-full status-pulse-red" />
-            Failed
+            {t('statusFailed')}
           </Badge>
         )}
-        <span className="text-[10px] text-muted-foreground">Last run: {lastRunTimestamp}</span>
+        <span className="text-[10px] text-muted-foreground">{t('lastRun', { time: lastRunTimestamp })}</span>
       </div>
 
       <Card className="shadow-sm relative border border-slate-200/60 dark:border-slate-700/40">
@@ -425,8 +430,8 @@ export function ConsolidationView() {
           <div className="absolute inset-0 z-20 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm flex items-center justify-center rounded-lg">
             <div className="flex flex-col items-center gap-3">
               <Loader2 className="w-8 h-8 text-emerald-500 animate-spin" />
-              <p className="text-sm font-medium text-emerald-600 dark:text-emerald-400">Consolidating...</p>
-              <p className="text-[10px] text-muted-foreground">Processing {entityCodes.length} entities</p>
+              <p className="text-sm font-medium text-emerald-600 dark:text-emerald-400">{t('consolidating')}</p>
+              <p className="text-[10px] text-muted-foreground">{t('processingEntities', { count: entityCodes.length })}</p>
             </div>
           </div>
         )}
@@ -435,9 +440,9 @@ export function ConsolidationView() {
             <div>
               <CardTitle className="flex items-center gap-2">
                 <Layers className="w-5 h-5 text-emerald-600" />
-                Consolidated Financial Statements
+                {t('title')}
               </CardTitle>
-              <CardDescription>Period: {periodLabel} · {scenarioLabel} · All entities consolidated</CardDescription>
+              <CardDescription>{t('subtitle', { period: periodLabel, scenario: scenarioLabel })}</CardDescription>
             </div>
             <div className="flex items-center gap-3">
               <Button variant="outline" size="sm" onClick={() => exportConsolidationCSV(result, entityCodes, `consolidation-${selectedPeriod}.csv`)}>
@@ -486,11 +491,11 @@ export function ConsolidationView() {
                 <FileText className="w-4 h-4" /> PDF
               </Button>
               <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 w-fit dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800">
-                {entityCodes.length} Entities · {formatCompactEUR(Math.abs(eliminationsApplied), 2)} IC Eliminations
+                {t('entitiesEliminations', { count: entityCodes.length, amount: formatCompactEUR(Math.abs(eliminationsApplied), 2) })}
               </Badge>
               <Button className={`bg-emerald-600 hover:bg-emerald-700 active:scale-95 transition-all ${consolidationStatus === 'idle' ? 'animate-pulse' : ''}`} onClick={runConsolidationEngine} disabled={loading}>
                 {loading ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Play className="w-4 h-4 mr-1" />}
-                Run Consolidation
+                {t('runConsolidation')}
               </Button>
             </div>
           </div>
@@ -498,9 +503,9 @@ export function ConsolidationView() {
         <CardContent>
           <Tabs value={activeTab} onValueChange={setActiveTab}>
             <TabsList>
-              <TabsTrigger value="income">Income Statement</TabsTrigger>
-              <TabsTrigger value="balance">Balance Sheet</TabsTrigger>
-              <TabsTrigger value="cashflow">Cash Flow</TabsTrigger>
+              <TabsTrigger value="income">{t('tabs.income')}</TabsTrigger>
+              <TabsTrigger value="balance">{t('tabs.balance')}</TabsTrigger>
+              <TabsTrigger value="cashflow">{t('tabs.cashflow')}</TabsTrigger>
             </TabsList>
 
             <TabsContent value="income" className="mt-4">
@@ -523,13 +528,13 @@ export function ConsolidationView() {
         <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
           <Card className="shadow-sm bg-gradient-to-br from-emerald-50/80 to-white dark:from-emerald-950/30 dark:to-slate-900 hover:shadow-lg hover:shadow-emerald-500/5 transition-shadow duration-300">
             <CardContent className="p-4">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">Consolidated Revenue</p>
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">{t('cards.consolidatedRevenue')}</p>
               <div className="flex items-center gap-2">
                 <p className="text-2xl font-bold count-animate"><AnimatedCounter value={result.kpis.totalRevenue / 1_000_000} prefix="€" suffix="M" decimals={1} duration={1} /></p>
                 <TrendingUp className="w-4 h-4 text-emerald-500" />
               </div>
               <div className="flex items-center gap-1.5 mt-1">
-                <p className="text-xs text-emerald-600 dark:text-emerald-400">{entityCodes.length} entities consolidated</p>
+                <p className="text-xs text-emerald-600 dark:text-emerald-400">{t('cards.entitiesConsolidated', { count: entityCodes.length })}</p>
                 <svg width="40" height="12" className="opacity-50"><polyline points="0,10 8,6 16,8 24,4 32,5 40,2" fill="none" stroke="#10b981" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
               </div>
             </CardContent>
@@ -538,13 +543,13 @@ export function ConsolidationView() {
         <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
           <Card className="shadow-sm bg-gradient-to-br from-red-50/80 to-white dark:from-red-950/20 dark:to-slate-900">
             <CardContent className="p-4">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">IC Eliminations</p>
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">{t('cards.icEliminations')}</p>
               <div className="flex items-center gap-2">
                 <p className="text-2xl font-bold text-red-600 dark:text-red-400 count-animate"><AnimatedCounter value={Math.abs(eliminationsApplied / 1_000_000)} prefix="-€" suffix="M" decimals={2} duration={1} /></p>
                 <TrendingDown className="w-4 h-4 text-red-400" />
               </div>
               <div className="flex items-center gap-1.5 mt-1">
-                <p className="text-xs text-muted-foreground">Intercompany revenue & receivables</p>
+                <p className="text-xs text-muted-foreground">{t('cards.icEliminationsDesc')}</p>
                 <svg width="40" height="12" className="opacity-50"><polyline points="0,2 8,4 16,3 24,6 32,7 40,10" fill="none" stroke="#ef4444" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
               </div>
             </CardContent>
@@ -553,13 +558,13 @@ export function ConsolidationView() {
         <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
           <Card className="shadow-sm bg-gradient-to-br from-amber-50/80 to-white dark:from-amber-950/20 dark:to-slate-900">
             <CardContent className="p-4">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">Minority Interest</p>
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">{t('cards.minorityInterest')}</p>
               <div className="flex items-center gap-2">
                 <p className="text-2xl font-bold text-amber-600 dark:text-amber-400 count-animate"><AnimatedCounter value={Math.abs(result.incomeStatement.minorityInterest / 1_000_000)} prefix="€" suffix="M" decimals={1} duration={1} /></p>
                 <TrendingUp className="w-4 h-4 text-amber-400" />
               </div>
               <div className="flex items-center gap-1.5 mt-1">
-                <p className="text-xs text-muted-foreground">Non-controlling interests</p>
+                <p className="text-xs text-muted-foreground">{t('cards.minorityInterestDesc')}</p>
                 <svg width="40" height="12" className="opacity-50"><polyline points="0,8 8,6 16,7 24,5 32,4 40,3" fill="none" stroke="#f59e0b" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
               </div>
             </CardContent>
@@ -575,12 +580,12 @@ export function ConsolidationView() {
                 ) : (
                   <XCircle className="w-5 h-5 text-red-600 dark:text-red-400" />
                 )}
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Balance Sheet Check</p>
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('cards.bsCheck')}</p>
               </div>
               <p className={`text-2xl font-bold ${bsIsBalanced ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
-                {bsIsBalanced ? 'Balanced ✓' : `Off by €${Math.abs(bsBalance).toFixed(0)}K`}
+                {bsIsBalanced ? t('cards.balanced') : t('cards.offBy', { amount: Math.abs(bsBalance).toFixed(0) })}
               </p>
-              <p className="text-xs text-muted-foreground mt-1">Assets = Liabilities + Equity</p>
+              <p className="text-xs text-muted-foreground mt-1">{t('cards.bsEquation')}</p>
             </CardContent>
           </Card>
         </motion.div>
@@ -591,7 +596,7 @@ export function ConsolidationView() {
             <CardContent className="p-4">
               <div className="flex items-center gap-2 mb-1">
                 <ShieldCheck className="w-5 h-5 text-teal-600 dark:text-teal-400" />
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Quality Score</p>
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('cards.qualityScore')}</p>
               </div>
               <p className={`text-2xl font-bold ${overallQuality >= 90 ? 'text-emerald-600 dark:text-emerald-400' : overallQuality >= 70 ? 'text-amber-600 dark:text-amber-400' : 'text-red-600 dark:text-red-400'}`}>
                 {overallQuality}%
@@ -617,8 +622,8 @@ export function ConsolidationView() {
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle className="text-base">Elimination Impact</CardTitle>
-                <CardDescription>Before and after intercompany eliminations (€K)</CardDescription>
+                <CardTitle className="text-base">{t('elimImpact.title')}</CardTitle>
+                <CardDescription>{t('elimImpact.desc')}</CardDescription>
               </div>
               <span className="text-[10px] text-muted-foreground">Dec 2024</span>
             </div>
@@ -632,8 +637,8 @@ export function ConsolidationView() {
                   <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `€${v}`} stroke="var(--color-muted-foreground)" />
                   <RTooltip content={<EliminationTooltip />} />
                   <Legend />
-                  <Bar dataKey="before" name="Before Elimination" fill="#0d9488" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="after" name="After Elimination" fill="#10b981" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="before" name={t('elimImpact.before')} fill="#0d9488" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="after" name={t('elimImpact.after')} fill="#10b981" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -649,18 +654,18 @@ export function ConsolidationView() {
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
             <Clock className="w-4 h-4 text-emerald-600" />
-            Consolidation History
+            {t('history.title')}
           </CardTitle>
-          <CardDescription>Past consolidation runs and their key results</CardDescription>
+          <CardDescription>{t('history.desc')}</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="relative">
             {history.map((run, index) => {
               const runDate = new Date(run.createdAt);
-              let periodLabel = 'N/A';
+              let periodLabel = t('history.na');
               try {
                 const pStr = typeof run.period === 'string' && run.period.includes('-') ? run.period.substring(0, 7) : run.period;
-                periodLabel = new Date(pStr + '-01').toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
+                periodLabel = new Date(pStr + '-01').toLocaleDateString(dateLocale(loc), { year: 'numeric', month: 'short' });
               } catch {}
               return (
                 <motion.div
@@ -686,29 +691,29 @@ export function ConsolidationView() {
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-semibold">{periodLabel}</span>
                         <Badge className={`text-[10px] ${scenarioColor[run.scenarioType] || 'bg-slate-100 text-slate-700'}`}>
-                          {run.scenarioType}
+                          {tScenario(run.scenarioType)}
                         </Badge>
                       </div>
                       <div className="flex items-center gap-4 text-xs text-muted-foreground">
                         <span className="flex items-center gap-1">
                           <Zap className="w-3 h-3" />
-                          {run.processingTime > 0 ? `${run.processingTime}s` : 'N/A'}
+                          {run.processingTime > 0 ? `${run.processingTime}s` : t('history.na')}
                         </span>
-                        <span>{run.entityCount} entities</span>
-                        <span>{runDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                        <span>{t('history.entities', { count: run.entityCount })}</span>
+                        <span>{runDate.toLocaleDateString(dateLocale(loc), { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
                       </div>
                     </div>
                     <div className="flex gap-4 mt-2 text-xs">
                       <div>
-                        <span className="text-muted-foreground">Revenue: </span>
+                        <span className="text-muted-foreground">{t('history.revenue')}</span>
                         <span className="font-medium">{formatCompactEUR(run.totalRevenue)}</span>
                       </div>
                       <div>
-                        <span className="text-muted-foreground">Assets: </span>
+                        <span className="text-muted-foreground">{t('history.assets')}</span>
                         <span className="font-medium">{formatCompactEUR(run.totalAssets)}</span>
                       </div>
                       <div>
-                        <span className="text-muted-foreground">Net Income: </span>
+                        <span className="text-muted-foreground">{t('history.netIncome')}</span>
                         <span className="font-medium text-emerald-600 dark:text-emerald-400">{formatCompactEUR(run.netIncome)}</span>
                       </div>
                     </div>

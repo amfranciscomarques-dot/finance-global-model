@@ -23,6 +23,8 @@ import { TrendData, TrendPeriod } from '@/lib/types';
 import { formatCompactEUR } from '@/lib/format';
 import { DataLoadError } from '@/components/data-load-error';
 import { motion } from 'framer-motion';
+import { useTranslations, useLocale } from 'next-intl';
+import { dateLocale, type Locale } from '@/i18n/locale-context';
 
 // ============================================================
 // DEMO DATA — 12 months, 5 entities
@@ -170,12 +172,12 @@ function fmtChangePct(pct: number): string {
   return `${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%`;
 }
 
-function periodLabel(period: string): string {
-  return new Date(period + '-01').toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
+function periodLabel(period: string, locale = 'en-US'): string {
+  return new Date(period + '-01').toLocaleDateString(locale, { year: 'numeric', month: 'short' });
 }
 
-function periodShort(period: string): string {
-  return new Date(period + '-01').toLocaleDateString('en-US', { month: 'short' });
+function periodShort(period: string, locale = 'en-US'): string {
+  return new Date(period + '-01').toLocaleDateString(locale, { month: 'short' });
 }
 
 // ============================================================
@@ -293,6 +295,9 @@ function forecastConfidenceBand(values: number[], forecasts: number[]): { upper:
 // MAIN COMPONENT
 // ============================================================
 export function TrendAnalysisView() {
+  const t = useTranslations('trends');
+  const loc = useLocale() as Locale;
+  const dl = dateLocale(loc);
   const { selectedPeriod } = useAppStore();
   const [selectedMetric, setSelectedMetric] = useState('revenue');
   const [trendData, setTrendData] = useState<TrendData | null>(null);
@@ -335,18 +340,20 @@ export function TrendAnalysisView() {
   }, [trendData, selectedMetric]);
 
   const metricConfig = METRICS.find((m) => m.key === selectedMetric) || METRICS[0];
+  const metricLabel = t(`metrics.${selectedMetric}`);
+  const consolidatedKey = t('consolidatedSeries');
 
   // Build chart data for main trend line
   const chartData = useMemo(() => {
     return data.periods.map((p) => {
-      const row: Record<string, string | number> = { period: p.period, name: periodShort(p.period) };
-      row['Group Consolidated'] = p.value;
+      const row: Record<string, string | number> = { period: p.period, name: periodShort(p.period, dl) };
+      row[consolidatedKey] = p.value;
       for (const eb of p.entityBreakdown) {
         row[eb.entityName] = eb.value;
       }
       return row;
     });
-  }, [data]);
+  }, [data, consolidatedKey, dl]);
 
   // Build forecast data
   const forecastData = useMemo(() => {
@@ -363,8 +370,8 @@ export function TrendAnalysisView() {
     for (let i = 0; i < 3; i++) {
       extendedChart.push({
         period: futureMonths[i],
-        name: periodShort(futureMonths[i]),
-        'Group Consolidated': forecasts[i],
+        name: periodShort(futureMonths[i], dl),
+        [consolidatedKey]: forecasts[i],
         'Forecast Upper': band.upper[i],
         'Forecast Lower': band.lower[i],
         forecastOnly: true,
@@ -372,18 +379,18 @@ export function TrendAnalysisView() {
     }
 
     return { extendedChart, forecasts, band, futureMonths, lastPeriod };
-  }, [chartData, data.periods]);
+  }, [chartData, data.periods, consolidatedKey, dl]);
 
   // Change chart data
   const changeChartData = useMemo(() => {
     const changes = changeView === 'qoq' ? data.qoqChanges : data.yoyChanges;
     return changes.map((c) => ({
       period: c.toPeriod,
-      name: periodShort(c.toPeriod),
+      name: periodShort(c.toPeriod, dl),
       changePct: c.changePct,
       change: c.change,
     }));
-  }, [data, changeView]);
+  }, [data, changeView, dl]);
 
   // Period comparison table
   const comparisonTableData = useMemo(() => {
@@ -392,16 +399,16 @@ export function TrendAnalysisView() {
     if (!p1Data || !p2Data) return [];
 
     const metrics = [
-      { name: 'Revenue', p1: p1Data.entityBreakdown.reduce((s, e) => s + e.value, 0), p2: p2Data.entityBreakdown.reduce((s, e) => s + e.value, 0) },
-      { name: 'EBITDA', p1: p1Data.entityBreakdown.reduce((s, e) => s + e.value * 0.34, 0), p2: p2Data.entityBreakdown.reduce((s, e) => s + e.value * 0.34, 0) },
-      { name: 'Net Income', p1: p1Data.entityBreakdown.reduce((s, e) => s + e.value * 0.2, 0), p2: p2Data.entityBreakdown.reduce((s, e) => s + e.value * 0.2, 0) },
-      { name: 'Total Assets', p1: p1Data.entityBreakdown.reduce((s, e) => s + e.value * 6, 0), p2: p2Data.entityBreakdown.reduce((s, e) => s + e.value * 6, 0) },
-      { name: 'Leverage', p1: p1Data.entityBreakdown.reduce((s, e) => s + e.value, 0) > 0 ? 0.44 : 0, p2: p2Data.entityBreakdown.reduce((s, e) => s + e.value, 0) > 0 ? 0.41 : 0 },
-      { name: 'EBITDA Margin', p1: 33.8, p2: 34.1 },
+      { key: 'revenue', p1: p1Data.entityBreakdown.reduce((s, e) => s + e.value, 0), p2: p2Data.entityBreakdown.reduce((s, e) => s + e.value, 0) },
+      { key: 'ebitda', p1: p1Data.entityBreakdown.reduce((s, e) => s + e.value * 0.34, 0), p2: p2Data.entityBreakdown.reduce((s, e) => s + e.value * 0.34, 0) },
+      { key: 'netIncome', p1: p1Data.entityBreakdown.reduce((s, e) => s + e.value * 0.2, 0), p2: p2Data.entityBreakdown.reduce((s, e) => s + e.value * 0.2, 0) },
+      { key: 'assets', p1: p1Data.entityBreakdown.reduce((s, e) => s + e.value * 6, 0), p2: p2Data.entityBreakdown.reduce((s, e) => s + e.value * 6, 0) },
+      { key: 'leverage', p1: p1Data.entityBreakdown.reduce((s, e) => s + e.value, 0) > 0 ? 0.44 : 0, p2: p2Data.entityBreakdown.reduce((s, e) => s + e.value, 0) > 0 ? 0.41 : 0 },
+      { key: 'ebitdaMargin', p1: 33.8, p2: 34.1 },
     ];
 
     return metrics.map((m) => ({
-      metric: m.name,
+      metric: t(`metrics.${m.key}`),
       period1: m.p1,
       period2: m.p2,
       change: m.p2 - m.p1,
@@ -411,7 +418,7 @@ export function TrendAnalysisView() {
 
   // CSV export
   const exportCSV = () => {
-    const headers = ['Period', 'Group Consolidated', ...DEMO_ENTITIES.map((e) => e.entityName)];
+    const headers = [t('csvPeriod'), consolidatedKey, ...DEMO_ENTITIES.map((e) => e.entityName)];
     const rows = data.periods.map((p) => [
       p.period,
       p.value,
@@ -436,17 +443,17 @@ export function TrendAnalysisView() {
         <div>
           <h2 className="text-lg font-semibold flex items-center gap-2">
             <TrendingUp className="w-5 h-5 text-emerald-600" />
-            Multi-Period Trend Analysis
+            {t('title')}
           </h2>
-          <p className="text-sm text-muted-foreground">Track financial metrics across periods with QoQ/YoY changes, forecasts, and entity breakdowns</p>
+          <p className="text-sm text-muted-foreground">{t('subtitle')}</p>
         </div>
         <div className="flex items-center gap-3">
           <Button variant="outline" size="sm" onClick={exportCSV}>
-            <Download className="w-4 h-4 mr-1" /> Export
+            <Download className="w-4 h-4 mr-1" /> {t('export')}
           </Button>
           <Badge variant="outline" className="text-[10px] font-mono gap-1">
             <Calendar className="w-3 h-3" />
-            Jan 2024 — Dec 2024
+            {t('dateRange')}
           </Badge>
         </div>
       </div>
@@ -484,7 +491,7 @@ export function TrendAnalysisView() {
                 )}
               </div>
               <p className={`text-xs font-medium ${isActive ? 'text-emerald-700 dark:text-emerald-300' : 'text-muted-foreground'}`}>
-                {m.label}
+                {t(`metrics.${m.key}`)}
               </p>
               <p className={`text-sm font-bold mt-0.5 ${isActive ? 'text-emerald-800 dark:text-emerald-200' : 'text-foreground'}`}>
                 {fmtMetric(lastVal, m.key)}
@@ -505,14 +512,14 @@ export function TrendAnalysisView() {
               <div>
                 <CardTitle className="text-base flex items-center gap-2">
                   <LineChartIcon className="w-4 h-4 text-emerald-600" />
-                  {metricConfig.label} Trend — Multi-Entity
+                  {t('mainChartTitle', { metric: metricLabel })}
                 </CardTitle>
-                <CardDescription>12-month trend with entity breakdown and consolidated total</CardDescription>
+                <CardDescription>{t('mainChartDesc')}</CardDescription>
               </div>
               <div className="flex items-center gap-2 text-[10px]">
-                <span className="flex items-center gap-1"><span className="w-4 h-0.5 bg-emerald-500 inline-block rounded" /> Consolidated</span>
-                <span className="flex items-center gap-1"><span className="w-4 h-0.5 border border-dashed border-amber-400 inline-block" /> Budget</span>
-                <span className="flex items-center gap-1"><span className="w-4 h-0.5 border border-dashed border-slate-400 inline-block" /> Forecast</span>
+                <span className="flex items-center gap-1"><span className="w-4 h-0.5 bg-emerald-500 inline-block rounded" /> {t('legendConsolidated')}</span>
+                <span className="flex items-center gap-1"><span className="w-4 h-0.5 border border-dashed border-amber-400 inline-block" /> {t('legendBudget')}</span>
+                <span className="flex items-center gap-1"><span className="w-4 h-0.5 border border-dashed border-slate-400 inline-block" /> {t('legendForecast')}</span>
               </div>
             </div>
           </CardHeader>
@@ -563,7 +570,7 @@ export function TrendAnalysisView() {
                     {/* Consolidated line - bold */}
                     <Line
                       type="monotone"
-                      dataKey="Group Consolidated"
+                      dataKey={consolidatedKey}
                       stroke="#10b981"
                       strokeWidth={3}
                       dot={{ fill: '#10b981', r: 3, strokeWidth: 0 }}
@@ -573,16 +580,16 @@ export function TrendAnalysisView() {
                     {/* Area under consolidated */}
                     <Area
                       type="monotone"
-                      dataKey="Group Consolidated"
+                      dataKey={consolidatedKey}
                       stroke="none"
                       fill="url(#consolidatedArea)"
                     />
 
                     {/* Budget target reference line */}
                     {!isRatioMetric ? (
-                      <ReferenceLine y={metricConfig.budgetTarget} stroke="#f59e0b" strokeDasharray="6 4" strokeWidth={1.5} label={{ value: 'Budget', position: 'right', fill: '#f59e0b', fontSize: 10 }} />
+                      <ReferenceLine y={metricConfig.budgetTarget} stroke="#f59e0b" strokeDasharray="6 4" strokeWidth={1.5} label={{ value: t('budgetLabel'), position: 'right', fill: '#f59e0b', fontSize: 10 }} />
                     ) : (
-                      <ReferenceLine y={metricConfig.budgetTarget} stroke="#f59e0b" strokeDasharray="6 4" strokeWidth={1.5} label={{ value: 'Budget', position: 'right', fill: '#f59e0b', fontSize: 10 }} />
+                      <ReferenceLine y={metricConfig.budgetTarget} stroke="#f59e0b" strokeDasharray="6 4" strokeWidth={1.5} label={{ value: t('budgetLabel'), position: 'right', fill: '#f59e0b', fontSize: 10 }} />
                     )}
                   </LineChart>
                 </ResponsiveContainer>
@@ -600,10 +607,10 @@ export function TrendAnalysisView() {
               <div>
                 <CardTitle className="text-base flex items-center gap-2">
                   <Activity className="w-4 h-4 text-emerald-600" />
-                  Period-over-Period Changes
+                  {t('changesTitle')}
                 </CardTitle>
                 <CardDescription>
-                  {changeView === 'qoq' ? 'Quarter-over-Quarter' : 'Year-over-Year'} change in {metricConfig.label}
+                  {changeView === 'qoq' ? t('changesDescQoq', { metric: metricLabel }) : t('changesDescYoy', { metric: metricLabel })}
                 </CardDescription>
               </div>
               <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 rounded-lg p-0.5">
@@ -615,7 +622,7 @@ export function TrendAnalysisView() {
                       : 'text-muted-foreground hover:text-foreground'
                   }`}
                 >
-                  QoQ
+                  {t('qoq')}
                 </button>
                 <button
                   onClick={() => setChangeView('yoy')}
@@ -625,7 +632,7 @@ export function TrendAnalysisView() {
                       : 'text-muted-foreground hover:text-foreground'
                   }`}
                 >
-                  YoY
+                  {t('yoy')}
                 </button>
               </div>
             </div>
@@ -642,7 +649,7 @@ export function TrendAnalysisView() {
                     <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `${v.toFixed(1)}%`} stroke="var(--color-muted-foreground)" />
                     <Tooltip content={<ChangeTooltip />} />
                     <ReferenceLine y={0} stroke="#94a3b8" strokeWidth={1} />
-                    <Bar dataKey="changePct" name="Change %" radius={[4, 4, 0, 0]} barSize={28}>
+                    <Bar dataKey="changePct" name={t('changeSeries')} radius={[4, 4, 0, 0]} barSize={28}>
                       {changeChartData.map((entry, index) => (
                         <Cell
                           key={index}
@@ -667,9 +674,9 @@ export function TrendAnalysisView() {
               <div>
                 <CardTitle className="text-base flex items-center gap-2">
                   <Target className="w-4 h-4 text-emerald-600" />
-                  Period Comparison
+                  {t('comparisonTitle')}
                 </CardTitle>
-                <CardDescription>Side-by-side metric comparison between two periods</CardDescription>
+                <CardDescription>{t('comparisonDesc')}</CardDescription>
               </div>
               <div className="flex items-center gap-2">
                 <select
@@ -678,17 +685,17 @@ export function TrendAnalysisView() {
                   className="h-8 text-xs rounded-md border bg-white dark:bg-slate-900 px-2"
                 >
                   {MONTHS.map((m) => (
-                    <option key={m} value={m}>{periodLabel(m)}</option>
+                    <option key={m} value={m}>{periodLabel(m, dl)}</option>
                   ))}
                 </select>
-                <span className="text-xs text-muted-foreground">vs</span>
+                <span className="text-xs text-muted-foreground">{t('vs')}</span>
                 <select
                   value={comparePeriod2}
                   onChange={(e) => setComparePeriod2(e.target.value)}
                   className="h-8 text-xs rounded-md border bg-white dark:bg-slate-900 px-2"
                 >
                   {MONTHS.map((m) => (
-                    <option key={m} value={m}>{periodLabel(m)}</option>
+                    <option key={m} value={m}>{periodLabel(m, dl)}</option>
                   ))}
                 </select>
               </div>
@@ -711,11 +718,11 @@ export function TrendAnalysisView() {
                 <Table className="premium-table">
                   <TableHeader>
                     <TableRow className="cursor-pointer transition-colors duration-150 sticky top-0 bg-white dark:bg-slate-900 z-10 border-b-2 border-slate-200 dark:border-slate-700">
-                      <TableHead>Metric</TableHead>
-                      <TableHead className="text-right">{periodShort(comparePeriod1)} 2024</TableHead>
-                      <TableHead className="text-right">{periodShort(comparePeriod2)} 2024</TableHead>
-                      <TableHead className="text-right">Change</TableHead>
-                      <TableHead className="text-right">Change %</TableHead>
+                      <TableHead>{t('comparisonHeaders.metric')}</TableHead>
+                      <TableHead className="text-right">{periodShort(comparePeriod1, dl)} 2024</TableHead>
+                      <TableHead className="text-right">{periodShort(comparePeriod2, dl)} 2024</TableHead>
+                      <TableHead className="text-right">{t('comparisonHeaders.change')}</TableHead>
+                      <TableHead className="text-right">{t('comparisonHeaders.changePct')}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -756,7 +763,7 @@ export function TrendAnalysisView() {
         <div>
           <h3 className="text-base font-semibold flex items-center gap-2 mb-4">
             <Activity className="w-4 h-4 text-emerald-600" />
-            Entity Trend Sparklines
+            {t('sparklinesTitle')}
           </h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
             {data.entityTrends.map((et, i) => {
@@ -815,14 +822,14 @@ export function TrendAnalysisView() {
               <div>
                 <CardTitle className="text-base flex items-center gap-2">
                   <TrendingUp className="w-4 h-4 text-emerald-600" />
-                  Trend Forecast — Linear Projection
+                  {t('forecastTitle')}
                 </CardTitle>
-                <CardDescription>3-period forward projection with confidence band based on historical trend</CardDescription>
+                <CardDescription>{t('forecastDesc')}</CardDescription>
               </div>
               <div className="flex items-center gap-2 text-[10px]">
-                <span className="flex items-center gap-1"><span className="w-4 h-0.5 bg-emerald-500 inline-block rounded" /> Actual</span>
-                <span className="flex items-center gap-1"><span className="w-4 h-0.5 border-t-2 border-dashed border-emerald-400 inline-block" /> Forecast</span>
-                <span className="flex items-center gap-1"><span className="w-4 h-3 bg-emerald-100 dark:bg-emerald-900/30 inline-block rounded" /> Confidence</span>
+                <span className="flex items-center gap-1"><span className="w-4 h-0.5 bg-emerald-500 inline-block rounded" /> {t('legendActual')}</span>
+                <span className="flex items-center gap-1"><span className="w-4 h-0.5 border-t-2 border-dashed border-emerald-400 inline-block" /> {t('legendForecast')}</span>
+                <span className="flex items-center gap-1"><span className="w-4 h-3 bg-emerald-100 dark:bg-emerald-900/30 inline-block rounded" /> {t('legendConfidence')}</span>
               </div>
             </div>
           </CardHeader>
@@ -856,7 +863,7 @@ export function TrendAnalysisView() {
                     {/* Actual data - solid line */}
                     <Line
                       type="monotone"
-                      dataKey="Group Consolidated"
+                      dataKey={consolidatedKey}
                       stroke="#10b981"
                       strokeWidth={2.5}
                       dot={{ fill: '#10b981', r: 3, strokeWidth: 0 }}
@@ -865,7 +872,7 @@ export function TrendAnalysisView() {
                     />
 
                     {/* Forecast reference line separator */}
-                    <ReferenceLine x="Dec" stroke="#94a3b8" strokeDasharray="3 3" label={{ value: 'Forecast →', position: 'top', fill: '#94a3b8', fontSize: 10 }} />
+                    <ReferenceLine x="Dec" stroke="#94a3b8" strokeDasharray="3 3" label={{ value: t('forecastArrow'), position: 'top', fill: '#94a3b8', fontSize: 10 }} />
                   </LineChart>
                 </ResponsiveContainer>
               </div>
@@ -876,13 +883,13 @@ export function TrendAnalysisView() {
               {forecastData.forecasts.map((f, i) => (
                 <div key={i} className="text-center p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-dashed border-emerald-300 dark:border-emerald-700">
                   <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">
-                    {periodLabel(forecastData.futureMonths[i])}
+                    {periodLabel(forecastData.futureMonths[i], dl)}
                   </p>
                   <p className="text-base font-bold text-emerald-700 dark:text-emerald-300">
                     {fmtMetric(f, selectedMetric)}
                   </p>
                   <p className="text-[10px] text-muted-foreground mt-1">
-                    Range: {fmtMetric(forecastData.band.lower[i], selectedMetric)} — {fmtMetric(forecastData.band.upper[i], selectedMetric)}
+                    {t('range', { low: fmtMetric(forecastData.band.lower[i], selectedMetric), high: fmtMetric(forecastData.band.upper[i], selectedMetric) })}
                   </p>
                 </div>
               ))}
@@ -897,51 +904,51 @@ export function TrendAnalysisView() {
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
               <ChevronRight className="w-4 h-4 text-emerald-600" />
-              Key Insights
+              {t('insightsTitle')}
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="p-4 bg-gradient-to-br from-emerald-50/80 to-white dark:from-emerald-950/20 dark:to-slate-900 rounded-xl border border-emerald-200 dark:border-emerald-800/40">
-                <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium uppercase tracking-wider mb-2">Latest QoQ</p>
+                <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium uppercase tracking-wider mb-2">{t('latestQoq')}</p>
                 {data.qoqChanges.length > 0 ? (
                   <>
                     <p className={`text-xl font-bold ${data.qoqChanges[data.qoqChanges.length - 1].changePct >= 0 ? 'text-emerald-700 dark:text-emerald-300' : 'text-amber-600 dark:text-amber-400'}`}>
                       {fmtChangePct(data.qoqChanges[data.qoqChanges.length - 1].changePct)}
                     </p>
                     <p className="text-xs text-muted-foreground mt-1">
-                      {periodLabel(data.qoqChanges[data.qoqChanges.length - 1].fromPeriod)} → {periodLabel(data.qoqChanges[data.qoqChanges.length - 1].toPeriod)}
+                      {periodLabel(data.qoqChanges[data.qoqChanges.length - 1].fromPeriod, dl)} → {periodLabel(data.qoqChanges[data.qoqChanges.length - 1].toPeriod, dl)}
                     </p>
                   </>
-                ) : <p className="text-muted-foreground text-sm">No data</p>}
+                ) : <p className="text-muted-foreground text-sm">{t('noData')}</p>}
               </div>
 
               <div className="p-4 bg-gradient-to-br from-teal-50/80 to-white dark:from-teal-950/20 dark:to-slate-900 rounded-xl border border-teal-200 dark:border-teal-800/40">
-                <p className="text-xs text-teal-600 dark:text-teal-400 font-medium uppercase tracking-wider mb-2">Latest YoY</p>
+                <p className="text-xs text-teal-600 dark:text-teal-400 font-medium uppercase tracking-wider mb-2">{t('latestYoy')}</p>
                 {data.yoyChanges.length > 0 ? (
                   <>
                     <p className={`text-xl font-bold ${data.yoyChanges[data.yoyChanges.length - 1].changePct >= 0 ? 'text-emerald-700 dark:text-emerald-300' : 'text-amber-600 dark:text-amber-400'}`}>
                       {fmtChangePct(data.yoyChanges[data.yoyChanges.length - 1].changePct)}
                     </p>
                     <p className="text-xs text-muted-foreground mt-1">
-                      {periodLabel(data.yoyChanges[data.yoyChanges.length - 1].fromPeriod)} → {periodLabel(data.yoyChanges[data.yoyChanges.length - 1].toPeriod)}
+                      {periodLabel(data.yoyChanges[data.yoyChanges.length - 1].fromPeriod, dl)} → {periodLabel(data.yoyChanges[data.yoyChanges.length - 1].toPeriod, dl)}
                     </p>
                   </>
-                ) : <p className="text-muted-foreground text-sm">No data</p>}
+                ) : <p className="text-muted-foreground text-sm">{t('noData')}</p>}
               </div>
 
               <div className="p-4 bg-gradient-to-br from-cyan-50/80 to-white dark:from-cyan-950/20 dark:to-slate-900 rounded-xl border border-cyan-200 dark:border-cyan-800/40">
-                <p className="text-xs text-cyan-600 dark:text-cyan-400 font-medium uppercase tracking-wider mb-2">3M Forecast</p>
+                <p className="text-xs text-cyan-600 dark:text-cyan-400 font-medium uppercase tracking-wider mb-2">{t('forecast3m')}</p>
                 {forecastData.forecasts.length > 0 ? (
                   <>
                     <p className="text-xl font-bold text-cyan-700 dark:text-cyan-300">
                       {fmtMetric(forecastData.forecasts[forecastData.forecasts.length - 1], selectedMetric)}
                     </p>
                     <p className="text-xs text-muted-foreground mt-1">
-                      by {periodLabel(forecastData.futureMonths[forecastData.futureMonths.length - 1])}
+                      {t('by', { date: periodLabel(forecastData.futureMonths[forecastData.futureMonths.length - 1], dl) })}
                     </p>
                   </>
-                ) : <p className="text-muted-foreground text-sm">No data</p>}
+                ) : <p className="text-muted-foreground text-sm">{t('noData')}</p>}
               </div>
             </div>
           </CardContent>

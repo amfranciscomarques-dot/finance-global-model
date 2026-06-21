@@ -22,6 +22,10 @@ import { ImportRecord, ImportHistoryEntry } from '@/lib/types';
 import { DataLoadError } from '@/components/data-load-error';
 import { useToast } from '@/hooks/use-toast';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useTranslations, useLocale } from 'next-intl';
+import { dateLocale, type Locale } from '@/i18n/locale-context';
+
+type TFn = (key: string) => string;
 
 // Demo fallback data
 const demoImportHistory: ImportHistoryEntry[] = [
@@ -48,20 +52,22 @@ const systemFields = [
 
 type Step = 'upload' | 'map' | 'review';
 
-function getStatusBadge(status: string) {
+function getStatusBadge(status: string, t: TFn) {
   switch (status) {
     case 'completed':
-      return <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 hover:bg-emerald-100 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800 text-xs"><CheckCircle2 className="w-3 h-3 mr-1" />Completed</Badge>;
+      return <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 hover:bg-emerald-100 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800 text-xs"><CheckCircle2 className="w-3 h-3 mr-1" />{t('statuses.completed')}</Badge>;
     case 'failed':
-      return <Badge className="bg-red-100 text-red-700 border-red-200 hover:bg-red-100 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800 text-xs"><AlertCircle className="w-3 h-3 mr-1" />Failed</Badge>;
+      return <Badge className="bg-red-100 text-red-700 border-red-200 hover:bg-red-100 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800 text-xs"><AlertCircle className="w-3 h-3 mr-1" />{t('statuses.failed')}</Badge>;
     case 'processing':
-      return <Badge className="bg-amber-100 text-amber-700 border-amber-200 hover:bg-amber-100 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-800 text-xs"><Loader2 className="w-3 h-3 mr-1 animate-spin" />Processing</Badge>;
+      return <Badge className="bg-amber-100 text-amber-700 border-amber-200 hover:bg-amber-100 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-800 text-xs"><Loader2 className="w-3 h-3 mr-1 animate-spin" />{t('statuses.processing')}</Badge>;
     default:
       return <Badge variant="outline" className="text-xs">{status}</Badge>;
   }
 }
 
 export function DataImportView() {
+  const t = useTranslations('dataImport');
+  const loc = useLocale() as Locale;
   const [step, setStep] = useState<Step>('upload');
   const [file, setFile] = useState<File | null>(null);
   const [csvPreview, setCsvPreview] = useState<string[][]>([]);
@@ -122,7 +128,7 @@ export function DataImportView() {
 
   const handleFileUpload = (uploadedFile: File) => {
     if (!uploadedFile.name.endsWith('.csv')) {
-      toast({ title: 'Invalid File', description: 'Please upload a CSV file', variant: 'destructive' });
+      toast({ title: t('toast.invalidTitle'), description: t('toast.invalidDesc'), variant: 'destructive' });
       return;
     }
     setFile(uploadedFile);
@@ -176,7 +182,7 @@ export function DataImportView() {
     const errors: string[] = [];
     systemFields.filter(f => f.required).forEach(f => {
       if (!fieldMapping[f.key]) {
-        errors.push(`Required field "${f.label}" is not mapped`);
+        errors.push(t('requiredFieldNotMapped', { label: t(`fields.${f.key}`) }));
       }
     });
 
@@ -215,7 +221,7 @@ export function DataImportView() {
             records.push(record);
           }
         } catch {
-          errors.push(`Row ${i + 1}: Failed to parse values`);
+          errors.push(t('rowParseError', { row: i + 1 }));
         }
       }
 
@@ -236,12 +242,12 @@ export function DataImportView() {
         setImportResult(result);
       }
 
-      toast({ title: 'Import Complete', description: `Successfully imported records` });
+      toast({ title: t('toast.completeTitle'), description: t('toast.completeDesc') });
       loadHistory();
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Import failed';
+      const msg = err instanceof Error ? err.message : t('toast.failedDesc');
       setValidationErrors([msg]);
-      toast({ title: 'Import Failed', description: msg, variant: 'destructive' });
+      toast({ title: t('toast.failedTitle'), description: msg, variant: 'destructive' });
     } finally {
       setImporting(false);
     }
@@ -272,23 +278,23 @@ export function DataImportView() {
 
   return (
     <div className="space-y-6">
-      {historyError && <DataLoadError message="Could not load import history from the server. Showing sample entries below." />}
+      {historyError && <DataLoadError message={t('historyLoadError')} />}
       {/* Step Progress */}
       <Card className="shadow-sm border border-slate-200/60 dark:border-slate-700/40">
         <CardContent className="p-4">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-sm font-semibold flex items-center gap-2">
               <FileUp className="w-4 h-4 text-emerald-600" />
-              CSV Data Import Wizard
+              {t('wizardTitle')}
             </h3>
-            <span className="text-xs text-muted-foreground">Step {step === 'upload' ? '1' : step === 'map' ? '2' : '3'} of 3</span>
+            <span className="text-xs text-muted-foreground">{t('stepOf', { n: step === 'upload' ? 1 : step === 'map' ? 2 : 3 })}</span>
           </div>
           <Progress value={stepProgress} className="h-2 mb-4" />
           <div className="flex items-center gap-2">
             {[
-              { key: 'upload', label: 'Upload', icon: Upload },
-              { key: 'map', label: 'Map Columns', icon: ArrowRight },
-              { key: 'review', label: 'Review & Import', icon: CheckCircle2 },
+              { key: 'upload', label: t('steps.upload'), icon: Upload },
+              { key: 'map', label: t('steps.map'), icon: ArrowRight },
+              { key: 'review', label: t('steps.review'), icon: CheckCircle2 },
             ].map((s, i) => {
               const stepKeys = ['upload', 'map', 'review'];
               const currentIdx = stepKeys.indexOf(step);
@@ -324,7 +330,7 @@ export function DataImportView() {
               <div className="flex items-start gap-2">
                 <AlertCircle className="w-4 h-4 text-red-500 mt-0.5" />
                 <div>
-                  <p className="text-sm font-medium text-red-700 dark:text-red-400">Validation Errors</p>
+                  <p className="text-sm font-medium text-red-700 dark:text-red-400">{t('validationErrors')}</p>
                   <ul className="text-xs text-red-600 dark:text-red-400 mt-1 space-y-0.5">
                     {validationErrors.map((err, i) => <li key={i}>• {err}</li>)}
                   </ul>
@@ -344,9 +350,9 @@ export function DataImportView() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Upload className="w-5 h-5 text-emerald-600" />
-                  Upload CSV File
+                  {t('upload.title')}
                 </CardTitle>
-                <CardDescription>Upload a trial balance CSV file from your ERP system</CardDescription>
+                <CardDescription>{t('upload.desc')}</CardDescription>
               </CardHeader>
               <CardContent>
                 <div
@@ -369,20 +375,20 @@ export function DataImportView() {
                         <p className="text-xs text-muted-foreground">{(file.size / 1024).toFixed(1)} KB</p>
                       </div>
                       <Button variant="outline" size="sm" onClick={() => { setFile(null); setCsvPreview([]); }}>
-                        <X className="w-3 h-3 mr-1" /> Remove
+                        <X className="w-3 h-3 mr-1" /> {t('upload.remove')}
                       </Button>
                     </div>
                   ) : (
                     <div className="space-y-3">
                       <Upload className="w-12 h-12 mx-auto text-muted-foreground" />
                       <div>
-                        <p className="text-sm font-medium">Drag & drop your CSV file here</p>
-                        <p className="text-xs text-muted-foreground mt-1">or click to browse</p>
+                        <p className="text-sm font-medium">{t('upload.dragDrop')}</p>
+                        <p className="text-xs text-muted-foreground mt-1">{t('upload.orBrowse')}</p>
                       </div>
                       <label>
                         <input type="file" accept=".csv" className="hidden" onChange={handleFileInput} />
                         <Button variant="outline" size="sm" className="cursor-pointer" asChild>
-                          <span>Browse Files</span>
+                          <span>{t('upload.browse')}</span>
                         </Button>
                       </label>
                     </div>
@@ -394,7 +400,7 @@ export function DataImportView() {
                   <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mt-6">
                     <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-1.5">
                       <FileSpreadsheet className="w-3.5 h-3.5" />
-                      File Preview (first 5 rows)
+                      {t('upload.preview')}
                     </h4>
                     <div className="overflow-x-auto rounded-lg border">
                       <Table className="premium-table">
@@ -425,7 +431,7 @@ export function DataImportView() {
                     onClick={handleNextFromUpload}
                     disabled={!file || csvPreview.length === 0}
                   >
-                    Next: Map Columns <ArrowRight className="w-4 h-4 ml-1" />
+                    {t('upload.next')} <ArrowRight className="w-4 h-4 ml-1" />
                   </Button>
                 </div>
               </CardContent>
@@ -440,9 +446,9 @@ export function DataImportView() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <ArrowRight className="w-5 h-5 text-emerald-600" />
-                  Map CSV Columns
+                  {t('map.title')}
                 </CardTitle>
-                <CardDescription>Map your CSV columns to the system fields for trial balance import</CardDescription>
+                <CardDescription>{t('map.desc')}</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
@@ -450,7 +456,7 @@ export function DataImportView() {
                     <div key={sf.key} className="flex items-center gap-4 p-3 rounded-lg border bg-slate-50/50 dark:bg-slate-800/30">
                       <div className="w-48 shrink-0">
                         <Label className="text-sm font-medium flex items-center gap-1.5">
-                          {sf.label}
+                          {t(`fields.${sf.key}`)}
                           {sf.required && <span className="text-red-500">*</span>}
                         </Label>
                       </div>
@@ -460,10 +466,10 @@ export function DataImportView() {
                         onValueChange={(v) => setFieldMapping({ ...fieldMapping, [sf.key]: v === '__none__' ? '' : v })}
                       >
                         <SelectTrigger className="flex-1 h-8 text-sm">
-                          <SelectValue placeholder="Select column..." />
+                          <SelectValue placeholder={t('map.selectColumn')} />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="__none__">— Not Mapped —</SelectItem>
+                          <SelectItem value="__none__">{t('map.notMapped')}</SelectItem>
                           {csvHeaders.map((h, i) => (
                             <SelectItem key={i} value={h}>{h}</SelectItem>
                           ))}
@@ -476,13 +482,13 @@ export function DataImportView() {
                 {/* Mapping Preview */}
                 {csvPreview.length > 1 && (
                   <div className="mt-6">
-                    <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Mapping Preview</h4>
+                    <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">{t('map.previewTitle')}</h4>
                     <div className="overflow-x-auto rounded-lg border">
                       <Table className="premium-table">
                         <TableHeader>
                           <TableRow className="cursor-pointer transition-colors duration-150 bg-slate-50 dark:bg-slate-800/50">
                             {systemFields.filter(sf => fieldMapping[sf.key]).map(sf => (
-                              <TableHead key={sf.key} className="text-xs">{sf.label}</TableHead>
+                              <TableHead key={sf.key} className="text-xs">{t(`fields.${sf.key}`)}</TableHead>
                             ))}
                           </TableRow>
                         </TableHeader>
@@ -502,10 +508,10 @@ export function DataImportView() {
 
                 <div className="flex justify-between mt-6">
                   <Button variant="outline" onClick={() => setStep('upload')}>
-                    <ArrowLeft className="w-4 h-4 mr-1" /> Back
+                    <ArrowLeft className="w-4 h-4 mr-1" /> {t('map.back')}
                   </Button>
                   <Button className="bg-emerald-600 hover:bg-emerald-700" onClick={handleNextFromMap}>
-                    Next: Review <ArrowRight className="w-4 h-4 ml-1" />
+                    {t('map.next')} <ArrowRight className="w-4 h-4 ml-1" />
                   </Button>
                 </div>
               </CardContent>
@@ -520,18 +526,18 @@ export function DataImportView() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-                  Review & Import
+                  {t('review.title')}
                 </CardTitle>
-                <CardDescription>Verify the data summary before importing</CardDescription>
+                <CardDescription>{t('review.desc')}</CardDescription>
               </CardHeader>
               <CardContent>
                 {/* Summary Cards */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
                   {[
-                    { label: 'Records', value: Math.max(csvPreview.length - 1, 0), color: 'from-emerald-500/10 to-emerald-600/5', textColor: 'text-emerald-700 dark:text-emerald-400', borderColor: 'border-emerald-200 dark:border-emerald-800/50' },
-                    { label: 'Entities', value: entityCodes.length || 5, color: 'from-teal-500/10 to-teal-600/5', textColor: 'text-teal-700 dark:text-teal-400', borderColor: 'border-teal-200 dark:border-teal-800/50' },
-                    { label: 'Date Range', value: periods.length > 0 ? periods[0] : '2024-12', color: 'from-amber-500/10 to-amber-600/5', textColor: 'text-amber-700 dark:text-amber-400', borderColor: 'border-amber-200 dark:border-amber-800/50', small: true },
-                    { label: 'Total Amount', value: `€${totalAmount.toLocaleString('de-DE')}`, color: 'from-slate-500/10 to-slate-600/5', textColor: 'text-slate-700 dark:text-slate-400', borderColor: 'border-slate-200 dark:border-slate-700/50', small: true },
+                    { label: t('review.cards.records'), value: Math.max(csvPreview.length - 1, 0), color: 'from-emerald-500/10 to-emerald-600/5', textColor: 'text-emerald-700 dark:text-emerald-400', borderColor: 'border-emerald-200 dark:border-emerald-800/50' },
+                    { label: t('review.cards.entities'), value: entityCodes.length || 5, color: 'from-teal-500/10 to-teal-600/5', textColor: 'text-teal-700 dark:text-teal-400', borderColor: 'border-teal-200 dark:border-teal-800/50' },
+                    { label: t('review.cards.dateRange'), value: periods.length > 0 ? periods[0] : '2024-12', color: 'from-amber-500/10 to-amber-600/5', textColor: 'text-amber-700 dark:text-amber-400', borderColor: 'border-amber-200 dark:border-amber-800/50', small: true },
+                    { label: t('review.cards.totalAmount'), value: `€${totalAmount.toLocaleString('de-DE')}`, color: 'from-slate-500/10 to-slate-600/5', textColor: 'text-slate-700 dark:text-slate-400', borderColor: 'border-slate-200 dark:border-slate-700/50', small: true },
                   ].map((card, i) => (
                     <motion.div
                       key={card.label}
@@ -551,14 +557,14 @@ export function DataImportView() {
 
                 {/* Mapping Summary */}
                 <div className="mb-6">
-                  <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Field Mapping Summary</h4>
+                  <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">{t('review.mappingSummary')}</h4>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     {systemFields.map(sf => (
                       <div key={sf.key} className={`px-3 py-2 rounded-lg border text-xs ${fieldMapping[sf.key] ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800' : 'bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700'}`}>
-                        <span className="font-medium">{sf.label}</span>
+                        <span className="font-medium">{t(`fields.${sf.key}`)}</span>
                         {sf.required && <span className="text-red-500 ml-0.5">*</span>}
                         <p className="text-muted-foreground mt-0.5">
-                          {fieldMapping[sf.key] ? `→ ${fieldMapping[sf.key]}` : 'Not mapped'}
+                          {fieldMapping[sf.key] ? `→ ${fieldMapping[sf.key]}` : t('review.notMappedShort')}
                         </p>
                       </div>
                     ))}
@@ -573,10 +579,10 @@ export function DataImportView() {
                         <div className="flex items-center gap-2 mb-2">
                           <CheckCircle2 className={`w-5 h-5 ${importResult.errors.length === 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}`} />
                           <p className="text-sm font-semibold">
-                            {importResult.errors.length === 0 ? 'Import Successful' : `Import Completed with ${importResult.errors.length} warnings`}
+                            {importResult.errors.length === 0 ? t('review.successTitle') : t('review.warningsTitle', { count: importResult.errors.length })}
                           </p>
                         </div>
-                        <p className="text-xs text-muted-foreground">{importResult.imported} records imported successfully</p>
+                        <p className="text-xs text-muted-foreground">{t('review.recordsImported', { count: importResult.imported })}</p>
                         {importResult.errors.length > 0 && (
                           <ul className="text-xs text-amber-600 dark:text-amber-400 mt-2 space-y-0.5">
                             {importResult.errors.slice(0, 5).map((err, i) => <li key={i}>• {err}</li>)}
@@ -589,16 +595,16 @@ export function DataImportView() {
 
                 <div className="flex justify-between">
                   <Button variant="outline" onClick={() => setStep('map')}>
-                    <ArrowLeft className="w-4 h-4 mr-1" /> Back
+                    <ArrowLeft className="w-4 h-4 mr-1" /> {t('review.back')}
                   </Button>
                   {importResult ? (
                     <Button className="bg-emerald-600 hover:bg-emerald-700" onClick={resetWizard}>
-                      <Upload className="w-4 h-4 mr-1" /> New Import
+                      <Upload className="w-4 h-4 mr-1" /> {t('review.newImport')}
                     </Button>
                   ) : (
                     <Button className="bg-emerald-600 hover:bg-emerald-700" onClick={handleImport} disabled={importing}>
                       {importing ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <CheckCircle2 className="w-4 h-4 mr-1" />}
-                      Confirm Import
+                      {t('review.confirmImport')}
                     </Button>
                   )}
                 </div>
@@ -613,28 +619,28 @@ export function DataImportView() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
             <FileSpreadsheet className="w-5 h-5 text-teal-600" />
-            Import History
+            {t('history.title')}
           </CardTitle>
-          <CardDescription>Previous data imports and their status</CardDescription>
+          <CardDescription>{t('history.desc')}</CardDescription>
         </CardHeader>
         <CardContent>
           {historyLoading ? (
             <div className="flex items-center justify-center py-8">
               <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
-              <span className="ml-2 text-sm text-muted-foreground">Loading history...</span>
+              <span className="ml-2 text-sm text-muted-foreground">{t('history.loading')}</span>
             </div>
           ) : (
             <div className="max-h-72 overflow-y-auto rounded-lg border">
               <Table className="premium-table">
                 <TableHeader>
                   <TableRow className="cursor-pointer transition-colors duration-150 bg-slate-50 dark:bg-slate-800/50">
-                    <TableHead>File</TableHead>
-                    <TableHead className="w-20 text-center">Records</TableHead>
-                    <TableHead className="w-20 text-center">Entities</TableHead>
-                    <TableHead className="hidden md:table-cell">Date Range</TableHead>
-                    <TableHead className="text-right">Total Amount</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="hidden sm:table-cell">Date</TableHead>
+                    <TableHead>{t('history.headers.file')}</TableHead>
+                    <TableHead className="w-20 text-center">{t('history.headers.records')}</TableHead>
+                    <TableHead className="w-20 text-center">{t('history.headers.entities')}</TableHead>
+                    <TableHead className="hidden md:table-cell">{t('history.headers.dateRange')}</TableHead>
+                    <TableHead className="text-right">{t('history.headers.totalAmount')}</TableHead>
+                    <TableHead>{t('history.headers.status')}</TableHead>
+                    <TableHead className="hidden sm:table-cell">{t('history.headers.date')}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -651,9 +657,9 @@ export function DataImportView() {
                       <TableCell className="text-center text-sm">{entry.entityCount}</TableCell>
                       <TableCell className="hidden md:table-cell text-xs text-muted-foreground">{entry.dateRange}</TableCell>
                       <TableCell className="text-right text-sm font-mono">€{entry.totalAmount.toLocaleString('de-DE')}</TableCell>
-                      <TableCell>{getStatusBadge(entry.status)}</TableCell>
+                      <TableCell>{getStatusBadge(entry.status, t)}</TableCell>
                       <TableCell className="hidden sm:table-cell text-xs text-muted-foreground">
-                        {new Date(entry.importedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                        {new Date(entry.importedAt).toLocaleDateString(dateLocale(loc), { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                       </TableCell>
                     </motion.tr>
                   ))}

@@ -1,0 +1,1370 @@
+{
+  "common": {
+    "language": "Idioma",
+    "english": "English",
+    "portuguese": "Português",
+    "interfaceLanguage": "Idioma da interface",
+    "interfaceLanguageHint": "Escolha o idioma das etiquetas e da navegação. Os valores e a formatação de moeda não são afetados."
+  },
+  "scenario": {
+    "base": "Cenário Base",
+    "optimistic": "Otimista",
+    "pessimistic": "Pessimista"
+  },
+  "nav": {
+    "dashboard": { "label": "Painel", "desc": "KPIs do grupo e visão financeira geral" },
+    "entities": { "label": "Entidades", "desc": "Gerir subsidiárias e parâmetros" },
+    "consolidation": { "label": "Consolidação", "desc": "Demonstrações financeiras consolidadas" },
+    "ic-transactions": { "label": "Transações IC", "desc": "Correspondência de transações intragrupo" },
+    "journal": { "label": "Lançamentos", "desc": "Editor manual de lançamentos" },
+    "scenarios": { "label": "Cenários", "desc": "Análise e modelação de cenários" },
+    "variance": { "label": "Desvios", "desc": "Desvios entre orçado e real" },
+    "budget": { "label": "Orçado vs Real", "desc": "Acompanhamento e análise orçamental" },
+    "trends": { "label": "Análise de Tendências", "desc": "Análise de tendências multi-período" },
+    "forecast": { "label": "Previsão de Tesouraria", "desc": "Projeções de fluxos de caixa" },
+    "projects": { "label": "Projetos", "desc": "Avaliação de investimentos (VAL/TIR)" },
+    "fx-rates": { "label": "Câmbios", "desc": "Gestão de taxas de câmbio" },
+    "coa": { "label": "Plano de Contas", "desc": "Plano de contas do grupo e mapeamentos" },
+    "reports": { "label": "Relatórios", "desc": "Gerar relatórios financeiros" },
+    "ai-insights": { "label": "Insights de IA", "desc": "Análise financeira com IA" },
+    "compliance": { "label": "Conformidade", "desc": "Verificações regulatórias e conformidade" },
+    "import": { "label": "Importar Dados", "desc": "Assistente de importação CSV" },
+    "audit": { "label": "Registo de Auditoria", "desc": "Registo de atividade e auditoria" },
+    "workflow": { "label": "Fluxo de Trabalho", "desc": "Acompanhamento do fluxo de consolidação" },
+    "settings": { "label": "Definições", "desc": "Configuração do sistema" }
+  },
+  "viewTitles": {
+    "dashboard": "Painel",
+    "entities": "Gestão de Entidades",
+    "consolidation": "Consolidação",
+    "scenarios": "Análise de Cenários",
+    "variance": "Análise de Desvios",
+    "budget": "Orçado vs Real",
+    "trends": "Análise de Tendências",
+    "forecast": "Previsão de Tesouraria",
+    "projects": "Projetos",
+    "fx-rates": "Câmbios",
+    "coa": "Plano de Contas",
+    "import": "Importar Dados",
+    "ic-transactions": "Transações IC",
+    "reports": "Relatórios",
+    "ai-insights": "Insights de IA",
+    "compliance": "Conformidade",
+    "journal": "Lançamentos",
+    "workflow": "Fluxo de Trabalho",
+    "audit": "Registo de Auditoria",
+    "settings": "Definições"
+  },
+  "header": {
+    "switchGroup": "Mudar de grupo",
+    "dataAsOf": "Dados a {date}",
+    "allSystemsOperational": "Todos os sistemas operacionais"
+  },
+  "footer": {
+    "tagline": "Plataforma de Consolidação Financeira Multiempresa",
+    "quickSearch": "Prima ⌘K para pesquisa rápida",
+    "lastSync": "Última sincronização: {date}",
+    "database": "SQLite · {entities} Entidades · 18K+ Registos",
+    "entitiesShort": "{entities} Entidades"
+  },
+  "sidebar": {
+    "financialGroup": "Grupo Financeiro",
+    "groupSummary": "Resumo do Grupo",
+    "entities": "Entidades",
+    "revenue": "Receita",
+    "lastRun": "Últ. Exec.",
+    "quickSearch": "Pesquisa rápida...",
+    "period": "Período",
+    "scenario": "Cenário",
+    "recentlyViewed": "Vistos Recentemente",
+    "online": "Online",
+    "entitiesOnline": "{count} entidades online",
+    "expand": "Expandir barra lateral",
+    "collapse": "Recolher barra lateral",
+    "views": "{count} Vistas",
+    "new": "Novo"
+  },
+  "groupSelect": {
+    "eyebrow": "Consolidação Financeira Multi-Entidade",
+    "subtitle": "Selecione um grupo para carregar todas as suas empresas, ou crie um novo",
+    "companies": "{count, plural, one {# empresa} other {# empresas}}",
+    "addNewGroup": "Adicionar Novo Grupo",
+    "dialogDescription": "Cria um grupo vazio. De seguida adiciona as suas empresas. Isto substitui o grupo atualmente carregado.",
+    "groupName": "Nome do Grupo",
+    "groupNamePlaceholder": "ex. Grupo Acme",
+    "reportingPeriod": "Período de Reporte",
+    "cancel": "Cancelar",
+    "create": "Criar Grupo",
+    "footer": "Plataforma de Consolidação Financeira Multiempresa",
+    "loadErrorTitle": "Erro",
+    "loadErrorDesc": "Não foi possível carregar os grupos",
+    "createdTitle": "Grupo Criado",
+    "createdDesc": "{name} — adicione empresas para começar."
+  },
+  "dashboard": {
+    "greetingMorning": "Bom dia",
+    "greetingAfternoon": "Boa tarde",
+    "greetingEvening": "Boa noite",
+    "financeTeam": "Equipa Financeira",
+    "lastUpdated": "Última atualização: {time}",
+    "runConsolidation": "Executar Consolidação",
+    "exportReport": "Exportar Relatório",
+    "viewScenarios": "Ver Cenários",
+    "viewDetails": "Ver Detalhes",
+    "dataError": "Não foi possível carregar dados do servidor. A apresentar valores de exemplo abaixo.",
+    "noEntities": "Nenhuma entidade encontrada — carregue um pacote de empresa para ver valores reais.",
+    "quickStats": {
+      "entitiesActive": "Entidades Ativas",
+      "entitiesActiveDetail": "{n} entidades consolidadas em {c, plural, one {# país} other {# países}}{list}",
+      "coaAccounts": "Contas do Plano",
+      "coaAccountsDetail": "{n} códigos do plano de contas do grupo com mapeamentos de entidades",
+      "fxRates": "Taxas de Câmbio",
+      "fxRatesDetail": "{n} registos de taxas de câmbio (convenção BCE: 1 EUR = X)",
+      "currencies": "Moedas",
+      "currenciesDetail": "Reporte em EUR; moedas do grupo: {list}"
+    },
+    "kpi": {
+      "totalRevenue": "Receita Total",
+      "totalRevenueDesc": "Receita consolidada do grupo",
+      "ebitdaMargin": "Margem EBITDA",
+      "ebitdaMarginDesc": "Rentabilidade operacional",
+      "netIncome": "Resultado Líquido",
+      "netIncomeDesc": "Resultado final",
+      "totalAssets": "Ativo Total",
+      "totalAssetsDesc": "Total do ativo do grupo",
+      "leverage": "Dívida Líq. / EBITDA",
+      "leverageDesc": "Rácio de alavancagem",
+      "roce": "ROCE",
+      "roceDesc": "Rendibilidade do capital investido"
+    },
+    "scorecard": {
+      "title": "Painel de Saúde Financeira",
+      "overallGroupHealth": "Saúde Global do Grupo",
+      "outOf100": "em 100",
+      "strong": "Forte",
+      "moderate": "Moderado",
+      "atRisk": "Em Risco",
+      "strongLegend": "Forte (≥75)",
+      "moderateLegend": "Moderado (50-74)",
+      "atRiskLegend": "Em Risco (<50)"
+    },
+    "indicators": {
+      "revenueGrowth": "Crescimento da Receita",
+      "ebitdaMargin": "Margem EBITDA",
+      "leverageRatio": "Rácio de Alavancagem",
+      "liquidityRatio": "Rácio de Liquidez",
+      "roe": "ROE",
+      "interestCoverage": "Cobertura de Juros"
+    },
+    "recentRuns": {
+      "title": "Execuções de Consolidação Recentes",
+      "viewAll": "Ver Tudo →",
+      "date": "Data",
+      "status": "Estado",
+      "revenue": "Receita",
+      "netIncome": "Resultado Líquido",
+      "completed": "✓ Concluída"
+    },
+    "entityHealth": {
+      "title": "Comparação de Saúde por Entidade",
+      "desc": "Contribuição de cada entidade para a pontuação de saúde global do grupo"
+    },
+    "waterfall": {
+      "title": "Cascata da Receita",
+      "desc": "Percurso da demonstração de resultados, da Receita ao Resultado Líquido (€)"
+    },
+    "cashFlowBridge": "Ponte de Fluxos de Caixa",
+    "cf": {
+      "Operating CF": "FC Operacional",
+      "Investing CF": "FC de Investimento",
+      "Financing CF": "FC de Financiamento",
+      "Net Change": "Variação Líquida"
+    },
+    "recentActivity": "Atividade Recente",
+    "charts": {
+      "revenueByEntity": "Receita por Entidade",
+      "revenueByEntityDesc": "Repartição anual da receita (€)",
+      "ebitdaMarginTrend": "Tendência da Margem EBITDA",
+      "ebitdaMarginTrendDesc": "Progressão mensal da margem (%)",
+      "revenueEbitdaTrend": "Tendência de Receita & EBITDA",
+      "revenueEbitdaTrendDesc": "Progressão mensal (€)",
+      "entityContribution": "Contribuição de Receita por Entidade",
+      "entityContributionDesc": "Contribuição proporcional para a receita do grupo"
+    }
+  },
+  "entities": {
+    "geoTitle": "Distribuição Geográfica",
+    "groupEntities": "Entidades do Grupo",
+    "groupEntitiesDesc": "Gerir subsidiárias e os seus parâmetros de consolidação",
+    "export": "Exportar",
+    "addEntity": "Adicionar Entidade",
+    "addNewEntity": "Adicionar Nova Entidade",
+    "addNewEntityDesc": "Registar uma nova subsidiária no grupo de consolidação",
+    "entityCode": "Código da Entidade",
+    "country": "País",
+    "select": "Selecionar",
+    "legalName": "Designação Social",
+    "localCurrency": "Moeda Local",
+    "consolidationMethod": "Método de Consolidação",
+    "fullConsolidation": "Consolidação Integral",
+    "proportional": "Proporcional",
+    "equityMethod": "Método de Equivalência Patrimonial",
+    "ownershipPct": "% de Participação",
+    "sector": "Setor",
+    "cancel": "Cancelar",
+    "searchPlaceholder": "Pesquisar entidades por código, nome, país, moeda...",
+    "loadError": "Não foi possível carregar as entidades do servidor. Tente atualizar.",
+    "createdTitle": "Entidade Criada",
+    "errorTitle": "Erro",
+    "createError": "Não foi possível criar a entidade",
+    "active": "Ativa",
+    "inactive": "Inativa",
+    "method": {
+      "full": "Integral",
+      "proportional": "Proporcional",
+      "equity": "Equivalência"
+    },
+    "health": {
+      "amber": "Alerta",
+      "fair": "Razoável",
+      "strong": "Forte"
+    },
+    "sectors": {
+      "Technology": "Tecnologia",
+      "Consulting": "Consultoria",
+      "Services": "Serviços",
+      "Manufacturing": "Indústria"
+    },
+    "table": {
+      "code": "Código",
+      "legalName": "Designação Social",
+      "country": "País",
+      "currency": "Moeda",
+      "method": "Método",
+      "ownership": "% Participação",
+      "health": "Saúde",
+      "revenueTrend": "Tendência de Receita",
+      "sector": "Setor",
+      "status": "Estado",
+      "lastUpdated": "Última Atualização"
+    },
+    "comparison": {
+      "title": "Comparação de Entidades",
+      "desc": "Comparar dados financeiros de duas entidades lado a lado",
+      "hide": "Ocultar",
+      "compareEntities": "Comparar Entidades",
+      "entityA": "Entidade A",
+      "entityB": "Entidade B",
+      "selectEntity": "Selecionar entidade",
+      "compare": "Comparar",
+      "financialOverview": "Comparação Financeira Geral",
+      "incomeComparison": "Comparação da Demonstração de Resultados (€K)",
+      "balanceComparison": "Comparação do Balanço (€K)",
+      "metric": "Métrica",
+      "variance": "Desvio",
+      "pctDiff": "% Dif.",
+      "keyRatios": "Comparação de Rácios-Chave",
+      "leads": "lidera",
+      "trails": "fica atrás",
+      "varianceSummary": "Resumo da Análise de Desvios",
+      "leadsIn": "{code} Lidera Em",
+      "outOfMetrics": "de {count} métricas",
+      "revenueGap": "Diferença de Receita",
+      "absoluteDifference": "diferença absoluta",
+      "ownershipImpact": "Impacto da Participação — Cascata de Interesses Minoritários",
+      "ownershipLabel": "{code} — Participação: {pct}%"
+    },
+    "drawer": {
+      "overview": "Resumo",
+      "financials": "Financeiros",
+      "ratios": "Rácios",
+      "history": "Histórico",
+      "keyFinancials": "Indicadores Financeiros (€K)",
+      "ownershipStructure": "Estrutura de Participação",
+      "group": "Grupo: {pct}%",
+      "minority": "Minoritários: {pct}%",
+      "consolidationDetails": "Detalhes de Consolidação",
+      "localCurrency": "Moeda Local",
+      "consolidationMethod": "Método de Consolidação",
+      "sector": "Setor",
+      "status": "Estado",
+      "incomeStatement": "Demonstração de Resultados (€K)",
+      "noFinancialData": "Sem dados financeiros disponíveis",
+      "balanceSheet": "Balanço (€K)",
+      "keyRatios": "Rácios Financeiros-Chave",
+      "noRatioData": "Sem dados de rácios disponíveis",
+      "entityTimeline": "Cronologia da Entidade"
+    },
+    "metrics": {
+      "Revenue": "Receita",
+      "COGS": "CMV",
+      "Gross Profit": "Resultado Bruto",
+      "EBITDA": "EBITDA",
+      "EBIT": "EBIT",
+      "Net Income": "Resultado Líquido",
+      "Total Assets": "Ativo Total",
+      "Current Assets": "Ativo Corrente",
+      "Total Liabilities": "Passivo Total",
+      "Total Equity": "Capital Próprio",
+      "ROE": "ROE",
+      "ROA": "ROA",
+      "EBITDA Margin": "Margem EBITDA",
+      "Current Ratio": "Liquidez Corrente",
+      "Debt/Equity": "Dívida/Capital",
+      "Minority Share": "Parte Minoritária",
+      "Group Share": "Parte do Grupo"
+    },
+    "countries": {
+      "PT": "Portugal",
+      "ES": "Espanha",
+      "DE": "Alemanha",
+      "GB": "Reino Unido",
+      "FR": "França",
+      "IT": "Itália",
+      "NL": "Países Baixos",
+      "US": "Estados Unidos",
+      "CH": "Suíça",
+      "JP": "Japão"
+    },
+    "timeline": {
+      "trialBalanceImported": "Balancete importado",
+      "consolidationCompleted": "Execução de consolidação concluída",
+      "fxUpdated": "Taxa de câmbio atualizada",
+      "budgetSaved": "Registo orçamental guardado",
+      "coaUpdated": "Mapeamento do plano de contas atualizado"
+    }
+  },
+  "consolidation": {
+    "statusCompleted": "Concluída",
+    "statusInProgress": "Em Curso",
+    "statusFailed": "Falhou",
+    "lastRun": "Última execução: {time}",
+    "consolidating": "A consolidar...",
+    "processingEntities": "A processar {count} entidades",
+    "title": "Demonstrações Financeiras Consolidadas",
+    "subtitle": "Período: {period} · {scenario} · Todas as entidades consolidadas",
+    "entitiesEliminations": "{count} Entidades · {amount} Eliminações IC",
+    "runConsolidation": "Executar Consolidação",
+    "tabs": {
+      "income": "Demonstração de Resultados",
+      "balance": "Balanço",
+      "cashflow": "Fluxos de Caixa"
+    },
+    "lineItem": "Rubrica",
+    "icElim": "Elim. IC",
+    "icElimTooltip": "Eliminações intragrupo",
+    "consolidated": "Consolidado",
+    "cards": {
+      "consolidatedRevenue": "Receita Consolidada",
+      "entitiesConsolidated": "{count} entidades consolidadas",
+      "icEliminations": "Eliminações IC",
+      "icEliminationsDesc": "Receita e contas a receber intragrupo",
+      "minorityInterest": "Interesses Minoritários",
+      "minorityInterestDesc": "Interesses que não controlam",
+      "bsCheck": "Verificação do Balanço",
+      "balanced": "Equilibrado ✓",
+      "offBy": "Desvio de €{amount}K",
+      "bsEquation": "Ativo = Passivo + Capital Próprio",
+      "qualityScore": "Pontuação de Qualidade"
+    },
+    "quality": {
+      "bsBalance": "Equilíbrio do Balanço",
+      "icMatchRate": "Taxa de Correspondência IC",
+      "currencyConv": "Conversão Cambial",
+      "minorityCalc": "Cálculo de Minoritários"
+    },
+    "elimImpact": {
+      "title": "Impacto das Eliminações",
+      "desc": "Antes e depois das eliminações intragrupo (€K)",
+      "before": "Antes da Eliminação",
+      "after": "Depois da Eliminação",
+      "icRevenue": "Receita IC",
+      "icCogs": "CMV IC"
+    },
+    "history": {
+      "title": "Histórico de Consolidações",
+      "desc": "Execuções de consolidação anteriores e os seus principais resultados",
+      "revenue": "Receita: ",
+      "assets": "Ativo: ",
+      "netIncome": "Resultado Líquido: ",
+      "entities": "{count} entidades",
+      "na": "N/D"
+    },
+    "sections": {
+      "assets": "Ativo",
+      "liabilitiesEquity": "Passivo e Capital Próprio",
+      "operatingActivities": "Atividades Operacionais",
+      "investingActivities": "Atividades de Investimento",
+      "financingActivities": "Atividades de Financiamento",
+      "netChange": "Variação Líquida"
+    },
+    "lines": {
+      "revenue": "Receita",
+      "cogs": "Custo das Vendas",
+      "grossProfit": "Resultado Bruto",
+      "opex": "Gastos Operacionais",
+      "ebitda": "EBITDA",
+      "depreciation": "Depreciações e Amortizações",
+      "ebit": "EBIT",
+      "interestExpense": "Gastos de Financiamento",
+      "ebt": "Resultado Antes de Impostos",
+      "taxExpense": "Imposto sobre o Rendimento",
+      "netIncome": "Resultado Líquido",
+      "minorityInterest": "Interesses Minoritários",
+      "cash": "Caixa e Equivalentes",
+      "accountsReceivable": "Contas a Receber",
+      "inventory": "Inventários",
+      "currentAssets": "Total do Ativo Corrente",
+      "ppe": "Ativos Fixos Tangíveis",
+      "intangibleAssets": "Ativos Intangíveis",
+      "goodwill": "Goodwill",
+      "nonCurrentAssets": "Total do Ativo Não Corrente",
+      "totalAssets": "TOTAL DO ATIVO",
+      "accountsPayable": "Contas a Pagar",
+      "shortTermDebt": "Dívida de Curto Prazo",
+      "currentLiabilities": "Total do Passivo Corrente",
+      "longTermDebt": "Dívida de Longo Prazo",
+      "nonCurrentLiabilities": "Total do Passivo Não Corrente",
+      "totalLiabilities": "TOTAL DO PASSIVO",
+      "shareCapital": "Capital Social",
+      "retainedEarnings": "Resultados Transitados",
+      "minorityEquity": "Interesses Minoritários",
+      "totalEquity": "TOTAL DO CAPITAL PRÓPRIO",
+      "changesInWorkingCapital": "Variação do Fundo de Maneio",
+      "operatingCashFlow": "Fluxo de Caixa Operacional",
+      "capex": "Investimento (CAPEX)",
+      "investingCashFlow": "Fluxo de Caixa de Investimento",
+      "debtIssuance": "Emissão de Dívida",
+      "debtRepayment": "Reembolso de Dívida",
+      "dividendsPaid": "Dividendos Pagos",
+      "financingCashFlow": "Fluxo de Caixa de Financiamento",
+      "netChangeInCash": "Variação Líquida de Caixa",
+      "beginningCash": "Caixa Inicial",
+      "endingCash": "Caixa Final"
+    }
+  },
+  "settings": {
+    "preferences": "Preferências",
+    "preferencesDesc": "Personalize a forma como a interface é apresentada"
+  },
+  "scenarios": {
+    "radarTitle": "Comparação Radar de Cenários",
+    "radarDesc": "Comparação multidimensional entre cenários",
+    "editAssumptions": "Editar Pressupostos — {name}",
+    "editAssumptionsDesc": "Ajuste os pressupostos macroeconómicos e de crescimento para a modelação de cenários",
+    "runScenario": "Executar Cenário",
+    "running": "A executar simulação...",
+    "impactTitle": "Comparação de Impacto de Cenários",
+    "impactDesc": "Métricas-chave entre cenários (€K)",
+    "sensitivityTitle": "Análise de Sensibilidade",
+    "sensitivityDesc": "Impacto de uma variação de ±1% em cada pressuposto nos resultados-chave",
+    "monteCarloTitle": "Distribuição de Monte Carlo",
+    "monteCarloDesc": "Distribuição de probabilidade dos resultados de Resultado Líquido (1000 simulações)",
+    "comparisonTitle": "Tabela de Comparação de Cenários",
+    "comparisonDesc": "Comparação lado a lado de métricas financeiras-chave",
+    "cardFields": {
+      "inflation": "Inflação",
+      "interest": "Juro",
+      "fxVol": "Vol. Cambial",
+      "revGrowth": "Cresc. Receita"
+    },
+    "assumptions": {
+      "inflationRate": "Taxa de Inflação",
+      "interestRate": "Taxa de Juro",
+      "fxVolatility": "Volatilidade Cambial",
+      "revenueGrowthFactor": "Fator de Crescimento da Receita",
+      "opexGrowthFactor": "Fator de Crescimento dos Custos Operacionais",
+      "capexGrowthFactor": "Fator de Crescimento do CAPEX"
+    },
+    "names": {
+      "base": "Base",
+      "optimistic": "Otimista",
+      "pessimistic": "Pessimista"
+    },
+    "distLabels": {
+      "pessimistic": "Pessimista",
+      "base": "Cenário Base",
+      "optimistic": "Otimista"
+    },
+    "metrics": {
+      "revenue": "Receita",
+      "ebitda": "EBITDA",
+      "netIncome": "Resultado Líquido",
+      "ebitdaMargin": "Margem EBITDA",
+      "leverage": "Alavancagem",
+      "roe": "ROE"
+    },
+    "sensitivityHeaders": {
+      "assumption": "Pressuposto",
+      "revenue": "Impacto na Receita",
+      "ebitda": "Impacto no EBITDA",
+      "netIncome": "Impacto no Resultado Líquido"
+    },
+    "sensitivityRows": {
+      "inflation": "Inflação ±1%",
+      "interest": "Taxa de Juro ±1%",
+      "fxVol": "Vol. Cambial ±1%",
+      "revGrowth": "Cresc. Receita ±1%",
+      "opexGrowth": "Cresc. Custos Op. ±1%"
+    },
+    "stress": "Esforço",
+    "comparisonHeaders": {
+      "metric": "Métrica",
+      "base": "Cenário Base",
+      "optimistic": "Otimista",
+      "pessimistic": "Pessimista",
+      "optVsBase": "Otim. vs Base",
+      "pessVsBase": "Pess. vs Base"
+    },
+    "scenarioType": {
+      "base": "Base",
+      "optimistic": "Otimista",
+      "pessimistic": "Pessimista"
+    },
+    "toast": {
+      "completedTitle": "Cenário Concluído",
+      "completedDesc": "Simulação de {name} terminada",
+      "fallbackTitle": "Execução de Cenário",
+      "fallbackDesc": "Simulação concluída com dados de reserva"
+    }
+  },
+  "variance": {
+    "title": "Análise de Desvios",
+    "subtitle": "Comparação Real vs Orçamento vs Previsão",
+    "export": "Exportar",
+    "cards": {
+      "revenue": "Desvio da Receita",
+      "ebitda": "Desvio do EBITDA",
+      "netIncome": "Desvio do Resultado Líquido",
+      "vsBudgetSuffix": "vs. Orçamento"
+    },
+    "heatmapTitle": "Mapa de Calor de Desvios",
+    "heatmapDesc": "Indicador visual das métricas mais desalinhadas (% vs. Orçamento)",
+    "waterfallTitle": "Cascata de Desvios — vs. Orçamento",
+    "waterfallDesc": "Total acumulado de desvios favoráveis (verde) e desfavoráveis (âmbar) (€K)",
+    "waterfallBar": "Desvio",
+    "tableTitle": "Relatório Detalhado de Desvios",
+    "tableDesc": "Detalhe completo de valores reais, orçamento e previsão com análise de desvios",
+    "loading": "A carregar dados de desvios...",
+    "headers": {
+      "metric": "Métrica",
+      "actual": "Real",
+      "budget": "Orçamento",
+      "forecast": "Previsão",
+      "varVsBudget": "Desvio vs Orç.",
+      "varVsForecast": "Desvio vs Prev.",
+      "pctVarBudget": "% Desvio (Orç.)",
+      "trend": "Tendência"
+    }
+  },
+  "fxRates": {
+    "title": "Gestão de Taxas de Câmbio",
+    "subtitle": "As taxas são expressas como 1 EUR = X Moeda Estrangeira",
+    "addRate": "Adicionar Taxa",
+    "addRateTitle": "Adicionar Taxa de Câmbio",
+    "addRateDesc": "Introduza uma nova taxa de câmbio para EUR",
+    "currency": "Moeda",
+    "select": "Selecionar",
+    "rateType": "Tipo de Taxa",
+    "closing": "Fecho",
+    "average": "Média",
+    "historical": "Histórica",
+    "rateInput": "Taxa (1 EUR = X Moeda)",
+    "rateDate": "Data da Taxa",
+    "source": "Fonte",
+    "cancel": "Cancelar",
+    "rateAlert": "Alerta de Taxa",
+    "refresh": "Atualizar",
+    "tabs": {
+      "closing": "Taxas de Fecho",
+      "average": "Taxas Médias",
+      "historical": "Taxas Históricas"
+    },
+    "loading": "A carregar taxas...",
+    "headers": {
+      "currency": "Moeda",
+      "rateDate": "Data da Taxa",
+      "rate": "Taxa (1 EUR =)",
+      "source": "Fonte",
+      "inverse": "Taxa Inversa",
+      "trend": "Tendência 12M"
+    },
+    "alertTooltip": "A taxa variou >2% face à média",
+    "vsOpening": "vs. abertura",
+    "alert": "Alerta",
+    "bid": "Compra",
+    "ask": "Venda",
+    "alertSetup": "Configurar Alerta de Taxa",
+    "alertSetupDesc": "Seja notificado quando as taxas de câmbio excederem os seus limites",
+    "currencyPair": "Par de Moedas",
+    "threshold": "Limite (%)",
+    "direction": "Direção",
+    "dirBoth": "Ambas ↑↓",
+    "dirUp": "Apenas subida ↑",
+    "dirDown": "Apenas descida ↓",
+    "notificationMethod": "Método de Notificação",
+    "email": "Email",
+    "inApp": "Na Aplicação",
+    "both": "Ambos",
+    "createAlert": "Criar Alerta",
+    "toast": {
+      "addedTitle": "Taxa Adicionada",
+      "addedDesc": "Taxa {currency} adicionada com sucesso",
+      "errorTitle": "Erro",
+      "addError": "Falha ao adicionar a taxa",
+      "alertCreatedTitle": "Alerta Criado",
+      "alertCreatedDesc": "O alerta de taxa foi configurado"
+    }
+  },
+  "projects": {
+    "title": "Projetos — Avaliação de Investimentos",
+    "subtitle": "VAL · TIR · período de recuperação descontado por projeto (ex.: Polo de Automação e Logística)",
+    "refresh": "Atualizar",
+    "seedDemo": "Carregar grupo de demonstração",
+    "loadError": "Falha ao carregar os projetos",
+    "empty": "Ainda não há projetos. Carregue o grupo de demonstração para obter o Polo de Automação e Logística.",
+    "valueAccretive": "Cria valor",
+    "review": "Rever",
+    "npv": "VAL",
+    "irr": "TIR",
+    "payback": "Recuperação",
+    "paybackYears": "{years} anos",
+    "capex": "CAPEX",
+    "debtLabel": "Dívida @ {rate}%",
+    "equity": "Capital próprio"
+  },
+  "audit": {
+    "title": "Registo de Auditoria",
+    "subtitle": "Registo completo da atividade de todas as operações do sistema",
+    "exportLog": "Exportar Registo",
+    "searchPlaceholder": "Pesquisar por descrição, utilizador ou entidade...",
+    "loading": "A carregar registo de auditoria...",
+    "noMatch": "Nenhuma entrada de auditoria corresponde aos filtros",
+    "automated": "Automático",
+    "cards": {
+      "total": "Total de Eventos",
+      "consolidations": "Consolidações",
+      "entityChanges": "Alterações de Entidade",
+      "imports": "Importações",
+      "fxUpdates": "Atualizações Cambiais"
+    },
+    "filter": {
+      "all": "Todas as Ações",
+      "consolidation": "Consolidação",
+      "entity": "Alterações de Entidade",
+      "import": "Importações de Dados",
+      "fx": "Atualizações de Taxas de Câmbio"
+    },
+    "actionTypes": {
+      "consolidation": "Consolidação",
+      "entity": "Alteração de Entidade",
+      "import": "Importação de Dados",
+      "fx": "Atualização Cambial"
+    },
+    "csv": {
+      "timestamp": "Data/Hora",
+      "actionType": "Tipo de Ação",
+      "description": "Descrição",
+      "user": "Utilizador",
+      "affectedEntities": "Entidades Afetadas"
+    }
+  },
+  "coa": {
+    "title": "Plano de Contas",
+    "subtitle": "Estrutura do plano de contas do grupo e configuração do mapeamento por entidade",
+    "cards": {
+      "total": "Total de Contas",
+      "ic": "Contas Intragrupo",
+      "mappings": "Mapeamentos de Entidade",
+      "types": "Tipos de Conta"
+    },
+    "tabs": {
+      "groupCoa": "Plano do Grupo",
+      "entityMappings": "Mapeamentos de Entidade"
+    },
+    "searchAccounts": "Pesquisar contas...",
+    "addAccount": "Adicionar Conta",
+    "createAccount": "Criar Conta",
+    "cancel": "Cancelar",
+    "dialog": {
+      "title": "Adicionar Nova Conta do Plano",
+      "desc": "Crie uma nova conta no plano de contas do grupo",
+      "code": "Código da Conta",
+      "name": "Nome da Conta",
+      "accountType": "Tipo de Conta",
+      "statementType": "Tipo de Demonstração",
+      "level": "Nível",
+      "sortOrder": "Ordenação",
+      "intercompany": "Intragrupo",
+      "no": "Não",
+      "yes": "Sim"
+    },
+    "accountTypes": {
+      "revenue": "Rendimentos",
+      "expense": "Gastos",
+      "asset": "Ativo",
+      "liability": "Passivo",
+      "equity": "Capital Próprio"
+    },
+    "statementTypes": {
+      "income": "Resultados",
+      "balance": "Balanço",
+      "cashflow": "Fluxos de Caixa"
+    },
+    "statementTypesLong": {
+      "income": "Demonstração de Resultados",
+      "balance": "Balanço",
+      "cashflow": "Fluxos de Caixa"
+    },
+    "filters": {
+      "typeLabel": "Tipo:",
+      "allTypes": "Todos os Tipos",
+      "statementLabel": "Demonstração:",
+      "allStatements": "Todas as Demonstrações",
+      "entityLabel": "Entidade:",
+      "allEntities": "Todas as Entidades"
+    },
+    "loadingAccounts": "A carregar contas...",
+    "loadingMappings": "A carregar mapeamentos...",
+    "groupHeaders": {
+      "code": "Código",
+      "name": "Nome",
+      "type": "Tipo",
+      "statement": "Demonstração",
+      "level": "Nível",
+      "ic": "IG",
+      "sort": "Ordem"
+    },
+    "mappingHeaders": {
+      "entity": "Entidade",
+      "localCode": "Código Local",
+      "localName": "Nome da Conta Local",
+      "localCoa": "Plano Local",
+      "groupCode": "Código do Grupo",
+      "groupName": "Nome da Conta do Grupo"
+    },
+    "noAccounts": "Nenhuma conta corresponde aos filtros",
+    "noMappings": "Nenhum mapeamento corresponde aos filtros",
+    "toast": {
+      "createdTitle": "Conta Criada",
+      "errorTitle": "Erro",
+      "createError": "Falha ao criar a conta"
+    }
+  },
+  "workflow": {
+    "title": "Acompanhamento do Fluxo de Consolidação",
+    "subtitle": "Assistente passo a passo que orienta o processo de consolidação multiempresa",
+    "status": {
+      "complete": "Concluído",
+      "inProgress": "Em Curso",
+      "pending": "Pendente"
+    },
+    "statusVerb": {
+      "complete": "Concluído",
+      "inProgress": "Em Curso",
+      "pending": "Pendente"
+    },
+    "overallProgress": "Progresso Global",
+    "lastCompleted": "Último concluído: {step}",
+    "noneCompleted": "Ainda não há passos concluídos",
+    "percentComplete": "{pct}% concluído",
+    "stepsOf": "{done} de {total} passos",
+    "estTime": "Tempo Est.",
+    "stepsTitle": "Passos da Consolidação",
+    "stepsDesc": "Clique em qualquer passo para ver detalhes e navegar para o módulo correspondente",
+    "stepOf": "Passo {idx} de {total}",
+    "currentStatus": "Estado Atual",
+    "metrics": "Métricas",
+    "completedOn": "Concluído em {date}",
+    "navigate": "Navegar",
+    "quickActions": "Ações Rápidas",
+    "runFull": "Executar Fluxo Completo",
+    "rerunFailed": "Reexecutar Passos com Falha",
+    "stepsOverview": "Resumo dos Passos"
+  },
+  "icTransactions": {
+    "cards": {
+      "revenue": "Rendimentos Intragrupo",
+      "expenses": "Gastos Intragrupo",
+      "netBalance": "Saldo Intragrupo Líquido",
+      "uneliminated": "Por Eliminar"
+    },
+    "flowTitle": "Fluxo de Transações entre Entidades",
+    "matched": "Conciliado",
+    "collapse": "Recolher",
+    "expand": "Expandir",
+    "flowDesc": "Representação visual dos fluxos de transações intragrupo",
+    "title": "Transações Intragrupo",
+    "countForPeriod": "{count} transações para {period}",
+    "export": "Exportar",
+    "runEliminations": "Executar Eliminações",
+    "searchPlaceholder": "Pesquisar por ID ou referência de conciliação...",
+    "entity": "Entidade",
+    "type": "Tipo",
+    "statusLabel": "Estado",
+    "allEntities": "Todas as Entidades",
+    "allTypes": "Todos os Tipos",
+    "allStatus": "Todos os Estados",
+    "types": {
+      "sale": "Venda",
+      "purchase": "Compra",
+      "service": "Serviço",
+      "loan": "Empréstimo",
+      "dividend": "Dividendo"
+    },
+    "statuses": {
+      "pending": "Pendente",
+      "matched": "Conciliado",
+      "eliminated": "Eliminado"
+    },
+    "headers": {
+      "txId": "ID da Transação",
+      "fromTo": "De → Para",
+      "type": "Tipo",
+      "amountLocal": "Montante (Local)",
+      "amountEur": "Montante (EUR)",
+      "ccy": "Moeda",
+      "period": "Período",
+      "matchRef": "Ref. Concil.",
+      "status": "Estado"
+    },
+    "noMatch": "Nenhuma transação intragrupo corresponde aos filtros",
+    "csv": {
+      "txId": "ID da Transação",
+      "from": "Entidade de Origem",
+      "to": "Entidade de Destino",
+      "type": "Tipo",
+      "amountLocal": "Montante (Local)",
+      "amountEur": "Montante (EUR)",
+      "currency": "Moeda",
+      "period": "Período",
+      "matchRef": "Ref. Conciliação",
+      "status": "Estado"
+    }
+  },
+  "budget": {
+    "title": "Análise Orçamento vs Real",
+    "subtitle": "Compare os montantes orçamentados com o desempenho real por entidade e conta",
+    "export": "Exportar",
+    "addBudget": "Adicionar Orçamento",
+    "dialog": {
+      "title": "Adicionar Entrada de Orçamento",
+      "desc": "Crie ou atualize um montante de orçamento para uma entidade e conta",
+      "entity": "Entidade",
+      "selectEntity": "Selecionar entidade",
+      "accountCode": "Código da Conta",
+      "budgetAmount": "Montante Orçamentado (€)",
+      "cancel": "Cancelar",
+      "save": "Guardar Orçamento"
+    },
+    "cards": {
+      "totalBudget": "Orçamento Total",
+      "totalActual": "Real Total",
+      "totalVariance": "Desvio Total",
+      "variancePct": "Desvio %"
+    },
+    "trendLabels": {
+      "priorPeriod": "vs. período anterior",
+      "vsBudget": "vs. orçamento",
+      "variancePct": "desvio %"
+    },
+    "overviewTitle": "Visão Geral do Orçamento por Entidade",
+    "overviewDesc": "Clique numa entidade para detalhar ao nível da conta",
+    "searchEntities": "Pesquisar entidades...",
+    "entityHeaders": {
+      "entity": "Entidade",
+      "budget": "Orçamento",
+      "actual": "Real",
+      "varianceEur": "Desvio (€)",
+      "variancePct": "Desvio (%)",
+      "status": "Estado"
+    },
+    "chartTitle": "Análise de Desvios por Categoria",
+    "chartDesc": "Orçamento (azul-petróleo) vs Real (verde) com sobreposição do desvio %",
+    "budgetSeries": "Orçamento",
+    "actualSeries": "Real",
+    "variancePctSeries": "Desvio %",
+    "accountDetail": "{name} — Detalhe de Contas",
+    "accountDetailDesc": "Detalhe completo de orçamento vs real ao nível da conta",
+    "csvBtn": "CSV",
+    "detailHeaders": {
+      "accountCode": "Código da Conta",
+      "accountName": "Nome da Conta",
+      "category": "Categoria",
+      "budgetEur": "Orçamento (€)",
+      "actualEur": "Real (€)",
+      "varianceEur": "Desvio (€)",
+      "variancePct": "Desvio %",
+      "budgetVsActual": "Orçamento vs Real"
+    },
+    "favorable": "Favorável",
+    "totalBudgetLabel": "Orçamento Total",
+    "netVariance": "Desvio Líquido",
+    "categories": {
+      "Revenue": "Receita",
+      "COGS": "CMV",
+      "OPEX": "OPEX",
+      "D&A": "D&A",
+      "Interest": "Juros",
+      "Tax": "Impostos"
+    },
+    "csv": {
+      "entityCode": "Código da Entidade",
+      "entityName": "Nome da Entidade",
+      "accountCode": "Código da Conta",
+      "accountName": "Nome da Conta",
+      "category": "Categoria",
+      "budget": "Orçamento (€)",
+      "actual": "Real (€)",
+      "variance": "Desvio (€)",
+      "variancePct": "Desvio %"
+    }
+  },
+  "dataImport": {
+    "wizardTitle": "Assistente de Importação de Dados CSV",
+    "stepOf": "Passo {n} de 3",
+    "steps": {
+      "upload": "Carregar",
+      "map": "Mapear Colunas",
+      "review": "Rever e Importar"
+    },
+    "validationErrors": "Erros de Validação",
+    "requiredFieldNotMapped": "O campo obrigatório \"{label}\" não está mapeado",
+    "rowParseError": "Linha {row}: Falha ao processar os valores",
+    "historyLoadError": "Não foi possível carregar o histórico de importações do servidor. A mostrar entradas de exemplo abaixo.",
+    "fields": {
+      "entityCode": "Código da Entidade",
+      "period": "Período (AAAA-MM)",
+      "groupCOACode": "Código do Plano",
+      "amountLocal": "Montante (Local)",
+      "currency": "Moeda",
+      "amountEUR": "Montante (EUR)",
+      "exchangeRateUsed": "Taxa de Câmbio",
+      "isIntercompany": "É Intragrupo (true/false)"
+    },
+    "statuses": {
+      "completed": "Concluída",
+      "failed": "Falhada",
+      "processing": "A processar"
+    },
+    "upload": {
+      "title": "Carregar Ficheiro CSV",
+      "desc": "Carregue um ficheiro CSV de balancete do seu sistema ERP",
+      "remove": "Remover",
+      "dragDrop": "Arraste e largue o seu ficheiro CSV aqui",
+      "orBrowse": "ou clique para procurar",
+      "browse": "Procurar Ficheiros",
+      "preview": "Pré-visualização do Ficheiro (primeiras 5 linhas)",
+      "next": "Seguinte: Mapear Colunas"
+    },
+    "map": {
+      "title": "Mapear Colunas CSV",
+      "desc": "Mapeie as colunas do CSV para os campos do sistema para importação do balancete",
+      "selectColumn": "Selecionar coluna...",
+      "notMapped": "— Não Mapeado —",
+      "previewTitle": "Pré-visualização do Mapeamento",
+      "back": "Voltar",
+      "next": "Seguinte: Rever"
+    },
+    "review": {
+      "title": "Rever e Importar",
+      "desc": "Verifique o resumo dos dados antes de importar",
+      "cards": {
+        "records": "Registos",
+        "entities": "Entidades",
+        "dateRange": "Intervalo de Datas",
+        "totalAmount": "Montante Total"
+      },
+      "mappingSummary": "Resumo do Mapeamento de Campos",
+      "notMappedShort": "Não mapeado",
+      "successTitle": "Importação Bem-sucedida",
+      "warningsTitle": "Importação Concluída com {count} avisos",
+      "recordsImported": "{count} registos importados com sucesso",
+      "back": "Voltar",
+      "newImport": "Nova Importação",
+      "confirmImport": "Confirmar Importação"
+    },
+    "history": {
+      "title": "Histórico de Importações",
+      "desc": "Importações de dados anteriores e o respetivo estado",
+      "loading": "A carregar histórico...",
+      "headers": {
+        "file": "Ficheiro",
+        "records": "Registos",
+        "entities": "Entidades",
+        "dateRange": "Intervalo de Datas",
+        "totalAmount": "Montante Total",
+        "status": "Estado",
+        "date": "Data"
+      }
+    },
+    "toast": {
+      "invalidTitle": "Ficheiro Inválido",
+      "invalidDesc": "Carregue um ficheiro CSV",
+      "completeTitle": "Importação Concluída",
+      "completeDesc": "Registos importados com sucesso",
+      "failedTitle": "Importação Falhada",
+      "failedDesc": "A importação falhou"
+    }
+  },
+  "reports": {
+    "templatesTitle": "Modelos de Relatório",
+    "templatesSubtitle": "Gere relatórios financeiros profissionais para o seu grupo",
+    "period": "Período: {period}",
+    "generatedCount": "{count} Gerados",
+    "downloadAll": "Transferir Tudo",
+    "downloadItems": {
+      "incomeXlsx": "Demonstração de Resultados (.xlsx)",
+      "incomePdf": "Demonstração de Resultados (.pdf)",
+      "balanceXlsx": "Balanço (.xlsx)",
+      "balancePdf": "Balanço (.pdf)",
+      "cashXlsx": "Fluxos de Caixa (.xlsx)",
+      "cashPdf": "Fluxos de Caixa (.pdf)",
+      "allXlsx": "Todas as Demonstrações (.xlsx)",
+      "allPdf": "Todas as Demonstrações (.pdf)"
+    },
+    "categories": {
+      "financial": "Financeiro",
+      "analysis": "Análise",
+      "compliance": "Conformidade"
+    },
+    "never": "Nunca",
+    "generating": "A gerar...",
+    "generate": "Gerar",
+    "exportExcelTitle": "Exportar Excel",
+    "previewSubtitle": "Grupo TechNova · Período: {period} · Cenário Base · Todas as Entidades",
+    "asOf": "Em {date}",
+    "amountsInThousands": "Montantes em milhares (€K)",
+    "generatedOn": "Gerado em {date} · ConsolidaçãoFX",
+    "pageOf": "Página 1 de 1",
+    "rowsColumns": "{rows} linhas · {cols} colunas",
+    "exportCSV": "Exportar CSV",
+    "exportExcel": "Exportar Excel",
+    "recentTitle": "Relatórios Recentes",
+    "recentDesc": "Relatórios e exportações geradas recentemente",
+    "recentHeaders": {
+      "report": "Relatório",
+      "period": "Período",
+      "scenario": "Cenário",
+      "format": "Formato",
+      "generated": "Gerado",
+      "actions": "Ações"
+    },
+    "view": "Ver",
+    "loadError": "Não foi possível carregar os relatórios do servidor. Tente atualizar.",
+    "templates": {
+      "consolidated-income": { "title": "Demonstração de Resultados Consolidada", "description": "P&L ao nível do grupo com eliminações intragrupo e ajustamentos de interesses minoritários" },
+      "consolidated-balance-sheet": { "title": "Balanço Consolidado", "description": "Balanço do grupo com goodwill, interesses minoritários e lançamentos de eliminação intragrupo" },
+      "consolidated-cash-flow": { "title": "Demonstração de Fluxos de Caixa Consolidada", "description": "Fluxos de caixa do grupo com atividades operacionais, de investimento e de financiamento" },
+      "variance-analysis": { "title": "Relatório de Análise de Desvios", "description": "Orçamento vs real e previsão vs real com detalhe por rubrica" },
+      "ic-elimination": { "title": "Relatório de Eliminações Intragrupo", "description": "Lançamentos detalhados de eliminação intragrupo com estado de conciliação e montantes" },
+      "entity-comparison": { "title": "Relatório de Comparação de Entidades", "description": "Comparação lado a lado de todas as entidades do grupo com métricas financeiras-chave" },
+      "scenario-impact": { "title": "Relatório de Impacto de Cenários", "description": "Análise de impacto dos cenários otimista, base e pessimista nas finanças do grupo" },
+      "audit-trail": { "title": "Relatório de Registo de Auditoria", "description": "Registo de auditoria completo de todas as execuções de consolidação, importações de dados e alterações ao sistema" }
+    }
+  },
+  "aiInsights": {
+    "chatHistory": "Histórico de Conversas",
+    "newChat": "Nova Conversa",
+    "noConversations": "Ainda não há conversas",
+    "startNew": "Inicie uma nova conversa para começar",
+    "msgCount": "{count, plural, =1 {# msg} other {# msgs}}",
+    "justNow": "Agora mesmo",
+    "minutesAgo": "há {m}m",
+    "hoursAgo": "há {h}h",
+    "title": "Insights Financeiros com IA",
+    "poweredBy": "Desenvolvido por ConsolidaçãoFX Analytics",
+    "welcomeSubtitle": "Coloque questões sobre os seus dados financeiros consolidados, desempenho das entidades, impactos cambiais e muito mais",
+    "placeholder": "Pergunte sobre os seus dados financeiros...",
+    "context": "Contexto: {period} · {scenario}",
+    "pressEnter": "Prima Enter para enviar",
+    "prompts": {
+      "revenueTrend": "Qual é a tendência da receita do grupo?",
+      "compareProfit": "Comparar a rentabilidade das entidades",
+      "icImpact": "Explicar o impacto das eliminações intragrupo",
+      "fxExposure": "Analisar a exposição cambial",
+      "budgetActual": "Resumo orçamento vs real",
+      "cashOutlook": "Perspetiva da previsão de fluxos de caixa"
+    }
+  },
+  "compliance": {
+    "score": "Pontuação",
+    "statuses": {
+      "compliant": "Conforme",
+      "warning": "Avisos",
+      "nonCompliant": "Não Conforme"
+    },
+    "lastChecked": "Última verificação: {date}",
+    "recheck": "Reverificar",
+    "summary": {
+      "passing": "Aprovados",
+      "warnings": "Avisos",
+      "failing": "Reprovados"
+    },
+    "ofChecks": "de {total} verificações",
+    "trendTitle": "Tendência de Conformidade",
+    "trendDesc": "Pontuação nos últimos 6 períodos",
+    "target": "Meta",
+    "regulatoryChecks": "Verificações Regulamentares",
+    "categories": {
+      "financial": "Financeiro",
+      "regulatory": "Regulamentar",
+      "operational": "Operacional"
+    },
+    "affectedEntities": "Entidades Afetadas",
+    "matrixTitle": "Matriz de Conformidade por Entidade",
+    "checkEntity": "Verificação / Entidade",
+    "overallScore": "Pontuação Global",
+    "na": "N/D",
+    "jurisdictionTitle": "Conformidade por Jurisdição",
+    "filingStatuses": {
+      "filed": "Submetido",
+      "pending": "Pendente",
+      "overdue": "Em Atraso"
+    },
+    "filedCount": "{filed}/{total} submetidos",
+    "overdueCount": "{count} em atraso",
+    "violationsTitle": "Violações e Avisos Recentes",
+    "export": "Exportar",
+    "noViolations": "Nenhuma violação encontrada — todas as verificações aprovadas!",
+    "severities": {
+      "critical": "Crítico",
+      "warning": "Aviso",
+      "info": "Informação"
+    },
+    "violationStatuses": {
+      "open": "Aberto",
+      "in_progress": "Em Curso",
+      "resolved": "Resolvido"
+    },
+    "csv": {
+      "severity": "Severidade",
+      "entity": "Entidade",
+      "description": "Descrição",
+      "status": "Estado",
+      "detected": "Detetado"
+    },
+    "checks": {
+      "bs-integrity": { "name": "Integridade do Balanço", "description": "Ativo = Passivo + Capital Próprio (dentro da tolerância)" },
+      "ic-matching": { "name": "Conciliação de Transações Intragrupo", "description": "Todas as transações intragrupo têm pares correspondentes" },
+      "currency-translation": { "name": "Conversão Cambial", "description": "Todas as entidades não-EUR têm taxas de câmbio válidas" },
+      "ownership-validation": { "name": "Validação de Participação", "description": "Percentagens de participação entre 0-100%" },
+      "tb-completeness": { "name": "Completude do Balancete", "description": "Todas as entidades têm balancetes para o período" },
+      "coa-mapping": { "name": "Cobertura do Mapeamento do Plano", "description": "Todas as contas das entidades mapeadas ao plano do grupo" },
+      "consolidation-method": { "name": "Método de Consolidação", "description": "Método correto (integral/proporcional/equivalência) por % de participação" },
+      "minority-interest": { "name": "Cálculo de Interesses Minoritários", "description": "Calculado corretamente para entidades com < 100% de participação" },
+      "disclosure-requirements": { "name": "Requisitos de Divulgação", "description": "Divulgações exigidas por jurisdição (UE, UK, DE, ES, FR, PT)" }
+    }
+  },
+  "journal": {
+    "title": "Editor de Lançamentos",
+    "subtitle": "Crie e faça a gestão de lançamentos manuais com validação automática de saldo",
+    "export": "Exportar",
+    "cards": {
+      "totalEntries": "Total de Lançamentos",
+      "totalDebits": "Total de Débitos",
+      "totalCredits": "Total de Créditos",
+      "balanceStatus": "Estado do Saldo"
+    },
+    "balanced": "Equilibrado",
+    "unbalanced": "Desequilibrado",
+    "newEntry": "Novo Lançamento",
+    "newEntryDesc": "Adicione um lançamento equilibrado de várias linhas. O total de débitos deve igualar o total de créditos.",
+    "period": "Período",
+    "description": "Descrição",
+    "descriptionPlaceholder": "ex.: Eliminação de Receita Intragrupo — PT → ES",
+    "formHeaders": {
+      "entity": "Entidade",
+      "account": "Conta",
+      "debit": "Débito (€)",
+      "credit": "Crédito (€)",
+      "description": "Descrição"
+    },
+    "entityPlaceholder": "Entidade",
+    "accountPlaceholder": "Código da conta",
+    "linePlaceholder": "Descrição da linha",
+    "addLine": "Adicionar Linha",
+    "debits": "Débitos:",
+    "credits": "Créditos:",
+    "balance": "Saldo:",
+    "postEntry": "Registar Lançamento",
+    "recentTitle": "Lançamentos Recentes",
+    "recentDesc": "Veja e faça a gestão dos lançamentos registados",
+    "searchEntries": "Pesquisar lançamentos...",
+    "tableHeaders": {
+      "entryNo": "Nº Lançamento",
+      "date": "Data",
+      "description": "Descrição",
+      "total": "Total",
+      "lines": "Linhas",
+      "status": "Estado",
+      "actions": "Ações"
+    },
+    "linesCount": "{count} linhas",
+    "statuses": {
+      "posted": "Registado",
+      "draft": "Rascunho",
+      "pending": "Pendente"
+    },
+    "detail": {
+      "date": "Data",
+      "period": "Período",
+      "status": "Estado",
+      "balance": "Saldo",
+      "lineItems": "Linhas do Lançamento",
+      "entity": "Entidade:",
+      "totalDebits": "Total de Débitos",
+      "totalCredits": "Total de Créditos",
+      "difference": "Diferença"
+    },
+    "dr": "Déb",
+    "cr": "Cré",
+    "csv": {
+      "entryNo": "Nº Lançamento",
+      "date": "Data",
+      "description": "Descrição",
+      "entity": "Entidade",
+      "account": "Conta",
+      "debit": "Débito",
+      "credit": "Crédito",
+      "status": "Estado"
+    }
+  },
+  "trends": {
+    "title": "Análise de Tendências Multiperíodo",
+    "subtitle": "Acompanhe métricas financeiras ao longo dos períodos com variações trimestrais/homólogas, previsões e detalhe por entidade",
+    "export": "Exportar",
+    "dateRange": "jan 2024 — dez 2024",
+    "metrics": {
+      "revenue": "Receita",
+      "ebitda": "EBITDA",
+      "netIncome": "Resultado Líquido",
+      "assets": "Ativo Total",
+      "leverage": "Alavancagem",
+      "ebitdaMargin": "Margem EBITDA"
+    },
+    "mainChartTitle": "Tendência de {metric} — Multi-Entidade",
+    "mainChartDesc": "Tendência de 12 meses com detalhe por entidade e total consolidado",
+    "legendConsolidated": "Consolidado",
+    "legendBudget": "Orçamento",
+    "legendForecast": "Previsão",
+    "consolidatedSeries": "Grupo Consolidado",
+    "budgetLabel": "Orçamento",
+    "changesTitle": "Variações Período a Período",
+    "changesDescQoq": "Variação trimestral de {metric}",
+    "changesDescYoy": "Variação homóloga de {metric}",
+    "qoq": "Trim.",
+    "yoy": "Homól.",
+    "changeSeries": "Variação %",
+    "comparisonTitle": "Comparação de Períodos",
+    "comparisonDesc": "Comparação de métricas lado a lado entre dois períodos",
+    "vs": "vs",
+    "comparisonHeaders": {
+      "metric": "Métrica",
+      "change": "Variação",
+      "changePct": "Variação %"
+    },
+    "sparklinesTitle": "Minigráficos de Tendência por Entidade",
+    "forecastTitle": "Previsão de Tendência — Projeção Linear",
+    "forecastDesc": "Projeção a 3 períodos com banda de confiança baseada na tendência histórica",
+    "legendActual": "Real",
+    "legendConfidence": "Confiança",
+    "forecastArrow": "Previsão →",
+    "range": "Intervalo: {low} — {high}",
+    "insightsTitle": "Principais Conclusões",
+    "latestQoq": "Última Var. Trimestral",
+    "latestYoy": "Última Var. Homóloga",
+    "forecast3m": "Previsão 3M",
+    "noData": "Sem dados",
+    "by": "até {date}",
+    "csvPeriod": "Período"
+  },
+  "forecast": {
+    "tooltip": {
+      "forecast": "Previsão",
+      "cumulativeCash": "Caixa Acumulada:",
+      "operatingCF": "FC Operacional:",
+      "investingCF": "FC de Investimento:",
+      "financingCF": "FC de Financiamento:",
+      "netChange": "Variação Líquida:",
+      "range": "Intervalo:"
+    },
+    "csv": {
+      "month": "Mês",
+      "type": "Tipo",
+      "operatingCF": "FC Operacional",
+      "investingCF": "FC de Investimento",
+      "financingCF": "FC de Financiamento",
+      "netChange": "Variação Líquida",
+      "cumulativeCash": "Caixa Acumulada",
+      "forecastType": "Previsão",
+      "actualType": "Real"
+    },
+    "cards": {
+      "currentCashPosition": "Posição de Caixa Atual",
+      "asOf": "Em {month}",
+      "projected6m": "Caixa Projetada 6M",
+      "growth": "crescimento",
+      "decline": "quebra",
+      "operatingCFForecast": "Previsão de FC Operacional",
+      "monthTotal": "Total de 6 meses",
+      "freeCashFlow": "Previsão de Fluxo de Caixa Livre",
+      "positiveFCF": "FCL Positivo",
+      "negativeFCF": "FCL Negativo"
+    },
+    "mainChart": {
+      "title": "Previsão de Fluxos de Caixa",
+      "updatedJustNow": "Atualizado agora mesmo",
+      "forecastArrow": "Previsão →"
+    },
+    "legend": {
+      "cumulativeCash": "Caixa Acumulada",
+      "confidenceHigh": "Confiança Máx.",
+      "confidenceLow": "Confiança Mín.",
+      "netChange": "Variação Líquida"
+    },
+    "keyMetrics": "Indicadores-Chave",
+    "metrics": {
+      "cashRunway": "Autonomia de Caixa",
+      "runwayMonths": "{n} meses",
+      "breakevenMonth": "Mês de Ponto de Equilíbrio",
+      "minCashPosition": "Posição Mín. de Caixa",
+      "minCashMonth": "Mês de Caixa Mínima",
+      "na": "N/D"
+    },
+    "assumptions": {
+      "title": "Pressupostos da Previsão",
+      "recalculating": "A recalcular...",
+      "recalculate": "Recalcular",
+      "revenueGrowth": "Taxa de Crescimento da Receita (%)",
+      "capexGrowth": "Taxa de Crescimento do CAPEX (%)",
+      "workingCapitalDays": "Dias de Fundo de Maneio",
+      "debtRepayment": "Plano de Reembolso da Dívida",
+      "annual": "Anual %",
+      "days": "Dias",
+      "perMonth": "€K/mês"
+    },
+    "scenario": {
+      "title": "Comparação de Cenários",
+      "optimistic": "Otimista",
+      "base": "Base",
+      "pessimistic": "Pessimista",
+      "optimisticDesc": "• Otimista: +25% receita, -10% custos",
+      "baseDesc": "• Base: pressupostos atuais aplicados",
+      "pessimisticDesc": "• Pessimista: -25% receita, +10% custos"
+    },
+    "monthlyBreakdown": {
+      "title": "Detalhe Mensal",
+      "csv": "CSV",
+      "fc": "Prev.",
+      "headers": {
+        "month": "Mês",
+        "operatingCF": "FC Operacional",
+        "investingCF": "FC de Investimento",
+        "financingCF": "FC de Financiamento",
+        "netChange": "Variação Líquida",
+        "cumulative": "Acumulado"
+      }
+    }
+  }
+}

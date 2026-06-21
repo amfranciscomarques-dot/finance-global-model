@@ -15,6 +15,8 @@ import { getWorkflow } from '@/lib/api';
 import { WorkflowStep, WorkflowData } from '@/lib/types';
 import { DataLoadError } from '@/components/data-load-error';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useTranslations, useLocale } from 'next-intl';
+import { dateLocale, type Locale } from '@/i18n/locale-context';
 
 // ============================================================
 // DEMO DATA
@@ -104,11 +106,11 @@ function StepStatusIcon({ status }: { status: WorkflowStep['status'] }) {
 // ============================================================
 // STEP STATUS BADGE
 // ============================================================
-function StepStatusBadge({ status }: { status: WorkflowStep['status'] }) {
+function StepStatusBadge({ status, t }: { status: WorkflowStep['status']; t: (key: string) => string }) {
   const config = {
-    complete: { label: 'Complete', className: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' },
-    in_progress: { label: 'In Progress', className: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' },
-    pending: { label: 'Pending', className: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-400' },
+    complete: { label: t('status.complete'), className: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' },
+    in_progress: { label: t('status.inProgress'), className: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' },
+    pending: { label: t('status.pending'), className: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-400' },
   };
   const c = config[status];
   return <Badge className={`text-[10px] ${c.className}`}>{c.label}</Badge>;
@@ -118,6 +120,8 @@ function StepStatusBadge({ status }: { status: WorkflowStep['status'] }) {
 // MAIN COMPONENT
 // ============================================================
 export function WorkflowView() {
+  const t = useTranslations('workflow');
+  const loc = useLocale() as Locale;
   const { selectedPeriod, setActiveView } = useAppStore();
   const [workflow, setWorkflow] = useState<WorkflowData>(demoWorkflow);
   const [loading, setLoading] = useState(false);
@@ -157,13 +161,13 @@ export function WorkflowView() {
         <div>
           <h2 className="text-lg font-semibold flex items-center gap-2">
             <Workflow className="w-5 h-5 text-emerald-600" />
-            Consolidation Workflow Tracker
+            {t('title')}
           </h2>
-          <p className="text-sm text-muted-foreground">Step-by-step wizard guiding the multi-company consolidation process</p>
+          <p className="text-sm text-muted-foreground">{t('subtitle')}</p>
         </div>
         <div className="flex items-center gap-3">
           <Badge variant="outline" className="border-emerald-200 dark:border-emerald-800/50 text-emerald-700 dark:text-emerald-400 text-xs">
-            {new Date(selectedPeriod + '-01').toLocaleDateString('en-US', { year: 'numeric', month: 'short' })}
+            {new Date(selectedPeriod + '-01').toLocaleDateString(dateLocale(loc), { year: 'numeric', month: 'short' })}
           </Badge>
         </div>
       </div>
@@ -179,19 +183,19 @@ export function WorkflowView() {
                     <TrendingUp className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
                   </div>
                   <div>
-                    <p className="font-semibold text-sm">Overall Progress</p>
+                    <p className="font-semibold text-sm">{t('overallProgress')}</p>
                     <p className="text-xs text-muted-foreground">
                       {workflow.lastCompletedStep
-                        ? `Last completed: ${workflow.lastCompletedStep}`
-                        : 'No steps completed yet'}
+                        ? t('lastCompleted', { step: workflow.lastCompletedStep })
+                        : t('noneCompleted')}
                     </p>
                   </div>
                 </div>
                 <div className="space-y-1.5">
                   <div className="flex justify-between text-xs">
-                    <span className="text-muted-foreground">{workflow.overallProgress}% complete</span>
+                    <span className="text-muted-foreground">{t('percentComplete', { pct: workflow.overallProgress })}</span>
                     <span className="text-emerald-600 dark:text-emerald-400 font-medium">
-                      {workflow.steps.filter((s) => s.status === 'complete').length} of {workflow.steps.length} steps
+                      {t('stepsOf', { done: workflow.steps.filter((s) => s.status === 'complete').length, total: workflow.steps.length })}
                     </span>
                   </div>
                   <Progress value={workflow.overallProgress} className="h-2.5 [&>div]:bg-gradient-to-r [&>div]:from-emerald-500 [&>div]:to-teal-500" />
@@ -200,7 +204,7 @@ export function WorkflowView() {
               <div className="flex items-center gap-2">
                 <div className="text-center px-4 py-2 bg-white/60 dark:bg-slate-800/50 rounded-lg">
                   <Timer className="w-4 h-4 text-emerald-600 dark:text-emerald-400 mx-auto mb-1" />
-                  <p className="text-[10px] text-muted-foreground">Est. Time</p>
+                  <p className="text-[10px] text-muted-foreground">{t('estTime')}</p>
                   <p className="text-xs font-semibold">{workflow.estimatedTimeRemaining}</p>
                 </div>
               </div>
@@ -218,9 +222,9 @@ export function WorkflowView() {
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
               <LayoutList className="w-4 h-4 text-emerald-600" />
-              Consolidation Steps
+              {t('stepsTitle')}
             </CardTitle>
-            <CardDescription>Click on any step to view details and navigate to the relevant module</CardDescription>
+            <CardDescription>{t('stepsDesc')}</CardDescription>
           </CardHeader>
           <CardContent>
             {loading ? (
@@ -287,7 +291,7 @@ export function WorkflowView() {
                       {/* Completion time */}
                       {step.completedAt && (
                         <p className="text-[9px] text-muted-foreground mt-0.5">
-                          {new Date(step.completedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                          {new Date(step.completedAt).toLocaleDateString(dateLocale(loc), { month: 'short', day: 'numeric' })}
                         </p>
                       )}
                     </div>
@@ -330,10 +334,10 @@ export function WorkflowView() {
                         <StepStatusIcon status={selectedStep.status} />
                         <div>
                           <CardTitle className="text-base">{selectedStep.name}</CardTitle>
-                          <CardDescription>Step {workflow.steps.indexOf(selectedStep) + 1} of {workflow.steps.length}</CardDescription>
+                          <CardDescription>{t('stepOf', { idx: workflow.steps.indexOf(selectedStep) + 1, total: workflow.steps.length })}</CardDescription>
                         </div>
                       </div>
-                      <StepStatusBadge status={selectedStep.status} />
+                      <StepStatusBadge status={selectedStep.status} t={t} />
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-4">
@@ -348,14 +352,14 @@ export function WorkflowView() {
                     {/* Metrics */}
                     <div className="grid grid-cols-2 gap-3">
                       <div className="bg-gradient-to-br from-emerald-50/80 to-white dark:from-emerald-950/20 dark:to-slate-900 rounded-lg p-3">
-                        <p className="text-xs text-muted-foreground mb-1">Current Status</p>
+                        <p className="text-xs text-muted-foreground mb-1">{t('currentStatus')}</p>
                         <p className="font-semibold text-sm flex items-center gap-2">
                           <StepStatusIcon status={selectedStep.status} />
-                          {selectedStep.status === 'complete' ? 'Completed' : selectedStep.status === 'in_progress' ? 'In Progress' : 'Pending'}
+                          {selectedStep.status === 'complete' ? t('statusVerb.complete') : selectedStep.status === 'in_progress' ? t('statusVerb.inProgress') : t('statusVerb.pending')}
                         </p>
                       </div>
                       <div className="bg-gradient-to-br from-teal-50/80 to-white dark:from-teal-950/20 dark:to-slate-900 rounded-lg p-3">
-                        <p className="text-xs text-muted-foreground mb-1">Metrics</p>
+                        <p className="text-xs text-muted-foreground mb-1">{t('metrics')}</p>
                         <p className="font-semibold text-sm">{selectedStep.metrics || '—'}</p>
                       </div>
                     </div>
@@ -364,9 +368,9 @@ export function WorkflowView() {
                     {selectedStep.completedAt && (
                       <div className="flex items-center gap-2 text-xs text-muted-foreground">
                         <Clock className="w-3.5 h-3.5" />
-                        Completed on {new Date(selectedStep.completedAt).toLocaleDateString('en-US', {
+                        {t('completedOn', { date: new Date(selectedStep.completedAt).toLocaleDateString(dateLocale(loc), {
                           year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit',
-                        })}
+                        }) })}
                       </div>
                     )}
 
@@ -382,7 +386,7 @@ export function WorkflowView() {
                           }
                         }}
                       >
-                        {selectedStep.navigateLabel || 'Navigate'}
+                        {selectedStep.navigateLabel || t('navigate')}
                         <ArrowRight className="w-4 h-4 ml-1" />
                       </Button>
                     )}
@@ -405,7 +409,7 @@ export function WorkflowView() {
             <CardHeader>
               <CardTitle className="text-base flex items-center gap-2">
                 <Zap className="w-4 h-4 text-emerald-600" />
-                Quick Actions
+                {t('quickActions')}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -414,7 +418,7 @@ export function WorkflowView() {
                 onClick={() => setActiveView('consolidation')}
               >
                 <Play className="w-4 h-4 mr-2" />
-                Run Full Workflow
+                {t('runFull')}
               </Button>
               <Button
                 variant="outline"
@@ -422,7 +426,7 @@ export function WorkflowView() {
                 onClick={() => setActiveView('consolidation')}
               >
                 <RotateCcw className="w-4 h-4 mr-2" />
-                Re-run Failed Steps
+                {t('rerunFailed')}
               </Button>
             </CardContent>
           </Card>
@@ -430,7 +434,7 @@ export function WorkflowView() {
           {/* All Steps Summary */}
           <Card className="shadow-sm border border-slate-200/60 dark:border-slate-700/40">
             <CardHeader>
-              <CardTitle className="text-sm">Steps Overview</CardTitle>
+              <CardTitle className="text-sm">{t('stepsOverview')}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
               {workflow.steps.map((step, idx) => (

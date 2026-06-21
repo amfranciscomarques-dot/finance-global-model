@@ -26,6 +26,8 @@ import { JournalEntry, JournalEntryLine, COAAccount, Entity } from '@/lib/types'
 import { formatCompactEUR, formatNumber } from '@/lib/format';
 import { DataLoadError } from '@/components/data-load-error';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useTranslations, useLocale } from 'next-intl';
+import { dateLocale, type Locale } from '@/i18n/locale-context';
 
 // ============================================================
 // DEMO DATA
@@ -154,6 +156,8 @@ const emptyLine = (): JournalEntryLine => ({
 // MAIN COMPONENT
 // ============================================================
 export function JournalEntryView() {
+  const t = useTranslations('journal');
+  const loc = useLocale() as Locale;
   const { selectedPeriod } = useAppStore();
   const [entries, setEntries] = useState<JournalEntry[]>(demoEntries);
   const [coa, setCOA] = useState<COAAccount[]>(demoCOA);
@@ -277,7 +281,7 @@ export function JournalEntryView() {
   };
 
   const exportCSV = () => {
-    const headers = ['Entry #', 'Date', 'Description', 'Entity', 'Account', 'Debit', 'Credit', 'Status'];
+    const headers = [t('csv.entryNo'), t('csv.date'), t('csv.description'), t('csv.entity'), t('csv.account'), t('csv.debit'), t('csv.credit'), t('csv.status')];
     const rows = entries.flatMap((e) =>
       e.lines.map((l) => [
         e.entryNumber, e.date, e.description, l.entityCode,
@@ -302,20 +306,20 @@ export function JournalEntryView() {
         <div>
           <h2 className="text-lg font-semibold flex items-center gap-2">
             <PenLine className="w-5 h-5 text-emerald-600" />
-            Journal Entry Editor
+            {t('title')}
           </h2>
-          <p className="text-sm text-muted-foreground">Create and manage manual journal entries with auto-balancing validation</p>
+          <p className="text-sm text-muted-foreground">{t('subtitle')}</p>
         </div>
         <div className="flex items-center gap-3">
           <Button variant="outline" size="sm" onClick={exportCSV}>
-            <Download className="w-4 h-4 mr-1" /> Export
+            <Download className="w-4 h-4 mr-1" /> {t('export')}
           </Button>
           <Select value={formPeriod} onValueChange={setFormPeriod}>
             <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
             <SelectContent>
               {['2024-12', '2024-11', '2024-10', '2024-09', '2024-08', '2024-07'].map((p) => (
                 <SelectItem key={p} value={p}>
-                  {new Date(p + '-01').toLocaleDateString('en-US', { year: 'numeric', month: 'short' })}
+                  {new Date(p + '-01').toLocaleDateString(dateLocale(loc), { year: 'numeric', month: 'short' })}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -326,12 +330,12 @@ export function JournalEntryView() {
       {/* Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { title: 'Total Entries', value: entryCount, icon: FileText, color: 'from-teal-50/80 to-white dark:from-teal-950/30 dark:to-slate-900', iconColor: 'text-teal-600 dark:text-teal-400', isCount: true },
-          { title: 'Total Debits', value: entriesTotalDebits, icon: ArrowUpRight, color: 'from-emerald-50/80 to-white dark:from-emerald-950/30 dark:to-slate-900', iconColor: 'text-emerald-600 dark:text-emerald-400' },
-          { title: 'Total Credits', value: entriesTotalCredits, icon: ArrowDownRight, color: 'from-emerald-50/80 to-white dark:from-emerald-950/30 dark:to-slate-900', iconColor: 'text-emerald-600 dark:text-emerald-400' },
+          { title: t('cards.totalEntries'), value: entryCount, icon: FileText, color: 'from-teal-50/80 to-white dark:from-teal-950/30 dark:to-slate-900', iconColor: 'text-teal-600 dark:text-teal-400', isCount: true },
+          { title: t('cards.totalDebits'), value: entriesTotalDebits, icon: ArrowUpRight, color: 'from-emerald-50/80 to-white dark:from-emerald-950/30 dark:to-slate-900', iconColor: 'text-emerald-600 dark:text-emerald-400' },
+          { title: t('cards.totalCredits'), value: entriesTotalCredits, icon: ArrowDownRight, color: 'from-emerald-50/80 to-white dark:from-emerald-950/30 dark:to-slate-900', iconColor: 'text-emerald-600 dark:text-emerald-400' },
           {
-            title: 'Balance Status',
-            value: allBalanced ? 'Balanced' : 'Unbalanced',
+            title: t('cards.balanceStatus'),
+            value: allBalanced ? t('balanced') : t('unbalanced'),
             icon: allBalanced ? CheckCircle2 : XCircle,
             color: allBalanced ? 'from-emerald-50/80 to-white dark:from-emerald-950/30 dark:to-slate-900' : 'from-red-50/80 to-white dark:from-red-950/30 dark:to-slate-900',
             iconColor: allBalanced ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400',
@@ -371,15 +375,15 @@ export function JournalEntryView() {
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
               <PenLine className="w-4 h-4 text-emerald-600" />
-              New Journal Entry
+              {t('newEntry')}
             </CardTitle>
-            <CardDescription>Add a balanced multi-line journal entry. Total debits must equal total credits.</CardDescription>
+            <CardDescription>{t('newEntryDesc')}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {/* Entry header fields */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
-                <label className="text-sm font-medium mb-1.5 block">Period</label>
+                <label className="text-sm font-medium mb-1.5 block">{t('period')}</label>
                 <div className="flex items-center gap-2">
                   <Calendar className="w-4 h-4 text-muted-foreground" />
                   <Input
@@ -391,11 +395,11 @@ export function JournalEntryView() {
                 </div>
               </div>
               <div className="sm:col-span-2">
-                <label className="text-sm font-medium mb-1.5 block">Description</label>
+                <label className="text-sm font-medium mb-1.5 block">{t('description')}</label>
                 <Input
                   value={formDescription}
                   onChange={(e) => setFormDescription(e.target.value)}
-                  placeholder="e.g., IC Revenue Elimination — PT → ES"
+                  placeholder={t('descriptionPlaceholder')}
                   className="h-9"
                 />
               </div>
@@ -406,11 +410,11 @@ export function JournalEntryView() {
               <Table className="premium-table">
                 <TableHeader>
                   <TableRow className="cursor-pointer transition-colors duration-150 bg-slate-50 dark:bg-slate-800/50">
-                    <TableHead className="w-32">Entity</TableHead>
-                    <TableHead className="w-44">Account</TableHead>
-                    <TableHead className="w-28 text-right">Debit (€)</TableHead>
-                    <TableHead className="w-28 text-right">Credit (€)</TableHead>
-                    <TableHead>Description</TableHead>
+                    <TableHead className="w-32">{t('formHeaders.entity')}</TableHead>
+                    <TableHead className="w-44">{t('formHeaders.account')}</TableHead>
+                    <TableHead className="w-28 text-right">{t('formHeaders.debit')}</TableHead>
+                    <TableHead className="w-28 text-right">{t('formHeaders.credit')}</TableHead>
+                    <TableHead>{t('formHeaders.description')}</TableHead>
                     <TableHead className="w-10"></TableHead>
                   </TableRow>
                 </TableHeader>
@@ -420,7 +424,7 @@ export function JournalEntryView() {
                       <TableCell>
                         <Select value={line.entityCode} onValueChange={(v) => updateLine(idx, 'entityCode', v)}>
                           <SelectTrigger className="h-8 text-xs">
-                            <SelectValue placeholder="Entity" />
+                            <SelectValue placeholder={t('entityPlaceholder')} />
                           </SelectTrigger>
                           <SelectContent>
                             {entities.map((e) => (
@@ -440,7 +444,7 @@ export function JournalEntryView() {
                               const match = coa.find((a) => a.code === e.target.value);
                               if (match) handleAccountSelect(idx, match);
                             }}
-                            placeholder="Account code"
+                            placeholder={t('accountPlaceholder')}
                             className="h-8 text-xs"
                             list={`coa-suggestions-${idx}`}
                           />
@@ -487,7 +491,7 @@ export function JournalEntryView() {
                         <Input
                           value={line.description}
                           onChange={(e) => updateLine(idx, 'description', e.target.value)}
-                          placeholder="Line description"
+                          placeholder={t('linePlaceholder')}
                           className="h-8 text-xs"
                         />
                       </TableCell>
@@ -512,22 +516,22 @@ export function JournalEntryView() {
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <div className="flex items-center gap-4">
                 <Button variant="outline" size="sm" onClick={addLine}>
-                  <Plus className="w-4 h-4 mr-1" /> Add Line
+                  <Plus className="w-4 h-4 mr-1" /> {t('addLine')}
                 </Button>
                 <div className="flex items-center gap-6 text-sm">
                   <div className="flex items-center gap-2">
-                    <span className="text-muted-foreground">Debits:</span>
+                    <span className="text-muted-foreground">{t('debits')}</span>
                     <span className="font-semibold tabular-nums">{formatNumber(totalDebits)}</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-muted-foreground">Credits:</span>
+                    <span className="text-muted-foreground">{t('credits')}</span>
                     <span className="font-semibold tabular-nums">{formatNumber(totalCredits)}</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-muted-foreground">Balance:</span>
+                    <span className="text-muted-foreground">{t('balance')}</span>
                     {isBalanced ? (
                       <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 gap-1">
-                        <CheckCircle2 className="w-3 h-3" /> Balanced
+                        <CheckCircle2 className="w-3 h-3" /> {t('balanced')}
                       </Badge>
                     ) : (
                       <Badge className="bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 gap-1">
@@ -544,7 +548,7 @@ export function JournalEntryView() {
                 onClick={handleSave}
               >
                 {saving ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <CheckCircle2 className="w-4 h-4 mr-1" />}
-                Post Entry
+                {t('postEntry')}
               </Button>
             </div>
           </CardContent>
@@ -562,14 +566,14 @@ export function JournalEntryView() {
               <div>
                 <CardTitle className="text-base flex items-center gap-2">
                   <BookOpen className="w-4 h-4 text-emerald-600" />
-                  Recent Journal Entries
+                  {t('recentTitle')}
                 </CardTitle>
-                <CardDescription>View and manage posted journal entries</CardDescription>
+                <CardDescription>{t('recentDesc')}</CardDescription>
               </div>
               <div className="relative w-full sm:w-64">
                 <Search className="absolute left-2.5 top-2.5 w-4 h-4 text-muted-foreground" />
                 <Input
-                  placeholder="Search entries..."
+                  placeholder={t('searchEntries')}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-8 h-9 text-sm"
@@ -594,13 +598,13 @@ export function JournalEntryView() {
                 <Table className="premium-table">
                   <TableHeader>
                     <TableRow className="cursor-pointer transition-colors duration-150 sticky top-0 bg-white dark:bg-slate-900 z-10 border-b-2 border-slate-200 dark:border-slate-700">
-                      <TableHead>Entry #</TableHead>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Description</TableHead>
-                      <TableHead className="text-right">Total</TableHead>
-                      <TableHead>Lines</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead className="w-20">Actions</TableHead>
+                      <TableHead>{t('tableHeaders.entryNo')}</TableHead>
+                      <TableHead>{t('tableHeaders.date')}</TableHead>
+                      <TableHead>{t('tableHeaders.description')}</TableHead>
+                      <TableHead className="text-right">{t('tableHeaders.total')}</TableHead>
+                      <TableHead>{t('tableHeaders.lines')}</TableHead>
+                      <TableHead>{t('tableHeaders.status')}</TableHead>
+                      <TableHead className="w-20">{t('tableHeaders.actions')}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -617,7 +621,7 @@ export function JournalEntryView() {
                         <TableCell className="text-sm max-w-64 truncate">{entry.description}</TableCell>
                         <TableCell className="text-right tabular-nums font-medium text-sm">{formatCompactEUR(entry.totalDebits)}</TableCell>
                         <TableCell>
-                          <Badge variant="outline" className="text-[10px]">{entry.lines.length} lines</Badge>
+                          <Badge variant="outline" className="text-[10px]">{t('linesCount', { count: entry.lines.length })}</Badge>
                         </TableCell>
                         <TableCell>
                           <Badge className={`text-[10px] ${
@@ -627,7 +631,7 @@ export function JournalEntryView() {
                               ? 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-400'
                               : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
                           }`}>
-                            {entry.status}
+                            {t.has(`statuses.${entry.status}`) ? t(`statuses.${entry.status}`) : entry.status}
                           </Badge>
                         </TableCell>
                         <TableCell>
@@ -663,32 +667,32 @@ export function JournalEntryView() {
                 {/* Entry meta */}
                 <div className="grid grid-cols-2 gap-3">
                   <div className="bg-gradient-to-br from-emerald-50/80 to-white dark:from-emerald-950/20 dark:to-slate-900 rounded-lg p-3">
-                    <p className="text-xs text-muted-foreground mb-1">Date</p>
+                    <p className="text-xs text-muted-foreground mb-1">{t('detail.date')}</p>
                     <p className="font-semibold text-sm">{selectedEntry.date}</p>
                   </div>
                   <div className="bg-gradient-to-br from-teal-50/80 to-white dark:from-teal-950/20 dark:to-slate-900 rounded-lg p-3">
-                    <p className="text-xs text-muted-foreground mb-1">Period</p>
+                    <p className="text-xs text-muted-foreground mb-1">{t('detail.period')}</p>
                     <p className="font-semibold text-sm">{selectedEntry.period}</p>
                   </div>
                   <div className="bg-gradient-to-br from-emerald-50/80 to-white dark:from-emerald-950/20 dark:to-slate-900 rounded-lg p-3">
-                    <p className="text-xs text-muted-foreground mb-1">Status</p>
+                    <p className="text-xs text-muted-foreground mb-1">{t('detail.status')}</p>
                     <Badge className={`text-[10px] ${
                       selectedEntry.status === 'posted'
                         ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
                         : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-400'
                     }`}>
-                      {selectedEntry.status}
+                      {t.has(`statuses.${selectedEntry.status}`) ? t(`statuses.${selectedEntry.status}`) : selectedEntry.status}
                     </Badge>
                   </div>
                   <div className="bg-gradient-to-br from-emerald-50/80 to-white dark:from-emerald-950/20 dark:to-slate-900 rounded-lg p-3">
-                    <p className="text-xs text-muted-foreground mb-1">Balance</p>
+                    <p className="text-xs text-muted-foreground mb-1">{t('detail.balance')}</p>
                     <div className="flex items-center gap-1">
                       {selectedEntry.isBalanced ? (
                         <CheckCircle2 className="w-4 h-4 text-emerald-500" />
                       ) : (
                         <XCircle className="w-4 h-4 text-red-500" />
                       )}
-                      <span className="font-semibold text-sm">{selectedEntry.isBalanced ? 'Balanced' : 'Unbalanced'}</span>
+                      <span className="font-semibold text-sm">{selectedEntry.isBalanced ? t('balanced') : t('unbalanced')}</span>
                     </div>
                   </div>
                 </div>
@@ -698,7 +702,7 @@ export function JournalEntryView() {
 
                 {/* Line items */}
                 <div>
-                  <h4 className="text-sm font-semibold mb-2">Line Items</h4>
+                  <h4 className="text-sm font-semibold mb-2">{t('detail.lineItems')}</h4>
                   <div className="space-y-2">
                     {selectedEntry.lines.map((line, idx) => (
                       <motion.div
@@ -717,19 +721,19 @@ export function JournalEntryView() {
                             <p className="font-medium text-sm">{line.accountCode}</p>
                             <p className="text-xs text-muted-foreground">{line.accountName || line.accountCode}</p>
                             <p className="text-xs text-muted-foreground mt-1">
-                              Entity: <span className="font-medium">{line.entityCode}</span>
+                              {t('detail.entity')} <span className="font-medium">{line.entityCode}</span>
                               {line.description && ` · ${line.description}`}
                             </p>
                           </div>
                           <div className="text-right">
                             {line.debit > 0 && (
                               <p className="font-semibold text-sm text-emerald-700 dark:text-emerald-400 tabular-nums">
-                                Dr {formatNumber(line.debit)}
+                                {t('dr')} {formatNumber(line.debit)}
                               </p>
                             )}
                             {line.credit > 0 && (
                               <p className="font-semibold text-sm text-teal-700 dark:text-teal-400 tabular-nums">
-                                Cr {formatNumber(line.credit)}
+                                {t('cr')} {formatNumber(line.credit)}
                               </p>
                             )}
                           </div>
@@ -742,16 +746,16 @@ export function JournalEntryView() {
                 {/* Totals */}
                 <div className="border-t pt-3 space-y-1">
                   <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Total Debits</span>
+                    <span className="text-muted-foreground">{t('detail.totalDebits')}</span>
                     <span className="font-semibold tabular-nums">{formatNumber(selectedEntry.totalDebits)}</span>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Total Credits</span>
+                    <span className="text-muted-foreground">{t('detail.totalCredits')}</span>
                     <span className="font-semibold tabular-nums">{formatNumber(selectedEntry.totalCredits)}</span>
                   </div>
                   <div className="h-px bg-slate-200 dark:bg-slate-700 my-1" />
                   <div className="flex justify-between text-sm font-bold">
-                    <span>Difference</span>
+                    <span>{t('detail.difference')}</span>
                     <span className={selectedEntry.isBalanced ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}>
                       {formatNumber(selectedEntry.totalDebits - selectedEntry.totalCredits)}
                     </span>

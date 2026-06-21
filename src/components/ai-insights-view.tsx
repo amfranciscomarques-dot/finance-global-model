@@ -10,6 +10,8 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { motion, AnimatePresence, type Variants } from 'framer-motion';
+import { useTranslations, useLocale } from 'next-intl';
+import { dateLocale, type Locale } from '@/i18n/locale-context';
 import {
   Sparkles,
   Send,
@@ -45,12 +47,12 @@ interface ChatSession {
 // SUGGESTED PROMPTS
 // ============================================================
 const suggestedPrompts = [
-  { icon: TrendingUp, title: "What is the group's revenue trend?", color: 'from-emerald-500 to-teal-600' },
-  { icon: BarChart3, title: 'Compare entity profitability', color: 'from-teal-500 to-cyan-600' },
-  { icon: ArrowLeftRight, title: 'Explain IC elimination impact', color: 'from-emerald-600 to-emerald-500' },
-  { icon: DollarSign, title: 'Analyze FX rate exposure', color: 'from-teal-600 to-emerald-500' },
-  { icon: Target, title: 'Budget vs actual summary', color: 'from-emerald-500 to-emerald-700' },
-  { icon: Coins, title: 'Cash flow forecast outlook', color: 'from-teal-500 to-teal-700' },
+  { icon: TrendingUp, key: 'revenueTrend', color: 'from-emerald-500 to-teal-600' },
+  { icon: BarChart3, key: 'compareProfit', color: 'from-teal-500 to-cyan-600' },
+  { icon: ArrowLeftRight, key: 'icImpact', color: 'from-emerald-600 to-emerald-500' },
+  { icon: DollarSign, key: 'fxExposure', color: 'from-teal-600 to-emerald-500' },
+  { icon: Target, key: 'budgetActual', color: 'from-emerald-500 to-emerald-700' },
+  { icon: Coins, key: 'cashOutlook', color: 'from-teal-500 to-teal-700' },
 ];
 
 // ============================================================
@@ -211,6 +213,9 @@ function TypingIndicator() {
 // MAIN COMPONENT
 // ============================================================
 export function AIInsightsView() {
+  const t = useTranslations('aiInsights');
+  const tScenario = useTranslations('scenario');
+  const loc = useLocale() as Locale;
   const { selectedPeriod, selectedScenario } = useAppStore();
 
   // Sessions state
@@ -240,7 +245,7 @@ export function AIInsightsView() {
   const createNewSession = () => {
     const newSession: ChatSession = {
       id: `session-${Date.now()}`,
-      title: 'New Chat',
+      title: t('newChat'),
       messages: [],
       createdAt: new Date().toISOString(),
       lastActive: new Date().toISOString(),
@@ -377,11 +382,11 @@ export function AIInsightsView() {
       const diffMs = now.getTime() - d.getTime();
       const diffMin = Math.floor(diffMs / 60000);
 
-      if (diffMin < 1) return 'Just now';
-      if (diffMin < 60) return `${diffMin}m ago`;
+      if (diffMin < 1) return t('justNow');
+      if (diffMin < 60) return t('minutesAgo', { m: diffMin });
       const diffHr = Math.floor(diffMin / 60);
-      if (diffHr < 24) return `${diffHr}h ago`;
-      return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      if (diffHr < 24) return t('hoursAgo', { h: diffHr });
+      return d.toLocaleDateString(dateLocale(loc), { month: 'short', day: 'numeric' });
     } catch {
       return '';
     }
@@ -415,7 +420,7 @@ export function AIInsightsView() {
                 <div className="flex items-center justify-between mb-3">
                   <h2 className="text-sm font-bold text-foreground flex items-center gap-2">
                     <MessageSquare className="w-4 h-4 text-emerald-500" />
-                    Chat History
+                    {t('chatHistory')}
                   </h2>
                   <Button
                     variant="ghost"
@@ -431,7 +436,7 @@ export function AIInsightsView() {
                   className="w-full h-9 text-xs font-medium bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white shadow-md shadow-emerald-500/20 transition-all"
                 >
                   <Plus className="w-4 h-4 mr-1.5" />
-                  New Chat
+                  {t('newChat')}
                 </Button>
               </div>
 
@@ -440,8 +445,8 @@ export function AIInsightsView() {
                 {sessions.length === 0 && (
                   <div className="text-center py-8">
                     <MessageSquare className="w-8 h-8 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
-                    <p className="text-xs text-muted-foreground">No conversations yet</p>
-                    <p className="text-[10px] text-muted-foreground mt-1">Start a new chat to begin</p>
+                    <p className="text-xs text-muted-foreground">{t('noConversations')}</p>
+                    <p className="text-[10px] text-muted-foreground mt-1">{t('startNew')}</p>
                   </div>
                 )}
                 <AnimatePresence>
@@ -477,7 +482,7 @@ export function AIInsightsView() {
                           </p>
                           <div className="flex items-center gap-2 mt-0.5">
                             <span className="text-[10px] text-muted-foreground">
-                              {session.messages.length} msg{session.messages.length !== 1 ? 's' : ''}
+                              {t('msgCount', { count: session.messages.length })}
                             </span>
                             <span className="text-[10px] text-muted-foreground">·</span>
                             <span className="text-[10px] text-muted-foreground">
@@ -529,8 +534,8 @@ export function AIInsightsView() {
               <Sparkles className="w-4 h-4 text-white" />
             </div>
             <div>
-              <h2 className="text-sm font-bold text-foreground">AI Financial Insights</h2>
-              <p className="text-[10px] text-muted-foreground">Powered by ConsolidaçãoFX Analytics</p>
+              <h2 className="text-sm font-bold text-foreground">{t('title')}</h2>
+              <p className="text-[10px] text-muted-foreground">{t('poweredBy')}</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -540,7 +545,7 @@ export function AIInsightsView() {
               {selectedPeriod}
             </Badge>
             <Badge className="text-[10px] bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800/50">
-              {selectedScenario === 'base' ? 'Base Case' : selectedScenario === 'optimistic' ? 'Optimistic' : 'Pessimistic'}
+              {tScenario(selectedScenario)}
             </Badge>
           </div>
         </div>
@@ -561,9 +566,9 @@ export function AIInsightsView() {
                 <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center mx-auto mb-5 shadow-xl shadow-emerald-500/25">
                   <Sparkles className="w-10 h-10 text-white" />
                 </div>
-                <h1 className="text-2xl font-bold text-foreground mb-2">AI Financial Insights</h1>
+                <h1 className="text-2xl font-bold text-foreground mb-2">{t('title')}</h1>
                 <p className="text-sm text-muted-foreground max-w-md mx-auto leading-relaxed">
-                  Ask questions about your consolidated financial data, entity performance, FX impacts, and more
+                  {t('welcomeSubtitle')}
                 </p>
               </motion.div>
 
@@ -589,7 +594,7 @@ export function AIInsightsView() {
                         if (!activeSessionId) {
                           createNewSession();
                         }
-                        setTimeout(() => handleSendMessage(prompt.title), 50);
+                        setTimeout(() => handleSendMessage(t(`prompts.${prompt.key}`)), 50);
                       }}
                     >
                       <Card className="relative overflow-hidden border-0 shadow-md hover:shadow-xl transition-all duration-300 group">
@@ -598,7 +603,7 @@ export function AIInsightsView() {
                           <div className={`w-9 h-9 rounded-lg bg-gradient-to-br ${prompt.color} flex items-center justify-center shrink-0 shadow-md`}>
                             <Icon className="w-4 h-4 text-white" />
                           </div>
-                          <p className="text-xs font-medium text-foreground leading-relaxed pt-1.5">{prompt.title}</p>
+                          <p className="text-xs font-medium text-foreground leading-relaxed pt-1.5">{t(`prompts.${prompt.key}`)}</p>
                         </div>
                       </Card>
                     </motion.div>
@@ -674,7 +679,7 @@ export function AIInsightsView() {
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="Ask about your financial data..."
+                placeholder={t('placeholder')}
                 disabled={isLoading}
                 className="h-11 text-sm pr-12 border-slate-200 dark:border-slate-700 focus:border-emerald-400 focus:ring-emerald-400/20 bg-white dark:bg-slate-800 rounded-xl"
               />
@@ -694,10 +699,10 @@ export function AIInsightsView() {
           <div className="flex items-center gap-2 mt-2 px-1">
             <span className="text-[10px] text-muted-foreground flex items-center gap-1">
               <Sparkles className="w-3 h-3 text-emerald-500" />
-              Context: {selectedPeriod} · {selectedScenario === 'base' ? 'Base Case' : selectedScenario === 'optimistic' ? 'Optimistic' : 'Pessimistic'}
+              {t('context', { period: selectedPeriod, scenario: tScenario(selectedScenario) })}
             </span>
             <span className="text-[10px] text-muted-foreground">·</span>
-            <span className="text-[10px] text-muted-foreground">Press Enter to send</span>
+            <span className="text-[10px] text-muted-foreground">{t('pressEnter')}</span>
           </div>
         </div>
       </motion.div>

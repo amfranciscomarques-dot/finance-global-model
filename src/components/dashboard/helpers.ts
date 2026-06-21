@@ -5,8 +5,9 @@
 import { CheckCircle2, DollarSign, Database, Building2 } from 'lucide-react';
 import type { KPIs, IncomeStatement, CashFlowStatement, EntityBreakdown, AuditEntry, ExchangeRateInfo } from '@/lib/types';
 
-// Recharts categorical palette for the dashboard charts.
-export const COLORS = ['#10b981', '#0d9488', '#f59e0b', '#64748b', '#f97316'];
+// Recharts categorical palette — the "financial instrument" set:
+// amber signal · steel · gain green · slate · claret. Mirrors --chart-1..5.
+export const COLORS = ['#E8A33D', '#3E8E9E', '#2E9E6B', '#7C8AA0', '#C9606F'];
 
 // Placeholder figures shown only before the first consolidation resolves, or if
 // it fails (in which case a visible banner makes clear the data is not live).
@@ -137,8 +138,11 @@ export interface HealthIndicator {
 }
 
 export function computeHealthIndicators(kpis: KPIs, revenueGrowth: number, ebit: number, interestExpenseAbs: number): HealthIndicator[] {
-  // Revenue Growth: Green >5%, Amber 0-5%, Red <0% (period-over-period, from the consolidation runs)
-  const revenueGrowthScore = revenueGrowth > 5 ? 100 : revenueGrowth > 0 ? (revenueGrowth / 5) * 70 + 30 : Math.max(0, (revenueGrowth / 0) * 30);
+  // Revenue Growth: Green >5%, Amber 0-5%, Red <0% (period-over-period, from the consolidation runs).
+  // Red zone (growth <= 0) scales 30 → 0 over a symmetric [-5%, 0%] band; clamped at 0 below that.
+  // Guard: growth of exactly 0 (e.g. the earliest period, with no prior to compare) must score a
+  // finite 30, not NaN — a naive `growth / 0` here is what blanked the overall health gauge.
+  const revenueGrowthScore = revenueGrowth > 5 ? 100 : revenueGrowth > 0 ? (revenueGrowth / 5) * 70 + 30 : Math.max(0, 30 + (revenueGrowth / 5) * 30);
   const revenueGrowthTL: TrafficLight = revenueGrowth > 5 ? 'green' : revenueGrowth >= 0 ? 'amber' : 'red';
   const revenueGrowthLabel: HealthLabel = revenueGrowth > 5 ? 'Strong' : revenueGrowth >= 0 ? 'Moderate' : 'At Risk';
 
@@ -176,7 +180,7 @@ export function computeHealthIndicators(kpis: KPIs, revenueGrowth: number, ebit:
     {
       name: 'Revenue Growth',
       value: revenueGrowth,
-      displayValue: `+${revenueGrowth}%`,
+      displayValue: `${revenueGrowth >= 0 ? '+' : ''}${revenueGrowth.toFixed(1)}%`,
       trafficLight: revenueGrowthTL,
       label: revenueGrowthLabel,
       progressPct: Math.min(100, Math.max(0, revenueGrowthScore)),

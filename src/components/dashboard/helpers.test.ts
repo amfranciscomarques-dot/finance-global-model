@@ -100,6 +100,33 @@ describe('health scorecard', () => {
     expect(coverage.value).toBe(25);
     expect(coverage.trafficLight).toBe('green');
   });
+
+  it('keeps every indicator score finite at zero revenue growth (earliest period, no prior)', () => {
+    // Regression: growth of exactly 0 used to compute `0 / 0 = NaN`, blanking the
+    // overall gauge to "NaN OUT OF 100". The score must stay a finite number.
+    const inds = computeHealthIndicators(KPI, 0, 30, 5);
+    const growth = inds.find((i) => i.name === 'Revenue Growth')!;
+    expect(Number.isFinite(growth.score)).toBe(true);
+    expect(growth.score).toBeCloseTo(30); // boundary of the amber band
+    expect(growth.trafficLight).toBe('amber'); // 0% is the floor of amber, not red
+    const score = computeOverallScore(inds);
+    expect(Number.isFinite(score)).toBe(true);
+    expect(score).toBeGreaterThanOrEqual(0);
+    expect(score).toBeLessThanOrEqual(100);
+  });
+
+  it('scores negative revenue growth as a finite, clamped red value', () => {
+    const inds = computeHealthIndicators({ ...KPI }, -3, 30, 5);
+    const growth = inds.find((i) => i.name === 'Revenue Growth')!;
+    expect(growth.trafficLight).toBe('red');
+    expect(growth.displayValue).toBe('-3.0%'); // signed, no stray leading '+'
+    expect(Number.isFinite(growth.score)).toBe(true);
+    expect(growth.score).toBeGreaterThanOrEqual(0); // -3% → 12, still ≥ 0
+    // far below the band stays clamped at 0, never negative or NaN
+    const crash = computeHealthIndicators({ ...KPI }, -50, 30, 5).find((i) => i.name === 'Revenue Growth')!;
+    expect(crash.score).toBe(0);
+    expect(Number.isFinite(computeOverallScore([crash]))).toBe(true);
+  });
 });
 
 describe('entityHealthScore', () => {

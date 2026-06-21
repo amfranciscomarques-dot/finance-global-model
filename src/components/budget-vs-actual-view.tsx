@@ -28,6 +28,8 @@ import { BudgetVsActualSummary, BudgetVarianceDetail } from '@/lib/types';
 import { formatCompactEUR, formatNumber } from '@/lib/format';
 import { DataLoadError } from '@/components/data-load-error';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useTranslations, useLocale } from 'next-intl';
+import { dateLocale, type Locale } from '@/i18n/locale-context';
 
 // ============================================================
 // DEMO DATA
@@ -133,8 +135,7 @@ function getStatusIcon(pct: number) {
   return <XCircle className="w-4 h-4 text-red-500" />;
 }
 
-function exportCSV(data: BudgetVarianceDetail[], filename: string) {
-  const headers = ['Entity Code', 'Entity Name', 'Account Code', 'Account Name', 'Category', 'Budget (€)', 'Actual (€)', 'Variance (€)', 'Variance %'];
+function exportCSV(data: BudgetVarianceDetail[], filename: string, headers: string[]) {
   const rows = data.map(d => [
     d.entityCode, d.entityName, d.groupCOACode, d.accountName, d.category,
     d.budgetAmount, d.actualAmount, d.variance, `${d.variancePct.toFixed(1)}%`,
@@ -190,7 +191,10 @@ function InlineBarChart({ budget, actual }: { budget: number; actual: number }) 
 // MAIN COMPONENT
 // ============================================================
 export function BudgetVsActualView() {
+  const t = useTranslations('budget');
+  const loc = useLocale() as Locale;
   const { selectedPeriod, setSelectedPeriod } = useAppStore();
+  const csvHeaders = [t('csv.entityCode'), t('csv.entityName'), t('csv.accountCode'), t('csv.accountName'), t('csv.category'), t('csv.budget'), t('csv.actual'), t('csv.variance'), t('csv.variancePct')];
   const [summary, setSummary] = useState<BudgetVsActualSummary>(demoSummary);
   const [varianceData, setVarianceData] = useState<BudgetVarianceDetail[]>(demoVarianceData);
   const [loading, setLoading] = useState(false);
@@ -242,7 +246,7 @@ export function BudgetVsActualView() {
 
   // Chart data from category breakdown
   const chartData = summary.categoryBreakdown.map((c) => ({
-    category: c.category,
+    category: t(`categories.${c.category}`),
     Budget: c.totalBudget,
     Actual: c.totalActual,
     VariancePct: c.variancePct,
@@ -278,34 +282,34 @@ export function BudgetVsActualView() {
         <div>
           <h2 className="text-lg font-semibold flex items-center gap-2">
             <Target className="w-5 h-5 text-emerald-600" />
-            Budget vs Actual Analysis
+            {t('title')}
           </h2>
-          <p className="text-sm text-muted-foreground">Compare budgeted amounts against actual performance by entity and account</p>
+          <p className="text-sm text-muted-foreground">{t('subtitle')}</p>
         </div>
         <div className="flex items-center gap-3">
           <Button
             variant="outline"
             size="sm"
-            onClick={() => exportCSV(varianceData, `budget-vs-actual-${selectedPeriod}.csv`)}
+            onClick={() => exportCSV(varianceData, `budget-vs-actual-${selectedPeriod}.csv`, csvHeaders)}
           >
-            <Download className="w-4 h-4 mr-1" /> Export
+            <Download className="w-4 h-4 mr-1" /> {t('export')}
           </Button>
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
               <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700">
-                <Plus className="w-4 h-4 mr-1" /> Add Budget
+                <Plus className="w-4 h-4 mr-1" /> {t('addBudget')}
               </Button>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Add Budget Entry</DialogTitle>
-                <DialogDescription>Create or update a budget amount for an entity and account</DialogDescription>
+                <DialogTitle>{t('dialog.title')}</DialogTitle>
+                <DialogDescription>{t('dialog.desc')}</DialogDescription>
               </DialogHeader>
               <div className="space-y-4 py-4">
                 <div>
-                  <label className="text-sm font-medium mb-1.5 block">Entity</label>
+                  <label className="text-sm font-medium mb-1.5 block">{t('dialog.entity')}</label>
                   <Select value={dialogEntity} onValueChange={setDialogEntity}>
-                    <SelectTrigger><SelectValue placeholder="Select entity" /></SelectTrigger>
+                    <SelectTrigger><SelectValue placeholder={t('dialog.selectEntity')} /></SelectTrigger>
                     <SelectContent>
                       {summary.entityBreakdown.map((e) => (
                         <SelectItem key={e.entityCode} value={e.entityCode}>{e.entityName}</SelectItem>
@@ -314,19 +318,19 @@ export function BudgetVsActualView() {
                   </Select>
                 </div>
                 <div>
-                  <label className="text-sm font-medium mb-1.5 block">Account Code</label>
+                  <label className="text-sm font-medium mb-1.5 block">{t('dialog.accountCode')}</label>
                   <Input value={dialogAccount} onChange={(e) => setDialogAccount(e.target.value)} placeholder="e.g., REV-001" />
                 </div>
                 <div>
-                  <label className="text-sm font-medium mb-1.5 block">Budget Amount (€)</label>
+                  <label className="text-sm font-medium mb-1.5 block">{t('dialog.budgetAmount')}</label>
                   <Input type="number" value={dialogAmount} onChange={(e) => setDialogAmount(e.target.value)} placeholder="0" />
                 </div>
               </div>
               <DialogFooter>
-                <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
+                <Button variant="outline" onClick={() => setDialogOpen(false)}>{t('dialog.cancel')}</Button>
                 <Button onClick={handleSaveBudget} disabled={saving || !dialogEntity || !dialogAccount || !dialogAmount} className="bg-emerald-600 hover:bg-emerald-700">
                   {saving ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
-                  Save Budget
+                  {t('dialog.save')}
                 </Button>
               </DialogFooter>
             </DialogContent>
@@ -336,7 +340,7 @@ export function BudgetVsActualView() {
             <SelectContent>
               {['2024-12', '2024-11', '2024-10', '2024-09', '2024-08', '2024-07'].map((p) => (
                 <SelectItem key={p} value={p}>
-                  {new Date(p + '-01').toLocaleDateString('en-US', { year: 'numeric', month: 'short' })}
+                  {new Date(p + '-01').toLocaleDateString(dateLocale(loc), { year: 'numeric', month: 'short' })}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -347,10 +351,10 @@ export function BudgetVsActualView() {
       {/* Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { title: 'Total Budget', value: summary.totalBudget, icon: Wallet, color: 'from-teal-50/80 to-white dark:from-teal-950/30 dark:to-slate-900', iconColor: 'text-teal-600 dark:text-teal-400', trend: 3.1, trendLabel: 'vs prior period' },
-          { title: 'Total Actual', value: summary.totalActual, icon: Target, color: 'from-emerald-50/80 to-white dark:from-emerald-950/30 dark:to-slate-900', iconColor: 'text-emerald-600 dark:text-emerald-400', trend: 1.1, trendLabel: 'vs budget' },
-          { title: 'Total Variance', value: summary.totalVariance, icon: summary.totalVariance >= 0 ? TrendingUp : TrendingDown, color: `${summary.totalVariance >= 0 ? 'from-emerald-50/80 to-white dark:from-emerald-950/30' : 'from-red-50/80 to-white dark:from-red-950/30'} dark:to-slate-900`, iconColor: summary.totalVariance >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400', trend: summary.variancePct, trendLabel: 'variance %' },
-          { title: 'Variance %', value: summary.variancePct, icon: summary.variancePct >= 0 ? ArrowUpRight : ArrowDownRight, color: `${summary.variancePct >= 0 ? 'from-emerald-50/80 to-white dark:from-emerald-950/30' : 'from-amber-50/80 to-white dark:from-amber-950/20'} dark:to-slate-900`, iconColor: summary.variancePct >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400', isPercent: true, trend: null, trendLabel: '' },
+          { title: t('cards.totalBudget'), value: summary.totalBudget, icon: Wallet, color: 'from-teal-50/80 to-white dark:from-teal-950/30 dark:to-slate-900', iconColor: 'text-teal-600 dark:text-teal-400', trend: 3.1, trendLabel: t('trendLabels.priorPeriod') },
+          { title: t('cards.totalActual'), value: summary.totalActual, icon: Target, color: 'from-emerald-50/80 to-white dark:from-emerald-950/30 dark:to-slate-900', iconColor: 'text-emerald-600 dark:text-emerald-400', trend: 1.1, trendLabel: t('trendLabels.vsBudget') },
+          { title: t('cards.totalVariance'), value: summary.totalVariance, icon: summary.totalVariance >= 0 ? TrendingUp : TrendingDown, color: `${summary.totalVariance >= 0 ? 'from-emerald-50/80 to-white dark:from-emerald-950/30' : 'from-red-50/80 to-white dark:from-red-950/30'} dark:to-slate-900`, iconColor: summary.totalVariance >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400', trend: summary.variancePct, trendLabel: t('trendLabels.variancePct') },
+          { title: t('cards.variancePct'), value: summary.variancePct, icon: summary.variancePct >= 0 ? ArrowUpRight : ArrowDownRight, color: `${summary.variancePct >= 0 ? 'from-emerald-50/80 to-white dark:from-emerald-950/30' : 'from-amber-50/80 to-white dark:from-amber-950/20'} dark:to-slate-900`, iconColor: summary.variancePct >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400', isPercent: true, trend: null, trendLabel: '' },
         ].map((card, i) => (
           <motion.div key={card.title} initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.1 }}>
             <Card className={`shadow-sm border border-slate-200/60 dark:border-slate-700/40 bg-gradient-to-br ${card.color} hover:shadow-emerald-500/5 hover:shadow-lg hover:shadow-emerald-500/5 transition-shadow duration-300`}>
@@ -391,13 +395,13 @@ export function BudgetVsActualView() {
           <CardHeader>
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <div>
-                <CardTitle className="text-base">Entity Budget Overview</CardTitle>
-                <CardDescription>Click an entity to drill down into account-level details</CardDescription>
+                <CardTitle className="text-base">{t('overviewTitle')}</CardTitle>
+                <CardDescription>{t('overviewDesc')}</CardDescription>
               </div>
               <div className="relative w-full sm:w-64">
                 <Search className="absolute left-2.5 top-2.5 w-4 h-4 text-muted-foreground" />
                 <Input
-                  placeholder="Search entities..."
+                  placeholder={t('searchEntities')}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-8 h-9 text-sm"
@@ -422,12 +426,12 @@ export function BudgetVsActualView() {
                 <Table className="premium-table">
                   <TableHeader>
                     <TableRow className="cursor-pointer transition-colors duration-150 sticky top-0 bg-white dark:bg-slate-900 z-10 border-b-2 border-slate-200 dark:border-slate-700">
-                      <TableHead>Entity</TableHead>
-                      <TableHead className="text-right">Budget</TableHead>
-                      <TableHead className="text-right">Actual</TableHead>
-                      <TableHead className="text-right">Variance (€)</TableHead>
-                      <TableHead className="text-right">Variance (%)</TableHead>
-                      <TableHead className="text-center">Status</TableHead>
+                      <TableHead>{t('entityHeaders.entity')}</TableHead>
+                      <TableHead className="text-right">{t('entityHeaders.budget')}</TableHead>
+                      <TableHead className="text-right">{t('entityHeaders.actual')}</TableHead>
+                      <TableHead className="text-right">{t('entityHeaders.varianceEur')}</TableHead>
+                      <TableHead className="text-right">{t('entityHeaders.variancePct')}</TableHead>
+                      <TableHead className="text-center">{t('entityHeaders.status')}</TableHead>
                       <TableHead className="w-8"></TableHead>
                     </TableRow>
                   </TableHeader>
@@ -482,8 +486,8 @@ export function BudgetVsActualView() {
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
         <Card className="shadow-sm border border-slate-200/60 dark:border-slate-700/40">
           <CardHeader>
-            <CardTitle className="text-base">Variance Analysis by Category</CardTitle>
-            <CardDescription>Budget (teal) vs Actual (emerald) with variance % overlay</CardDescription>
+            <CardTitle className="text-base">{t('chartTitle')}</CardTitle>
+            <CardDescription>{t('chartDesc')}</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="h-80">
@@ -506,9 +510,9 @@ export function BudgetVsActualView() {
                   <Tooltip content={<BudgetTooltip />} />
                   <Legend wrapperStyle={{ fontSize: 11 }} />
                   <ReferenceLine yAxisId="pct" y={0} stroke="#94a3b8" strokeDasharray="3 3" />
-                  <Bar yAxisId="amount" dataKey="Budget" fill="url(#budgetGrad)" radius={[3, 3, 0, 0]} barSize={24} />
-                  <Bar yAxisId="amount" dataKey="Actual" fill="url(#actualGrad)" radius={[3, 3, 0, 0]} barSize={24} />
-                  <Line yAxisId="pct" dataKey="VariancePct" stroke="#f59e0b" strokeWidth={2} dot={{ fill: '#f59e0b', r: 4 }} name="Variance %" />
+                  <Bar yAxisId="amount" dataKey="Budget" name={t('budgetSeries')} fill="url(#budgetGrad)" radius={[3, 3, 0, 0]} barSize={24} />
+                  <Bar yAxisId="amount" dataKey="Actual" name={t('actualSeries')} fill="url(#actualGrad)" radius={[3, 3, 0, 0]} barSize={24} />
+                  <Line yAxisId="pct" dataKey="VariancePct" stroke="#f59e0b" strokeWidth={2} dot={{ fill: '#f59e0b', r: 4 }} name={t('variancePctSeries')} />
                 </ComposedChart>
               </ResponsiveContainer>
             </div>
@@ -534,17 +538,17 @@ export function BudgetVsActualView() {
                   <div>
                     <CardTitle className="text-base flex items-center gap-2">
                       <Target className="w-4 h-4 text-emerald-600" />
-                      {filteredEntities.find(e => e.entityCode === selectedEntity)?.entityName || selectedEntity} — Account Detail
+                      {t('accountDetail', { name: filteredEntities.find(e => e.entityCode === selectedEntity)?.entityName || selectedEntity })}
                     </CardTitle>
-                    <CardDescription>Full account-level budget vs actual breakdown</CardDescription>
+                    <CardDescription>{t('accountDetailDesc')}</CardDescription>
                   </div>
                   <div className="flex items-center gap-2">
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => exportCSV(selectedEntityDetails, `budget-detail-${selectedEntity}-${selectedPeriod}.csv`)}
+                      onClick={() => exportCSV(selectedEntityDetails, `budget-detail-${selectedEntity}-${selectedPeriod}.csv`, csvHeaders)}
                     >
-                      <Download className="w-4 h-4 mr-1" /> CSV
+                      <Download className="w-4 h-4 mr-1" /> {t('csvBtn')}
                     </Button>
                     <Button variant="ghost" size="icon" onClick={() => setSelectedEntity(null)}>
                       <X className="w-4 h-4" />
@@ -557,14 +561,14 @@ export function BudgetVsActualView() {
                   <Table className="premium-table">
                     <TableHeader>
                       <TableRow className="cursor-pointer transition-colors duration-150 sticky top-0 bg-white dark:bg-slate-900 z-10 border-b-2 border-slate-200 dark:border-slate-700">
-                        <TableHead>Account Code</TableHead>
-                        <TableHead>Account Name</TableHead>
-                        <TableHead>Category</TableHead>
-                        <TableHead className="text-right">Budget (€)</TableHead>
-                        <TableHead className="text-right">Actual (€)</TableHead>
-                        <TableHead className="text-right">Variance (€)</TableHead>
-                        <TableHead className="text-right">Variance %</TableHead>
-                        <TableHead className="text-center">Budget vs Actual</TableHead>
+                        <TableHead>{t('detailHeaders.accountCode')}</TableHead>
+                        <TableHead>{t('detailHeaders.accountName')}</TableHead>
+                        <TableHead>{t('detailHeaders.category')}</TableHead>
+                        <TableHead className="text-right">{t('detailHeaders.budgetEur')}</TableHead>
+                        <TableHead className="text-right">{t('detailHeaders.actualEur')}</TableHead>
+                        <TableHead className="text-right">{t('detailHeaders.varianceEur')}</TableHead>
+                        <TableHead className="text-right">{t('detailHeaders.variancePct')}</TableHead>
+                        <TableHead className="text-center">{t('detailHeaders.budgetVsActual')}</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -578,7 +582,7 @@ export function BudgetVsActualView() {
                             <TableCell className="font-mono text-xs font-medium">{row.groupCOACode}</TableCell>
                             <TableCell className="font-medium text-sm">{row.accountName}</TableCell>
                             <TableCell>
-                              <Badge variant="outline" className="text-[10px]">{row.category}</Badge>
+                              <Badge variant="outline" className="text-[10px]">{t(`categories.${row.category}`)}</Badge>
                             </TableCell>
                             <TableCell className="text-right tabular-nums">{formatNumber(row.budgetAmount)}</TableCell>
                             <TableCell className="text-right tabular-nums">{formatNumber(row.actualAmount)}</TableCell>
@@ -619,15 +623,15 @@ export function BudgetVsActualView() {
                     return (
                       <>
                         <div className="bg-emerald-50/80 dark:bg-emerald-950/30 rounded-lg p-3 text-center">
-                          <p className="text-xs text-muted-foreground">Favorable</p>
+                          <p className="text-xs text-muted-foreground">{t('favorable')}</p>
                           <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400">{favorableCount}/{selectedEntityDetails.length}</p>
                         </div>
                         <div className="bg-teal-50/80 dark:bg-teal-950/30 rounded-lg p-3 text-center">
-                          <p className="text-xs text-muted-foreground">Total Budget</p>
+                          <p className="text-xs text-muted-foreground">{t('totalBudgetLabel')}</p>
                           <p className="text-lg font-bold text-teal-600 dark:text-teal-400">{formatCompactEUR(totalBudget)}</p>
                         </div>
                         <div className={`${totalVariance >= 0 ? 'bg-emerald-50/80 dark:bg-emerald-950/30' : 'bg-amber-50/80 dark:bg-amber-950/30'} rounded-lg p-3 text-center`}>
-                          <p className="text-xs text-muted-foreground">Net Variance</p>
+                          <p className="text-xs text-muted-foreground">{t('netVariance')}</p>
                           <p className={`text-lg font-bold ${totalVariance >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}`}>
                             {totalVariance >= 0 ? '+' : '-'}{formatCompactEUR(Math.abs(totalVariance))}
                           </p>

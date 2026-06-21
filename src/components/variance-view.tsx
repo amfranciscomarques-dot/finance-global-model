@@ -21,9 +21,10 @@ import { demoVarianceData, availablePeriods } from '@/lib/demo-data';
 import { formatCompactEUR, formatNumber } from '@/lib/format';
 import { DataLoadError } from '@/components/data-load-error';
 import { motion } from 'framer-motion';
+import { useTranslations, useLocale } from 'next-intl';
+import { dateLocale, type Locale } from '@/i18n/locale-context';
 
-function exportVarianceCSV(data: VarianceData[], filename: string) {
-  const headers = ['Metric', 'Actual', 'Budget', 'Forecast', 'Var vs Budget', 'Var vs Forecast', '% Var (Budget)'];
+function exportVarianceCSV(data: VarianceData[], filename: string, headers: string[]) {
   const rows = data.map(d => [
     d.metric,
     d.actual,
@@ -106,6 +107,8 @@ function HeatmapCell({ value, label }: { value: number; label: string }) {
 }
 
 export function VarianceView() {
+  const t = useTranslations('variance');
+  const loc = useLocale() as Locale;
   const { selectedPeriod, setSelectedPeriod } = useAppStore();
   const [varianceData, setVarianceData] = useState<VarianceData[]>(demoVarianceData);
   const [loading, setLoading] = useState(false);
@@ -162,24 +165,27 @@ export function VarianceView() {
         <div>
           <h2 className="text-lg font-semibold flex items-center gap-2">
             <BarChart3 className="w-5 h-5 text-emerald-600" />
-            Variance Analysis
+            {t('title')}
           </h2>
-          <p className="text-sm text-muted-foreground">Actual vs Budget vs Forecast comparison</p>
+          <p className="text-sm text-muted-foreground">{t('subtitle')}</p>
         </div>
         <div className="flex items-center gap-3">
           <Button
             variant="outline"
             size="sm"
-            onClick={() => exportVarianceCSV(varianceData, `variance-report-${selectedPeriod}.csv`)}
+            onClick={() => exportVarianceCSV(varianceData, `variance-report-${selectedPeriod}.csv`, [
+              t('headers.metric'), t('headers.actual'), t('headers.budget'), t('headers.forecast'),
+              t('headers.varVsBudget'), t('headers.varVsForecast'), t('headers.pctVarBudget'),
+            ])}
           >
-            <Download className="w-4 h-4 mr-1" /> Export
+            <Download className="w-4 h-4 mr-1" /> {t('export')}
           </Button>
           <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
             <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
             <SelectContent>
               {availablePeriods.slice(0, 6).map((p) => (
                 <SelectItem key={p} value={p}>
-                  {new Date(p + '-01').toLocaleDateString('en-US', { year: 'numeric', month: 'short' })}
+                  {new Date(p + '-01').toLocaleDateString(dateLocale(loc), { year: 'numeric', month: 'short' })}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -192,7 +198,7 @@ export function VarianceView() {
         <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
           <Card className="shadow-sm bg-gradient-to-br from-emerald-50/80 to-white dark:from-emerald-950/30 dark:to-slate-900 hover:shadow-emerald-500/5 hover:shadow-lg hover:shadow-emerald-500/5 transition-shadow duration-300">
             <CardContent className="p-4">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">Revenue Variance</p>
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">{t('cards.revenue')}</p>
               {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : (
                 <>
                   <p className={`text-2xl font-bold ${revenueVariance && revenueVariance.varianceVsBudget >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
@@ -200,7 +206,7 @@ export function VarianceView() {
                   </p>
                   <p className={`text-xs flex items-center gap-0.5 mt-1 ${revenueVariance && revenueVariance.varianceVsBudget >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
                     {revenueVariance && revenueVariance.varianceVsBudget >= 0 ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
-                    {revenueVariance ? `${revenueVariance.variancePctBudget >= 0 ? '+' : ''}${revenueVariance.variancePctBudget.toFixed(1)}% vs Budget` : '+2.8% vs Budget'}
+                    {revenueVariance ? `${revenueVariance.variancePctBudget >= 0 ? '+' : ''}${revenueVariance.variancePctBudget.toFixed(1)}% ${t('cards.vsBudgetSuffix')}` : `+2.8% ${t('cards.vsBudgetSuffix')}`}
                   </p>
                 </>
               )}
@@ -210,7 +216,7 @@ export function VarianceView() {
         <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
           <Card className="shadow-sm bg-gradient-to-br from-teal-50/80 to-white dark:from-teal-950/30 dark:to-slate-900 hover:shadow-emerald-500/5 hover:shadow-lg hover:shadow-emerald-500/5 transition-shadow duration-300">
             <CardContent className="p-4">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">EBITDA Variance</p>
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">{t('cards.ebitda')}</p>
               {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : (
                 <>
                   <p className={`text-2xl font-bold ${ebitdaVariance && ebitdaVariance.varianceVsBudget >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
@@ -218,7 +224,7 @@ export function VarianceView() {
                   </p>
                   <p className={`text-xs flex items-center gap-0.5 mt-1 ${ebitdaVariance && ebitdaVariance.varianceVsBudget >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
                     {ebitdaVariance && ebitdaVariance.varianceVsBudget >= 0 ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
-                    {ebitdaVariance ? `${ebitdaVariance.variancePctBudget >= 0 ? '+' : ''}${ebitdaVariance.variancePctBudget.toFixed(1)}% vs Budget` : '+4.6% vs Budget'}
+                    {ebitdaVariance ? `${ebitdaVariance.variancePctBudget >= 0 ? '+' : ''}${ebitdaVariance.variancePctBudget.toFixed(1)}% ${t('cards.vsBudgetSuffix')}` : `+4.6% ${t('cards.vsBudgetSuffix')}`}
                   </p>
                 </>
               )}
@@ -228,7 +234,7 @@ export function VarianceView() {
         <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
           <Card className="shadow-sm bg-gradient-to-br from-amber-50/80 to-white dark:from-amber-950/20 dark:to-slate-900 hover:shadow-emerald-500/5 hover:shadow-lg hover:shadow-emerald-500/5 transition-shadow duration-300">
             <CardContent className="p-4">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">Net Income Variance</p>
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">{t('cards.netIncome')}</p>
               {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : (
                 <>
                   <p className={`text-2xl font-bold ${netIncomeVariance && netIncomeVariance.varianceVsBudget >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
@@ -236,7 +242,7 @@ export function VarianceView() {
                   </p>
                   <p className={`text-xs flex items-center gap-0.5 mt-1 ${netIncomeVariance && netIncomeVariance.varianceVsBudget >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
                     {netIncomeVariance && netIncomeVariance.varianceVsBudget >= 0 ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
-                    {netIncomeVariance ? `${netIncomeVariance.variancePctBudget >= 0 ? '+' : ''}${netIncomeVariance.variancePctBudget.toFixed(1)}% vs Budget` : '+6.7% vs Budget'}
+                    {netIncomeVariance ? `${netIncomeVariance.variancePctBudget >= 0 ? '+' : ''}${netIncomeVariance.variancePctBudget.toFixed(1)}% ${t('cards.vsBudgetSuffix')}` : `+6.7% ${t('cards.vsBudgetSuffix')}`}
                   </p>
                 </>
               )}
@@ -249,8 +255,8 @@ export function VarianceView() {
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
         <Card className="shadow-sm border border-slate-200/60 dark:border-slate-700/40">
           <CardHeader className="pb-3">
-            <CardTitle className="text-base">Variance Heatmap</CardTitle>
-            <CardDescription>Visual indicator of which metrics are most off-track (% vs Budget)</CardDescription>
+            <CardTitle className="text-base">{t('heatmapTitle')}</CardTitle>
+            <CardDescription>{t('heatmapDesc')}</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-2">
@@ -266,8 +272,8 @@ export function VarianceView() {
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
         <Card className="shadow-sm border border-slate-200/60 dark:border-slate-700/40">
           <CardHeader>
-            <CardTitle className="text-base">Variance Waterfall — vs Budget</CardTitle>
-            <CardDescription>Running total of favorable (green) and unfavorable (amber) variances (€K)</CardDescription>
+            <CardTitle className="text-base">{t('waterfallTitle')}</CardTitle>
+            <CardDescription>{t('waterfallDesc')}</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="h-72">
@@ -289,7 +295,7 @@ export function VarianceView() {
                   <Tooltip content={<VarianceTooltip />} />
                   <ReferenceLine y={0} stroke="#94a3b8" />
                   <Bar dataKey="base" stackId="waterfall" fill="transparent" name="base" />
-                  <Bar dataKey="barValue" stackId="waterfall" radius={[3, 3, 0, 0]} name="Variance">
+                  <Bar dataKey="barValue" stackId="waterfall" radius={[3, 3, 0, 0]} name={t('waterfallBar')}>
                     {waterfallChartData.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={entry.type === 'positive' ? 'url(#posVarGrad)' : 'url(#negVarGrad)'} />
                     ))}
@@ -308,28 +314,28 @@ export function VarianceView() {
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
         <Card className="shadow-sm border border-slate-200/60 dark:border-slate-700/40">
           <CardHeader>
-            <CardTitle className="text-base">Detailed Variance Report</CardTitle>
-            <CardDescription>Full breakdown of actuals, budget, and forecast with variance analysis</CardDescription>
+            <CardTitle className="text-base">{t('tableTitle')}</CardTitle>
+            <CardDescription>{t('tableDesc')}</CardDescription>
           </CardHeader>
           <CardContent>
             {loading ? (
               <div className="flex items-center justify-center py-12">
                 <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-                <span className="ml-2 text-sm text-muted-foreground">Loading variance data...</span>
+                <span className="ml-2 text-sm text-muted-foreground">{t('loading')}</span>
               </div>
             ) : (
               <div className="max-h-[480px] overflow-y-auto">
                 <Table className="premium-table">
                   <TableHeader>
                     <TableRow className="cursor-pointer transition-colors duration-150 sticky top-0 bg-white dark:bg-slate-900 z-10 border-b-2 border-slate-200 dark:border-slate-700">
-                      <TableHead className="min-w-[160px]">Metric</TableHead>
-                      <TableHead className="text-right">Actual</TableHead>
-                      <TableHead className="text-right">Budget</TableHead>
-                      <TableHead className="text-right">Forecast</TableHead>
-                      <TableHead className="text-right">Var vs Budget</TableHead>
-                      <TableHead className="text-right">Var vs Forecast</TableHead>
-                      <TableHead className="text-right">% Var (Budget)</TableHead>
-                      <TableHead className="hidden sm:table-cell text-center">Trend</TableHead>
+                      <TableHead className="min-w-[160px]">{t('headers.metric')}</TableHead>
+                      <TableHead className="text-right">{t('headers.actual')}</TableHead>
+                      <TableHead className="text-right">{t('headers.budget')}</TableHead>
+                      <TableHead className="text-right">{t('headers.forecast')}</TableHead>
+                      <TableHead className="text-right">{t('headers.varVsBudget')}</TableHead>
+                      <TableHead className="text-right">{t('headers.varVsForecast')}</TableHead>
+                      <TableHead className="text-right">{t('headers.pctVarBudget')}</TableHead>
+                      <TableHead className="hidden sm:table-cell text-center">{t('headers.trend')}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>

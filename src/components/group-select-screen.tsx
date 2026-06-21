@@ -19,6 +19,7 @@ import {
 import { getPacks, loadPack, createGroup, PackSummary } from '@/lib/api';
 import { useAppStore } from '@/lib/store';
 import { useToast } from '@/hooks/use-toast';
+import { useTranslations } from 'next-intl';
 import { motion } from 'framer-motion';
 
 const countryFlags: Record<string, string> = {
@@ -36,6 +37,7 @@ export function GroupSelectScreen() {
   const [newGroupName, setNewGroupName] = useState('');
   const [newGroupPeriod, setNewGroupPeriod] = useState('2024-12');
   const { toast } = useToast();
+  const t = useTranslations('groupSelect');
 
   useEffect(() => {
     let cancelled = false;
@@ -45,13 +47,13 @@ export function GroupSelectScreen() {
       })
       .catch((err) => {
         console.error('Failed to load groups:', err);
-        if (!cancelled) toast({ title: 'Error', description: 'Could not load groups', variant: 'destructive' });
+        if (!cancelled) toast({ title: t('loadErrorTitle'), description: t('loadErrorDesc'), variant: 'destructive' });
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
       });
     return () => { cancelled = true; };
-  }, [toast]);
+  }, [toast, t]);
 
   // Load a group's data and enter its consolidated dashboard.
   const handleSelectGroup = async (pack: PackSummary) => {
@@ -73,7 +75,7 @@ export function GroupSelectScreen() {
     try {
       await createGroup(newGroupName.trim(), newGroupPeriod);
       setDialogOpen(false);
-      toast({ title: 'Group Created', description: `${newGroupName.trim()} — add companies to begin.` });
+      toast({ title: t('createdTitle'), description: t('createdDesc', { name: newGroupName.trim() }) });
       setActiveView('entities');
       setSelectedCompany({ code: 'GROUP', name: newGroupName.trim() });
     } catch (err) {
@@ -90,21 +92,24 @@ export function GroupSelectScreen() {
       .slice(0, 6);
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 dark:bg-slate-950 bg-grid-pattern px-4 py-12">
+    <div className="min-h-screen flex flex-col items-center justify-center bg-background bg-grid-pattern px-4 py-12">
       <motion.div
         initial={{ opacity: 0, y: 15 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
         className="w-full max-w-4xl"
       >
-        {/* Branding header */}
+        {/* Branding header — instrument wordmark */}
         <div className="text-center mb-10">
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 shadow-lg shadow-emerald-500/20 mb-4">
-            <Layers className="w-7 h-7 text-white" />
-          </div>
-          <h1 className="text-2xl font-bold tracking-tight">ConsolidaçãoFX</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Select a group to load all its companies, or create a new one
+          <p className="font-mono text-[11px] tracking-[0.32em] text-muted-foreground uppercase mb-3">
+            {t('eyebrow')}
+          </p>
+          <h1 className="text-4xl sm:text-5xl font-semibold tracking-tight">
+            Consolidação<span className="text-signal">FX</span>
+          </h1>
+          <div className="mx-auto mt-4 mb-4 h-px w-16 bg-signal/70" />
+          <p className="text-sm text-muted-foreground">
+            {t('subtitle')}
           </p>
         </div>
 
@@ -131,22 +136,24 @@ export function GroupSelectScreen() {
                     transition={{ delay: index * 0.05, duration: 0.3 }}
                   >
                     <Card
-                      className={`h-full border-emerald-200 dark:border-emerald-800/50 bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-950/30 dark:to-teal-950/30 transition-all duration-200 group ${
-                        disabled ? 'opacity-60 pointer-events-none' : 'cursor-pointer hover:shadow-lg hover:shadow-emerald-500/10 hover:scale-[1.01]'
+                      className={`group relative h-full overflow-hidden border-border bg-card transition-all duration-200 ${
+                        disabled ? 'opacity-60 pointer-events-none' : 'cursor-pointer hover:border-signal/60 hover:shadow-lg hover:shadow-signal/5'
                       }`}
                       onClick={() => !disabled && handleSelectGroup(pack)}
                     >
+                      {/* amber signal rail — reveals on hover */}
+                      <span className="absolute left-0 top-0 bottom-0 w-[3px] bg-signal scale-y-0 group-hover:scale-y-100 origin-top transition-transform duration-300" />
                       <CardContent className="p-5">
                         <div className="flex items-start gap-4">
-                          <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-md shadow-emerald-500/20 shrink-0">
+                          <div className="w-11 h-11 rounded-md border border-border bg-muted flex items-center justify-center text-foreground/65 group-hover:text-signal group-hover:border-signal/40 transition-colors shrink-0">
                             {isLoading
-                              ? <Loader2 className="w-5 h-5 text-white animate-spin" />
-                              : <Layers className="w-5 h-5 text-white" />}
+                              ? <Loader2 className="w-5 h-5 animate-spin" />
+                              : <Layers className="w-5 h-5" />}
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center justify-between gap-2">
                               <p className="font-semibold truncate" title={pack.name}>{pack.name}</p>
-                              <ArrowRight className="w-5 h-5 text-emerald-600 dark:text-emerald-400 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+                              <ArrowRight className="w-5 h-5 text-signal opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 transition-all shrink-0" />
                             </div>
                             <p className="text-xs text-muted-foreground mt-1 line-clamp-2" title={pack.description}>
                               {pack.description}
@@ -154,9 +161,9 @@ export function GroupSelectScreen() {
                           </div>
                         </div>
                         <div className="flex items-center gap-2 mt-4 flex-wrap">
-                          <Badge variant="outline" className="text-[10px] gap-1 flex items-center">
+                          <Badge variant="outline" className="text-[10px] gap-1 flex items-center font-mono tabular-nums">
                             <Building2 className="w-3 h-3" />
-                            {pack.entities.length} {pack.entities.length === 1 ? 'company' : 'companies'}
+                            {t('companies', { count: pack.entities.length })}
                           </Badge>
                           <span className="text-base leading-none">{groupFlags(pack).join(' ')}</span>
                         </div>
@@ -174,19 +181,19 @@ export function GroupSelectScreen() {
               transition={{ delay: packs.length * 0.05, duration: 0.3 }}
             >
               <Card
-                className={`h-full min-h-[140px] border-2 border-dashed border-slate-300 dark:border-slate-700 bg-transparent shadow-none transition-all duration-200 group ${
+                className={`h-full min-h-[140px] border-2 border-dashed border-border bg-transparent shadow-none transition-all duration-200 group ${
                   loadingGroupId !== null
                     ? 'opacity-60 pointer-events-none'
-                    : 'cursor-pointer hover:border-emerald-400 dark:hover:border-emerald-600 hover:bg-emerald-50/50 dark:hover:bg-emerald-950/20'
+                    : 'cursor-pointer hover:border-signal/60 hover:bg-signal/5'
                 }`}
                 onClick={() => loadingGroupId === null && setDialogOpen(true)}
               >
                 <CardContent className="p-5 h-full flex flex-col items-center justify-center gap-2">
-                  <div className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 group-hover:bg-emerald-100 dark:group-hover:bg-emerald-900/40 flex items-center justify-center transition-colors">
-                    <Plus className="w-5 h-5 text-slate-500 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors" />
+                  <div className="w-10 h-10 rounded-md border border-border bg-muted group-hover:border-signal/40 flex items-center justify-center transition-colors">
+                    <Plus className="w-5 h-5 text-muted-foreground group-hover:text-signal transition-colors" />
                   </div>
-                  <p className="text-sm font-medium text-muted-foreground group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors">
-                    Add New Group
+                  <p className="text-sm font-medium text-muted-foreground group-hover:text-foreground transition-colors">
+                    {t('addNewGroup')}
                   </p>
                 </CardContent>
               </Card>
@@ -195,7 +202,7 @@ export function GroupSelectScreen() {
         </div>
 
         <p className="text-center text-[10px] text-muted-foreground mt-10">
-          ConsolidaçãoFX © 2025 · Multi-Company Financial Consolidation Platform
+          ConsolidaçãoFX © 2025 · {t('footer')}
         </p>
       </motion.div>
 
@@ -204,26 +211,26 @@ export function GroupSelectScreen() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Layers className="w-5 h-5 text-emerald-600" />
-              Add New Group
+              <Layers className="w-5 h-5 text-signal" />
+              {t('addNewGroup')}
             </DialogTitle>
             <DialogDescription>
-              Creates an empty group. You'll then add its companies. This replaces the currently loaded group.
+              {t('dialogDescription')}
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="group-name">Group Name</Label>
+              <Label htmlFor="group-name">{t('groupName')}</Label>
               <Input
                 id="group-name"
-                placeholder="e.g. Acme Group"
+                placeholder={t('groupNamePlaceholder')}
                 value={newGroupName}
                 onChange={(e) => setNewGroupName(e.target.value)}
                 autoFocus
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="group-period">Reporting Period</Label>
+              <Label htmlFor="group-period">{t('reportingPeriod')}</Label>
               <Input
                 id="group-period"
                 placeholder="YYYY-MM"
@@ -233,14 +240,13 @@ export function GroupSelectScreen() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)} disabled={saving}>Cancel</Button>
+            <Button variant="outline" onClick={() => setDialogOpen(false)} disabled={saving}>{t('cancel')}</Button>
             <Button
-              className="bg-emerald-600 hover:bg-emerald-700"
               onClick={handleCreateGroup}
               disabled={saving || !newGroupName.trim() || !/^\d{4}-\d{2}$/.test(newGroupPeriod)}
             >
               {saving ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Plus className="w-4 h-4 mr-1" />}
-              Create Group
+              {t('create')}
             </Button>
           </DialogFooter>
         </DialogContent>

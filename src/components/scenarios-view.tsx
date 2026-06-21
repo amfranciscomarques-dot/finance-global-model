@@ -22,6 +22,7 @@ import { demoScenarios, scenarioComparison as fallbackComparison } from '@/lib/d
 import { formatEUR } from '@/lib/utils';
 import { DataLoadError } from '@/components/data-load-error';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useTranslations } from 'next-intl';
 
 const scenarioColors: Record<string, string> = {
   base: '#0d9488', optimistic: '#10b981', pessimistic: '#f59e0b',
@@ -37,28 +38,30 @@ const scenarioIcons: Record<string, React.ElementType> = {
   base: Minus, optimistic: TrendingUp, pessimistic: TrendingDown,
 };
 
+// Keyed chart/table data — display labels are resolved from the `scenarios`
+// message namespace at render time so both languages stay in sync.
 const impactChartData = [
-  { metric: 'Revenue', base: 51900, optimistic: 59685, pessimistic: 44115 },
-  { metric: 'EBITDA', base: 17580, optimistic: 21800, pessimistic: 12800 },
-  { metric: 'Net Income', base: 8961, optimistic: 11400, pessimistic: 5600 },
+  { key: 'revenue', base: 51900, optimistic: 59685, pessimistic: 44115 },
+  { key: 'ebitda', base: 17580, optimistic: 21800, pessimistic: 12800 },
+  { key: 'netIncome', base: 8961, optimistic: 11400, pessimistic: 5600 },
 ];
 
 // Radar chart data
 const radarData = [
-  { dimension: 'Revenue', base: 87, optimistic: 100, pessimistic: 74 },
-  { dimension: 'EBITDA Margin', base: 85, optimistic: 91, pessimistic: 73 },
-  { dimension: 'Net Income', base: 78, optimistic: 100, pessimistic: 49 },
-  { dimension: 'Leverage', base: 88, optimistic: 95, pessimistic: 60 },
-  { dimension: 'ROE', base: 82, optimistic: 100, pessimistic: 51 },
+  { key: 'revenue', base: 87, optimistic: 100, pessimistic: 74 },
+  { key: 'ebitdaMargin', base: 85, optimistic: 91, pessimistic: 73 },
+  { key: 'netIncome', base: 78, optimistic: 100, pessimistic: 49 },
+  { key: 'leverage', base: 88, optimistic: 95, pessimistic: 60 },
+  { key: 'roe', base: 82, optimistic: 100, pessimistic: 51 },
 ];
 
 // Sensitivity analysis data
 const sensitivityData = [
-  { assumption: 'Inflation ±1%', revenue: '±€1.2M', ebitda: '±€0.4M', netIncome: '±€0.3M', stress: false },
-  { assumption: 'Interest Rate ±1%', revenue: '—', ebitda: '—', netIncome: '±€0.2M', stress: false },
-  { assumption: 'FX Vol. ±1%', revenue: '±€0.8M', ebitda: '±€0.3M', netIncome: '±€0.2M', stress: true },
-  { assumption: 'Rev. Growth ±1%', revenue: '±€0.5M', ebitda: '±€0.2M', netIncome: '±€0.1M', stress: false },
-  { assumption: 'OPEX Growth ±1%', revenue: '—', ebitda: '±€0.2M', netIncome: '±€0.1M', stress: false },
+  { key: 'inflation', revenue: '±€1.2M', ebitda: '±€0.4M', netIncome: '±€0.3M', stress: false },
+  { key: 'interest', revenue: '—', ebitda: '—', netIncome: '±€0.2M', stress: false },
+  { key: 'fxVol', revenue: '±€0.8M', ebitda: '±€0.3M', netIncome: '±€0.2M', stress: true },
+  { key: 'revGrowth', revenue: '±€0.5M', ebitda: '±€0.2M', netIncome: '±€0.1M', stress: false },
+  { key: 'opexGrowth', revenue: '—', ebitda: '±€0.2M', netIncome: '±€0.1M', stress: false },
 ];
 
 function ScenarioTooltip({ active, payload, label }: { active?: boolean; payload?: Array<{ value: number; name: string; color: string }>; label?: string }) {
@@ -94,6 +97,7 @@ function RadarTooltip({ active, payload, label }: { active?: boolean; payload?: 
 }
 
 export function ScenariosView() {
+  const t = useTranslations('scenarios');
   const { selectedPeriod } = useAppStore();
   const [scenarios, setScenarios] = useState<Scenario[]>(demoScenarios);
   const [selectedScenario, setSelectedScenario] = useState<string>('scen-base');
@@ -136,9 +140,9 @@ export function ScenariosView() {
       const entities = await getEntities();
       const entityCodes = entities.map((e: Entity) => e.code);
       await runScenario(currentScenario.id, selectedPeriod, entityCodes);
-      toast({ title: 'Scenario Completed', description: `${currentScenario.name} simulation finished` });
+      toast({ title: t('toast.completedTitle'), description: t('toast.completedDesc', { name: currentScenario.name }) });
     } catch {
-      toast({ title: 'Scenario Run', description: 'Simulation completed with fallback data', variant: 'default' });
+      toast({ title: t('toast.fallbackTitle'), description: t('toast.fallbackDesc'), variant: 'default' });
     } finally {
       setTimeout(() => setIsRunning(false), 1500);
     }
@@ -149,6 +153,10 @@ export function ScenariosView() {
     if (typeof v === 'number' && v % 1 !== 0) return v.toFixed(2);
     return `€${v}`;
   };
+
+  // Resolve display labels for keyed chart/table data.
+  const impactData = impactChartData.map((d) => ({ ...d, metric: t(`metrics.${d.key}`) }));
+  const radarChartData = radarData.map((d) => ({ ...d, dimension: t(`metrics.${d.key}`) }));
 
   return (
     <div className="space-y-6">
@@ -182,7 +190,7 @@ export function ScenariosView() {
                     </div>
                     <div>
                       <h3 className="font-semibold text-sm">{scenario.name}</h3>
-                      <Badge variant="outline" className="text-[10px] capitalize">{scenario.scenarioType}</Badge>
+                      <Badge variant="outline" className="text-[10px] capitalize">{t(`scenarioType.${scenario.scenarioType}`)}</Badge>
                     </div>
                     {isSelected && (
                       <motion.div
@@ -192,10 +200,10 @@ export function ScenariosView() {
                     )}
                   </div>
                   <div className="grid grid-cols-2 gap-2 text-xs">
-                    <div><span className="text-muted-foreground">Inflation</span><p className="font-medium">{scenario.inflationRate}%</p></div>
-                    <div><span className="text-muted-foreground">Interest</span><p className="font-medium">{scenario.interestRate}%</p></div>
-                    <div><span className="text-muted-foreground">FX Vol.</span><p className="font-medium">{scenario.fxVolatility}%</p></div>
-                    <div><span className="text-muted-foreground">Rev. Growth</span><p className="font-medium">{((scenario.revenueGrowthFactor - 1) * 100).toFixed(0)}%</p></div>
+                    <div><span className="text-muted-foreground">{t('cardFields.inflation')}</span><p className="font-medium">{scenario.inflationRate}%</p></div>
+                    <div><span className="text-muted-foreground">{t('cardFields.interest')}</span><p className="font-medium">{scenario.interestRate}%</p></div>
+                    <div><span className="text-muted-foreground">{t('cardFields.fxVol')}</span><p className="font-medium">{scenario.fxVolatility}%</p></div>
+                    <div><span className="text-muted-foreground">{t('cardFields.revGrowth')}</span><p className="font-medium">{((scenario.revenueGrowthFactor - 1) * 100).toFixed(0)}%</p></div>
                   </div>
                 </CardContent>
               </Card>
@@ -209,19 +217,19 @@ export function ScenariosView() {
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
           <Card className="shadow-sm border border-slate-200/60 dark:border-slate-700/40">
             <CardHeader>
-              <CardTitle className="text-base">Scenario Radar Comparison</CardTitle>
-              <CardDescription>Multi-dimensional comparison across scenarios</CardDescription>
+              <CardTitle className="text-base">{t('radarTitle')}</CardTitle>
+              <CardDescription>{t('radarDesc')}</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="h-80">
                 <ResponsiveContainer width="100%" height="100%">
-                  <RadarChart data={radarData} cx="50%" cy="50%" outerRadius="70%">
+                  <RadarChart data={radarChartData} cx="50%" cy="50%" outerRadius="70%">
                     <PolarGrid stroke="var(--color-border)" opacity={0.5} />
                     <PolarAngleAxis dataKey="dimension" tick={{ fontSize: 11, fill: 'var(--color-muted-foreground)' }} />
                     <PolarRadiusAxis angle={90} domain={[0, 100]} tick={{ fontSize: 9 }} />
-                    <Radar name="Base" dataKey="base" stroke="#0d9488" fill="#0d9488" fillOpacity={0.15} strokeWidth={2} />
-                    <Radar name="Optimistic" dataKey="optimistic" stroke="#10b981" fill="#10b981" fillOpacity={0.1} strokeWidth={2} />
-                    <Radar name="Pessimistic" dataKey="pessimistic" stroke="#f59e0b" fill="#f59e0b" fillOpacity={0.1} strokeWidth={2} />
+                    <Radar name={t('names.base')} dataKey="base" stroke="#0d9488" fill="#0d9488" fillOpacity={0.15} strokeWidth={2} />
+                    <Radar name={t('names.optimistic')} dataKey="optimistic" stroke="#10b981" fill="#10b981" fillOpacity={0.1} strokeWidth={2} />
+                    <Radar name={t('names.pessimistic')} dataKey="pessimistic" stroke="#f59e0b" fill="#f59e0b" fillOpacity={0.1} strokeWidth={2} />
                     <Tooltip content={<RadarTooltip />} />
                     <Legend />
                   </RadarChart>
@@ -236,15 +244,15 @@ export function ScenariosView() {
             <CardHeader>
               <CardTitle className="text-base flex items-center gap-2">
                 <GitBranch className="w-4 h-4 text-emerald-600" />
-                Edit Assumptions — {currentScenario.name}
+                {t('editAssumptions', { name: currentScenario.name })}
               </CardTitle>
-              <CardDescription>Adjust macro and growth assumptions for scenario modelling</CardDescription>
+              <CardDescription>{t('editAssumptionsDesc')}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-5">
               {[
-                { field: 'inflationRate' as const, label: 'Inflation Rate', min: 0, max: 10, step: 0.25, unit: '%' },
-                { field: 'interestRate' as const, label: 'Interest Rate', min: 0, max: 10, step: 0.25, unit: '%' },
-                { field: 'fxVolatility' as const, label: 'FX Volatility', min: 0, max: 20, step: 0.5, unit: '%' },
+                { field: 'inflationRate' as const, label: t('assumptions.inflationRate'), min: 0, max: 10, step: 0.25, unit: '%' },
+                { field: 'interestRate' as const, label: t('assumptions.interestRate'), min: 0, max: 10, step: 0.25, unit: '%' },
+                { field: 'fxVolatility' as const, label: t('assumptions.fxVolatility'), min: 0, max: 20, step: 0.5, unit: '%' },
               ].map(({ field, label, min, max, step, unit }) => (
                 <div key={field} className="space-y-2">
                   <div className="flex justify-between text-sm">
@@ -255,9 +263,9 @@ export function ScenariosView() {
                 </div>
               ))}
               {[
-                { field: 'revenueGrowthFactor' as const, label: 'Revenue Growth Factor', mult: 100 },
-                { field: 'opexGrowthFactor' as const, label: 'OPEX Growth Factor', mult: 100 },
-                { field: 'capexGrowthFactor' as const, label: 'CAPEX Growth Factor', mult: 100 },
+                { field: 'revenueGrowthFactor' as const, label: t('assumptions.revenueGrowthFactor'), mult: 100 },
+                { field: 'opexGrowthFactor' as const, label: t('assumptions.opexGrowthFactor'), mult: 100 },
+                { field: 'capexGrowthFactor' as const, label: t('assumptions.capexGrowthFactor'), mult: 100 },
               ].map(({ field, label, mult }) => (
                 <div key={field} className="space-y-2">
                   <div className="flex justify-between text-sm">
@@ -273,7 +281,7 @@ export function ScenariosView() {
               ))}
               <Button className="w-full bg-emerald-600 hover:bg-emerald-700 transition-colors" onClick={handleRunScenario} disabled={isRunning}>
                 {isRunning ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Play className="w-4 h-4 mr-1" />}
-                {isRunning ? 'Running Simulation...' : 'Run Scenario'}
+                {isRunning ? t('running') : t('runScenario')}
               </Button>
             </CardContent>
           </Card>
@@ -284,13 +292,13 @@ export function ScenariosView() {
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
         <Card className="shadow-sm border border-slate-200/60 dark:border-slate-700/40">
           <CardHeader>
-            <CardTitle className="text-base">Scenario Impact Comparison</CardTitle>
-            <CardDescription>Key metrics across scenarios (€K)</CardDescription>
+            <CardTitle className="text-base">{t('impactTitle')}</CardTitle>
+            <CardDescription>{t('impactDesc')}</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="h-80">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={impactChartData} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
+                <BarChart data={impactData} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
                   <defs>
                     <linearGradient id="pessimisticGradient" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="0%" stopColor="#f59e0b" />
@@ -310,9 +318,9 @@ export function ScenariosView() {
                   <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => formatEUR(v, 0)} stroke="var(--color-muted-foreground)" />
                   <Tooltip content={<ScenarioTooltip />} />
                   <Legend />
-                  <Bar dataKey="pessimistic" name="Pessimistic" fill="url(#pessimisticGradient)" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="base" name="Base" fill="url(#baseGradient)" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="optimistic" name="Optimistic" fill="url(#optimisticGradient)" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="pessimistic" name={t('names.pessimistic')} fill="url(#pessimisticGradient)" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="base" name={t('names.base')} fill="url(#baseGradient)" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="optimistic" name={t('names.optimistic')} fill="url(#optimisticGradient)" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -327,28 +335,28 @@ export function ScenariosView() {
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }}>
         <Card className="shadow-sm border border-slate-200/60 dark:border-slate-700/40">
           <CardHeader>
-            <CardTitle className="text-base">Sensitivity Analysis</CardTitle>
-            <CardDescription>Impact of ±1% change in each assumption on key outputs</CardDescription>
+            <CardTitle className="text-base">{t('sensitivityTitle')}</CardTitle>
+            <CardDescription>{t('sensitivityDesc')}</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="max-h-64 overflow-y-auto">
               <Table className="premium-table">
                 <TableHeader>
                   <TableRow className="cursor-pointer transition-colors duration-150 sticky top-0 bg-white dark:bg-slate-900 z-10 border-b-2 border-slate-200 dark:border-slate-700">
-                    <TableHead>Assumption</TableHead>
-                    <TableHead className="text-right">Revenue Impact</TableHead>
-                    <TableHead className="text-right">EBITDA Impact</TableHead>
-                    <TableHead className="text-right">Net Income Impact</TableHead>
+                    <TableHead>{t('sensitivityHeaders.assumption')}</TableHead>
+                    <TableHead className="text-right">{t('sensitivityHeaders.revenue')}</TableHead>
+                    <TableHead className="text-right">{t('sensitivityHeaders.ebitda')}</TableHead>
+                    <TableHead className="text-right">{t('sensitivityHeaders.netIncome')}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {sensitivityData.map((row, index) => (
-                    <TableRow key={row.assumption} className={`cursor-pointer transition-colors duration-150 ${index % 2 === 1 ? 'bg-slate-50/50 dark:bg-slate-800/20' : ''}`}>
+                    <TableRow key={row.key} className={`cursor-pointer transition-colors duration-150 ${index % 2 === 1 ? 'bg-slate-50/50 dark:bg-slate-800/20' : ''}`}>
                       <TableCell className="font-medium text-sm flex items-center gap-1.5">
-                        {row.assumption}
+                        {t(`sensitivityRows.${row.key}`)}
                         {row.stress && (
                           <Badge className="bg-red-100 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800 text-[9px] px-1 py-0 flex items-center gap-0.5">
-                            <AlertTriangle className="w-2.5 h-2.5" /> Stress
+                            <AlertTriangle className="w-2.5 h-2.5" /> {t('stress')}
                           </Badge>
                         )}
                       </TableCell>
@@ -368,8 +376,8 @@ export function ScenariosView() {
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.55 }}>
         <Card className="shadow-sm border border-slate-200/60 dark:border-slate-700/40">
           <CardHeader>
-            <CardTitle className="text-base">Monte Carlo Distribution</CardTitle>
-            <CardDescription>Probability distribution of Net Income outcomes (1,000 simulations)</CardDescription>
+            <CardTitle className="text-base">{t('monteCarloTitle')}</CardTitle>
+            <CardDescription>{t('monteCarloDesc')}</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="flex items-end justify-center gap-px h-32">
@@ -392,9 +400,9 @@ export function ScenariosView() {
               })}
             </div>
             <div className="flex justify-between mt-2 text-[10px] text-muted-foreground">
-              <span>Pessimistic</span>
-              <span>Base Case</span>
-              <span>Optimistic</span>
+              <span>{t('distLabels.pessimistic')}</span>
+              <span>{t('distLabels.base')}</span>
+              <span>{t('distLabels.optimistic')}</span>
             </div>
           </CardContent>
         </Card>
@@ -404,20 +412,20 @@ export function ScenariosView() {
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6 }}>
         <Card className="shadow-sm border border-slate-200/60 dark:border-slate-700/40">
           <CardHeader>
-            <CardTitle className="text-base">Scenario Comparison Table</CardTitle>
-            <CardDescription>Side-by-side comparison of key financial metrics</CardDescription>
+            <CardTitle className="text-base">{t('comparisonTitle')}</CardTitle>
+            <CardDescription>{t('comparisonDesc')}</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="max-h-96 overflow-y-auto">
               <Table className="premium-table">
                 <TableHeader>
                   <TableRow className="cursor-pointer transition-colors duration-150 sticky top-0 bg-white dark:bg-slate-900 z-10 border-b-2 border-slate-200 dark:border-slate-700">
-                    <TableHead>Metric</TableHead>
-                    <TableHead className="text-right">Base Case</TableHead>
-                    <TableHead className="text-right">Optimistic</TableHead>
-                    <TableHead className="text-right">Pessimistic</TableHead>
-                    <TableHead className="text-right">Opt. vs Base</TableHead>
-                    <TableHead className="text-right">Pess. vs Base</TableHead>
+                    <TableHead>{t('comparisonHeaders.metric')}</TableHead>
+                    <TableHead className="text-right">{t('comparisonHeaders.base')}</TableHead>
+                    <TableHead className="text-right">{t('comparisonHeaders.optimistic')}</TableHead>
+                    <TableHead className="text-right">{t('comparisonHeaders.pessimistic')}</TableHead>
+                    <TableHead className="text-right">{t('comparisonHeaders.optVsBase')}</TableHead>
+                    <TableHead className="text-right">{t('comparisonHeaders.pessVsBase')}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>

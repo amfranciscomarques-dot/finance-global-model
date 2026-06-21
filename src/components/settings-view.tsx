@@ -66,6 +66,8 @@ import {
 import { getSettings, updateSettings } from '@/lib/api';
 import { SystemSettings, CurrencyPair } from '@/lib/types';
 import { DataLoadError } from '@/components/data-load-error';
+import { LocaleToggle } from '@/components/locale-toggle';
+import { useTranslations } from 'next-intl';
 import {
   demoSettings,
   demoCurrencyPairs,
@@ -82,6 +84,7 @@ import {
 import { toast } from 'sonner';
 
 export function SettingsView() {
+  const tCommon = useTranslations('common');
   const [settings, setSettings] = useState<SystemSettings>(demoSettings);
   const [loadError, setLoadError] = useState(false);
   const [currencyPairs, setCurrencyPairs] = useState<CurrencyPair[]>(demoCurrencyPairs);
@@ -308,6 +311,22 @@ export function SettingsView() {
       {loadError && <DataLoadError />}
       {/* Gradient Divider */}
       <div className="h-px bg-gradient-to-r from-transparent via-emerald-400 to-transparent" />
+
+      {/* Interface preferences — language toggle */}
+      <Card className="border border-border">
+        <CardContent className="p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-signal/10 text-signal shrink-0">
+              <Globe className="w-5 h-5" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold">{tCommon('interfaceLanguage')}</p>
+              <p className="text-xs text-muted-foreground max-w-md">{tCommon('interfaceLanguageHint')}</p>
+            </div>
+          </div>
+          <LocaleToggle className="self-start sm:self-auto" />
+        </CardContent>
+      </Card>
 
       {/* System Overview Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

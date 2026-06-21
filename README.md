@@ -4,6 +4,8 @@ Multi-entity financial consolidation model — Next.js 16, Prisma/SQLite, shadcn
 
 Designed as a **template for any company group**: the core (consolidation engine, finance domain math, API, UI) is company-agnostic; company data and country tax rules plug in as modules.
 
+The interface is **bilingual (English / Português)** — a toggle in the header switches the whole UI instantly (powered by `next-intl`, persisted per browser). Numbers and currency stay in the EUR/`de-DE` grouping convention regardless of language.
+
 ## Screenshots
 
 All figures below are the fictional **Meridian Group** demo, computed live by the consolidation engine (the UI reads the engine output, not static mock data) and reconciling to the cent.

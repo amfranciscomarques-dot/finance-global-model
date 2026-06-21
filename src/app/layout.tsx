@@ -1,16 +1,21 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { IBM_Plex_Sans, IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
 import { ThemeProvider } from "next-themes";
+import { I18nProvider } from "@/i18n/locale-context";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+// IBM Plex: an engineered, finance-grade pairing. Plex Mono carries every
+// figure in the app (tabular, unambiguous); Plex Sans handles UI chrome.
+const plexSans = IBM_Plex_Sans({
+  variable: "--font-plex-sans",
+  weight: ["400", "500", "600", "700"],
   subsets: ["latin"],
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const plexMono = IBM_Plex_Mono({
+  variable: "--font-plex-mono",
+  weight: ["400", "500", "600"],
   subsets: ["latin"],
 });
 
@@ -44,7 +49,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground`}
+        className={`${plexSans.variable} ${plexMono.variable} antialiased bg-background text-foreground`}
       >
         <ThemeProvider
           attribute="class"
@@ -52,8 +57,10 @@ export default function RootLayout({
           enableSystem={false}
           disableTransitionOnChange
         >
-          {children}
-          <Toaster />
+          <I18nProvider>
+            {children}
+            <Toaster />
+          </I18nProvider>
         </ThemeProvider>
       </body>
     </html>

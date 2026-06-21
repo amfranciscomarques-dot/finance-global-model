@@ -30,6 +30,8 @@ import {
   type TrafficLight,
 } from './dashboard/helpers';
 import { AnimatedCounter } from '@/components/animated-counter';
+import { useTranslations, useLocale } from 'next-intl';
+import { dateLocale, type Locale } from '@/i18n/locale-context';
 import { motion } from 'framer-motion';
 import {
   BarChart,
@@ -55,15 +57,15 @@ import {
 function CustomTooltip({ active, payload, label }: { active?: boolean; payload?: Array<{ name: string; value: number; color: string }>; label?: string }) {
   if (!active || !payload) return null;
   return (
-    <div className="bg-slate-900 text-white px-3 py-2 rounded-lg shadow-xl border border-slate-700 text-xs">
-      <p className="font-medium mb-1 text-slate-300">{label}</p>
+    <div className="bg-popover text-popover-foreground px-3 py-2 rounded-md shadow-xl border border-border text-xs">
+      <p className="font-medium mb-1 text-muted-foreground">{label}</p>
       {payload.map((entry, index) => {
         if (entry.name === 'base') return null;
         return (
           <p key={index} className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full" style={{ backgroundColor: entry.color }} />
-            <span className="text-slate-400">{entry.name}:</span>
-            <span className="font-semibold">{typeof entry.value === 'number' ? formatCompactEUR(entry.value) : entry.value}</span>
+            <span className="text-muted-foreground">{entry.name}:</span>
+            <span className="font-mono font-semibold tabular-nums">{typeof entry.value === 'number' ? formatCompactEUR(entry.value) : entry.value}</span>
           </p>
         );
       })}
@@ -74,13 +76,13 @@ function CustomTooltip({ active, payload, label }: { active?: boolean; payload?:
 function PercentTooltip({ active, payload, label }: { active?: boolean; payload?: Array<{ name: string; value: number; color: string }>; label?: string }) {
   if (!active || !payload) return null;
   return (
-    <div className="bg-slate-900 text-white px-3 py-2 rounded-lg shadow-xl border border-slate-700 text-xs">
-      <p className="font-medium mb-1 text-slate-300">{label}</p>
+    <div className="bg-popover text-popover-foreground px-3 py-2 rounded-md shadow-xl border border-border text-xs">
+      <p className="font-medium mb-1 text-muted-foreground">{label}</p>
       {payload.map((entry, index) => (
         <p key={index} className="flex items-center gap-2">
           <span className="w-2 h-2 rounded-full" style={{ backgroundColor: entry.color }} />
-          <span className="text-slate-400">{entry.name}:</span>
-          <span className="font-semibold">{entry.value.toFixed(1)}%</span>
+          <span className="text-muted-foreground">{entry.name}:</span>
+          <span className="font-mono font-semibold tabular-nums">{entry.value.toFixed(1)}%</span>
         </p>
       ))}
     </div>
@@ -92,12 +94,12 @@ function WaterfallTooltip({ active, payload, label }: { active?: boolean; payloa
   const data = payload[0]?.payload;
   if (!data) return null;
   return (
-    <div className="bg-slate-900 text-white px-3 py-2 rounded-lg shadow-xl border border-slate-700 text-xs">
-      <p className="font-medium mb-1 text-slate-300">{label}</p>
-      <p className="font-semibold">
+    <div className="bg-popover text-popover-foreground px-3 py-2 rounded-md shadow-xl border border-border text-xs">
+      <p className="font-medium mb-1 text-muted-foreground">{label}</p>
+      <p className="font-mono font-semibold tabular-nums">
         {data.rawValue >= 0 ? '+' : ''}{formatCompactEUR(data.rawValue)}
       </p>
-      <p className="text-slate-400 text-[10px] capitalize">{data.type}</p>
+      <p className="text-muted-foreground text-[10px] capitalize">{data.type}</p>
     </div>
   );
 }
@@ -140,8 +142,25 @@ function PeerTooltip({ active, payload }: { active?: boolean; payload?: Array<{ 
   );
 }
 
+// Maps the helper's English health-indicator names → i18n keys.
+const INDICATOR_KEYS: Record<string, string> = {
+  'Revenue Growth': 'revenueGrowth',
+  'EBITDA Margin': 'ebitdaMargin',
+  'Leverage Ratio': 'leverageRatio',
+  'Liquidity Ratio': 'liquidityRatio',
+  'ROE': 'roe',
+  'Interest Coverage': 'interestCoverage',
+};
+const HEALTH_LABEL_KEYS: Record<string, string> = {
+  Strong: 'scorecard.strong',
+  Moderate: 'scorecard.moderate',
+  'At Risk': 'scorecard.atRisk',
+};
+
 export function DashboardView() {
   const { selectedPeriod, selectedScenario, setActiveView } = useAppStore();
+  const t = useTranslations('dashboard');
+  const loc = useLocale() as Locale;
   const [kpis, setKPIs] = useState<KPIs>(placeholderKPIs);
   const [entities, setEntities] = useState<Entity[]>([]);
   const [loading, setLoading] = useState(true);
@@ -198,12 +217,12 @@ export function DashboardView() {
   const recentConsolidationRuns = useMemo(
     () => runs.slice(0, 3).map((r) => ({
       id: r.id,
-      date: new Date(r.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+      date: new Date(r.createdAt).toLocaleDateString(dateLocale(loc), { month: 'short', day: 'numeric', year: 'numeric' }),
       status: r.status,
       revenue: formatCompactEUR(r.totalRevenue ?? 0),
       netIncome: formatCompactEUR(r.totalNetIncome ?? 0),
     })),
-    [runs],
+    [runs, loc],
   );
 
   // Recent Activity feed — real synthesized audit entries.
@@ -251,7 +270,7 @@ export function DashboardView() {
 
       const entityCodes = entitiesData.map((e: Entity) => e.code);
       if (entityCodes.length === 0) {
-        setError('No entities found — load a company pack to see live figures.');
+        setError('noEntities');
         return;
       }
 
@@ -296,7 +315,7 @@ export function DashboardView() {
       setLastUpdated(new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' }));
     } catch (err) {
       console.error('Dashboard load failed:', err);
-      setError('Could not load live data from the server. Showing placeholder figures below.');
+      setError('dataError');
     } finally {
       setLoading(false);
     }
@@ -329,11 +348,12 @@ export function DashboardView() {
   // Scale values for display: API data is in full EUR, we show €X.XM
   const kpiCards = [
     {
-      title: 'Total Revenue',
+      key: 'Total Revenue',
+      title: t('kpi.totalRevenue'),
       value: kpis.totalRevenue / 1_000_000,
       displayValue: formatCompactEUR(kpis.totalRevenue),
       icon: DollarSign,
-      description: 'Consolidated group revenue',
+      description: t('kpi.totalRevenueDesc'),
       gradient: 'from-emerald-50/80 to-white dark:from-emerald-950/30 dark:to-slate-900',
       accentFrom: 'from-emerald-500',
       accentTo: 'to-teal-500',
@@ -343,11 +363,12 @@ export function DashboardView() {
       linkView: 'consolidation' as const,
     },
     {
-      title: 'EBITDA Margin',
+      key: 'EBITDA Margin',
+      title: t('kpi.ebitdaMargin'),
       value: kpis.ebitdaMargin,
       displayValue: `${kpis.ebitdaMargin.toFixed(1)}%`,
       icon: Percent,
-      description: 'Operating profitability',
+      description: t('kpi.ebitdaMarginDesc'),
       gradient: 'from-teal-50/80 to-white dark:from-teal-950/30 dark:to-slate-900',
       accentFrom: 'from-teal-500',
       accentTo: 'to-emerald-500',
@@ -357,11 +378,12 @@ export function DashboardView() {
       linkView: 'scenarios' as const,
     },
     {
-      title: 'Net Income',
+      key: 'Net Income',
+      title: t('kpi.netIncome'),
       value: kpis.netIncome / 1_000_000,
       displayValue: formatCompactEUR(kpis.netIncome),
       icon: BarChart3,
-      description: 'Bottom-line earnings',
+      description: t('kpi.netIncomeDesc'),
       gradient: 'from-amber-50/80 to-white dark:from-amber-950/30 dark:to-slate-900',
       accentFrom: 'from-amber-500',
       accentTo: 'to-orange-500',
@@ -371,11 +393,12 @@ export function DashboardView() {
       linkView: 'consolidation' as const,
     },
     {
-      title: 'Total Assets',
+      key: 'Total Assets',
+      title: t('kpi.totalAssets'),
       value: kpis.totalAssets / 1_000_000,
       displayValue: formatCompactEUR(kpis.totalAssets),
       icon: CircleDollarSign,
-      description: 'Total group assets',
+      description: t('kpi.totalAssetsDesc'),
       gradient: 'from-emerald-50/80 to-white dark:from-emerald-950/30 dark:to-slate-900',
       accentFrom: 'from-emerald-500',
       accentTo: 'to-teal-500',
@@ -385,11 +408,12 @@ export function DashboardView() {
       linkView: 'entities' as const,
     },
     {
-      title: 'Net Debt / EBITDA',
+      key: 'Net Debt / EBITDA',
+      title: t('kpi.leverage'),
       value: kpis.leverage,
       displayValue: `${kpis.leverage.toFixed(2)}x`,
       icon: TrendingDown,
-      description: 'Leverage ratio',
+      description: t('kpi.leverageDesc'),
       gradient: 'from-slate-50/80 to-white dark:from-slate-800/30 dark:to-slate-900',
       accentFrom: 'from-slate-500',
       accentTo: 'to-slate-600',
@@ -399,11 +423,12 @@ export function DashboardView() {
       linkView: 'scenarios' as const,
     },
     {
-      title: 'ROCE',
+      key: 'ROCE',
+      title: t('kpi.roce'),
       value: kpis.roce,
       displayValue: `${kpis.roce.toFixed(1)}%`,
       icon: TrendingUp,
-      description: 'Return on capital employed',
+      description: t('kpi.roceDesc'),
       gradient: 'from-orange-50/80 to-white dark:from-orange-950/30 dark:to-slate-900',
       accentFrom: 'from-orange-500',
       accentTo: 'to-amber-500',
@@ -416,17 +441,17 @@ export function DashboardView() {
 
   // Current date for greeting
   const today = new Date();
-  const greeting = today.getHours() < 12 ? 'Good morning' : today.getHours() < 18 ? 'Good afternoon' : 'Good evening';
-  const dateStr = today.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  const greeting = today.getHours() < 12 ? t('greetingMorning') : today.getHours() < 18 ? t('greetingAfternoon') : t('greetingEvening');
+  const dateStr = today.toLocaleDateString(dateLocale(loc), { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
 
   // Quick Stats row data (derived from the loaded group, not hardcoded)
   const countries = Array.from(new Set(entities.map((e) => e.countryCode).filter(Boolean)));
   const currencies = Array.from(new Set(entities.map((e) => e.localCurrency).filter(Boolean)));
   const quickStats = [
-    { label: 'Entities Active', value: String(entities.length || '—'), icon: Building2, color: 'text-emerald-600 dark:text-emerald-400', detail: `${entities.length} consolidated entities across ${countries.length} ${countries.length === 1 ? 'country' : 'countries'}${countries.length ? ` (${countries.join(', ')})` : ''}` },
-    { label: 'COA Accounts', value: String(coaCount || '—'), icon: BarChart3, color: 'text-teal-600 dark:text-teal-400', detail: `${coaCount} group chart-of-accounts codes with entity mappings` },
-    { label: 'FX Rates', value: String(fxCount || '—'), icon: DollarSign, color: 'text-amber-600 dark:text-amber-400', detail: `${fxCount} exchange-rate entries (ECB convention: 1 EUR = X)` },
-    { label: 'Currencies', value: String(currencies.length || '—'), icon: Shield, color: 'text-emerald-600 dark:text-emerald-400', detail: `Reporting in EUR; group currencies: ${currencies.join(', ') || '—'}` },
+    { id: 'entitiesActive', label: t('quickStats.entitiesActive'), value: String(entities.length || '—'), icon: Building2, color: 'text-emerald-600 dark:text-emerald-400', detail: t('quickStats.entitiesActiveDetail', { n: entities.length, c: countries.length, list: countries.length ? ` (${countries.join(', ')})` : '' }) },
+    { id: 'coaAccounts', label: t('quickStats.coaAccounts'), value: String(coaCount || '—'), icon: BarChart3, color: 'text-teal-600 dark:text-teal-400', detail: t('quickStats.coaAccountsDetail', { n: coaCount }) },
+    { id: 'fxRates', label: t('quickStats.fxRates'), value: String(fxCount || '—'), icon: DollarSign, color: 'text-amber-600 dark:text-amber-400', detail: t('quickStats.fxRatesDetail', { n: fxCount }) },
+    { id: 'currencies', label: t('quickStats.currencies'), value: String(currencies.length || '—'), icon: Shield, color: 'text-emerald-600 dark:text-emerald-400', detail: t('quickStats.currenciesDetail', { list: currencies.join(', ') || '—' }) },
   ];
 
   // Inline sparkline SVG for KPI cards
@@ -468,7 +493,7 @@ export function DashboardView() {
       {error && (
         <div className="flex items-start gap-2 rounded-lg border border-amber-300 dark:border-amber-800/60 bg-amber-50 dark:bg-amber-950/30 px-3 py-2 text-amber-800 dark:text-amber-300">
           <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
-          <p className="text-xs">{error}</p>
+          <p className="text-xs">{t(error)}</p>
         </div>
       )}
 
@@ -481,7 +506,7 @@ export function DashboardView() {
       >
         <div>
           <h2 className="text-xl sm:text-2xl font-bold tracking-tight">
-            {greeting}, <span className="gradient-text-premium">Finance Team</span>
+            {greeting}, <span className="gradient-text-premium">{t('financeTeam')}</span>
           </h2>
           <p className="text-sm text-muted-foreground flex items-center gap-1.5">
             <Clock className="w-3.5 h-3.5" />
@@ -491,10 +516,10 @@ export function DashboardView() {
         <div className="flex items-center gap-2">
           <span className="text-[10px] text-muted-foreground flex items-center gap-1.5">
             <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-gain opacity-75" />
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-gain" />
             </span>
-            Last updated: {lastUpdated}
+            {t('lastUpdated', { time: lastUpdated })}
           </span>
         </div>
       </motion.div>
@@ -509,7 +534,7 @@ export function DashboardView() {
         {quickStats.map((stat, i) => {
           const Icon = stat.icon;
           return (
-            <TooltipProvider key={stat.label} delayDuration={300}>
+            <TooltipProvider key={stat.id} delayDuration={300}>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800/50 shadow-sm cursor-default">
@@ -520,7 +545,7 @@ export function DashboardView() {
                     </div>
                   </div>
                 </TooltipTrigger>
-                <TooltipContent className="bg-slate-900 text-white text-xs border-slate-700 max-w-[220px]">
+                <TooltipContent className="text-xs max-w-[220px]">
                   <p>{stat.detail}</p>
                 </TooltipContent>
               </Tooltip>
@@ -537,7 +562,7 @@ export function DashboardView() {
         className="flex flex-wrap items-center gap-3"
       >
         <Button
-          className="bg-emerald-600 hover:bg-emerald-700 shadow-sm shadow-emerald-500/10 glass-card-premium !bg-emerald-600 hover:!bg-emerald-700"
+          className="shadow-sm"
           onClick={async () => {
             try {
               const e = entities.length > 0 ? entities : await getEntities();
@@ -545,13 +570,13 @@ export function DashboardView() {
             } catch {}
           }}
         >
-          <Play className="w-4 h-4 mr-1.5" /> Run Consolidation
+          <Play className="w-4 h-4 mr-1.5" /> {t('runConsolidation')}
         </Button>
-        <Button variant="outline" className="shadow-sm glass-card-premium !bg-white/70 dark:!bg-slate-800/70 hover:!bg-white/90 dark:hover:!bg-slate-700/80">
-          <FileDown className="w-4 h-4 mr-1.5" /> Export Report
+        <Button variant="outline" className="shadow-sm">
+          <FileDown className="w-4 h-4 mr-1.5" /> {t('exportReport')}
         </Button>
-        <Button variant="outline" className="shadow-sm glass-card-premium !bg-white/70 dark:!bg-slate-800/70 hover:!bg-white/90 dark:hover:!bg-slate-700/80" onClick={() => setActiveView('scenarios')}>
-          <GitBranch className="w-4 h-4 mr-1.5" /> View Scenarios
+        <Button variant="outline" className="shadow-sm" onClick={() => setActiveView('scenarios')}>
+          <GitBranch className="w-4 h-4 mr-1.5" /> {t('viewScenarios')}
         </Button>
         <span className="ml-auto text-[10px] text-muted-foreground flex items-center gap-1.5">
           <span className="relative flex h-2 w-2">
@@ -570,13 +595,13 @@ export function DashboardView() {
         className="grid grid-cols-3 gap-3"
       >
         {marketSnapshot.map((fx) => (
-          <div key={fx.pair} className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-white dark:bg-slate-900/60 border border-slate-200/60 dark:border-slate-700/40 shadow-sm micro-shadow">
+          <div key={fx.pair} className="flex items-center gap-3 px-3 py-2.5 rounded-md bg-card border border-border shadow-sm micro-shadow">
             <div className="flex-1 min-w-0">
-              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">{fx.pair}</p>
-              <p className="text-sm font-bold tabular-nums">{fx.rate}</p>
+              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-[0.12em]">{fx.pair}</p>
+              <p className="text-sm font-mono font-semibold tabular-nums">{fx.rate}</p>
             </div>
-            <MarketSparklineSVG data={fx.sparkline} color={fx.up ? '#10b981' : '#f59e0b'} />
-            <span className={`text-[10px] font-medium ${fx.up ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
+            <MarketSparklineSVG data={fx.sparkline} color={fx.up ? '#2E9E6B' : '#C9606F'} />
+            <span className={`text-[10px] font-mono font-medium tabular-nums ${fx.up ? 'text-gain' : 'text-loss'}`}>
               {fx.change}
             </span>
           </div>
@@ -594,37 +619,38 @@ export function DashboardView() {
         ) : (
           kpiCards.map((kpi, index) => {
             const Icon = kpi.icon;
-            const delta = cardDeltas[kpi.title];
+            const delta = cardDeltas[kpi.key];
+            const sparkline = kpiSparklines[kpi.key];
             return (
               <motion.div
-                key={kpi.title}
+                key={kpi.key}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.4, delay: index * 0.08 }}
               >
-                <Card className={`relative overflow-hidden glass-card-premium tilt-card shimmer-border shimmer-hover noise-texture kpi-border-hover cursor-default shadow-sm hover:shadow-emerald-500/10 hover:shadow-lg border border-slate-200/60 dark:border-slate-700/40`}>
+                <Card className={`group relative overflow-hidden kpi-border-hover micro-shadow cursor-default border border-border bg-card transition-shadow`}>
                   {/* Mini Area Chart Background (Revenue card only) */}
                   {index === 0 && (
-                    <div className="absolute inset-0 opacity-[0.07] dark:opacity-[0.1] pointer-events-none">
+                    <div className="absolute inset-0 opacity-[0.08] dark:opacity-[0.12] pointer-events-none">
                       <ResponsiveContainer width="100%" height="100%">
                         <AreaChart data={revenueTrend} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
                           <defs>
                             <linearGradient id="revenueMiniArea" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="0%" stopColor="#10b981" stopOpacity={1} />
-                              <stop offset="100%" stopColor="#10b981" stopOpacity={0} />
+                              <stop offset="0%" stopColor="#2E9E6B" stopOpacity={1} />
+                              <stop offset="100%" stopColor="#2E9E6B" stopOpacity={0} />
                             </linearGradient>
                           </defs>
-                          <Area type="monotone" dataKey="revenue" fill="url(#revenueMiniArea)" stroke="#10b981" strokeWidth={1} />
+                          <Area type="monotone" dataKey="revenue" fill="url(#revenueMiniArea)" stroke="#2E9E6B" strokeWidth={1} />
                         </AreaChart>
                       </ResponsiveContainer>
                     </div>
                   )}
                   <CardContent className="p-4 relative z-10">
                     <div className="flex items-start justify-between">
-                      <div className="space-y-1">
-                        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{kpi.title}</p>
+                      <div className="space-y-1.5">
+                        <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-[0.12em]">{kpi.title}</p>
                         <div className="flex items-center gap-2">
-                          <p className="text-2xl font-bold tracking-tight">
+                          <p className="font-mono text-[26px] leading-none font-semibold tracking-tight tabular-nums">
                             <AnimatedCounter
                               value={kpi.value}
                               prefix={kpi.prefix}
@@ -634,27 +660,27 @@ export function DashboardView() {
                               delay={index * 0.1}
                             />
                           </p>
-                          {(kpiSparklines[kpi.title]?.length ?? 0) > 1 && (
-                            <MiniSparklineSVG data={kpiSparklines[kpi.title]} color={(delta?.trendUp ?? true) ? '#10b981' : '#f59e0b'} />
+                          {(sparkline?.length ?? 0) > 1 && (
+                            <MiniSparklineSVG data={sparkline} color={(delta?.trendUp ?? true) ? '#2E9E6B' : '#C9606F'} />
                           )}
                         </div>
                         <div className="flex items-center gap-2">
                           <p className="text-xs text-muted-foreground">{kpi.description}</p>
                           <button
                             onClick={() => setActiveView(kpi.linkView)}
-                            className="text-[10px] text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 font-medium flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                            className="text-[10px] text-signal hover:opacity-80 font-medium flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
                           >
                             <Eye className="w-2.5 h-2.5" />
-                            View Details
+                            {t('viewDetails')}
                           </button>
                         </div>
                       </div>
-                      <div className="flex flex-col items-end gap-1">
-                        <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400">
+                      <div className="flex flex-col items-end gap-1.5">
+                        <div className="flex items-center justify-center w-9 h-9 rounded-md bg-muted text-foreground/65 group-hover:text-signal transition-colors">
                           <Icon className="w-4 h-4" />
                         </div>
                         {delta && (
-                          <span className={`text-xs font-medium flex items-center gap-0.5 ${delta.trendUp ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
+                          <span className={`text-xs font-mono font-medium flex items-center gap-0.5 tabular-nums ${delta.trendUp ? 'text-gain' : 'text-loss'}`}>
                             {delta.trendUp ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
                             {delta.trend}
                           </span>
@@ -662,7 +688,6 @@ export function DashboardView() {
                       </div>
                     </div>
                   </CardContent>
-                  <div className={`absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r ${kpi.accentFrom} ${kpi.accentTo}`} />
                 </Card>
               </motion.div>
             );
@@ -679,12 +704,12 @@ export function DashboardView() {
         transition={{ duration: 0.5, delay: 0.2 }}
       >
         <div className="flex items-center gap-2 mb-3">
-          <Shield className="w-4 h-4 text-emerald-600" />
-          <h3 className="text-sm font-semibold">Financial Health Scorecard</h3>
-          <div className="flex-1 h-px bg-gradient-to-r from-emerald-200 to-transparent dark:from-emerald-800 dark:to-transparent" />
+          <Shield className="w-4 h-4 text-signal" />
+          <h3 className="text-sm font-semibold uppercase tracking-[0.1em]">{t('scorecard.title')}</h3>
+          <div className="flex-1 h-px bg-gradient-to-r from-border to-transparent" />
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animated-border rounded-xl p-1">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 rounded-xl p-1">
           {/* Left: 6 Traffic Light Indicators */}
           <div className="lg:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-3">
             {healthIndicators.map((indicator, index) => {
@@ -701,7 +726,7 @@ export function DashboardView() {
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-0.5">
-                            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{indicator.name}</p>
+                            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t(`indicators.${INDICATOR_KEYS[indicator.name] ?? 'revenueGrowth'}`)}</p>
                             {getTrafficLightIcon(indicator.trafficLight)}
                           </div>
                           <p className={`text-2xl font-bold ${colors.text}`}>{indicator.displayValue}</p>
@@ -726,7 +751,7 @@ export function DashboardView() {
                         </div>
                       </div>
                       <div className="flex items-center justify-between">
-                        <span className={`text-xs font-semibold ${colors.text}`}>{indicator.label}</span>
+                        <span className={`text-xs font-semibold ${colors.text}`}>{t(HEALTH_LABEL_KEYS[indicator.label] ?? 'scorecard.moderate')}</span>
                         <span className="text-[10px] text-muted-foreground">{indicator.thresholdNote}</span>
                       </div>
                     </CardContent>
@@ -740,7 +765,7 @@ export function DashboardView() {
           <div className="flex flex-col gap-4">
             <Card className="shadow-sm overflow-hidden flex-1 animate-breathe">
               <CardContent className="p-4 flex flex-col items-center justify-center">
-                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Overall Group Health</p>
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">{t('scorecard.overallGroupHealth')}</p>
                 <div className="relative w-48 h-48">
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
@@ -767,13 +792,13 @@ export function DashboardView() {
                     <span className="text-3xl font-bold" style={{ color: overallColor }}>
                       <AnimatedCounter value={overallScore} duration={1.5} delay={0.5} />
                     </span>
-                    <span className="text-[10px] text-muted-foreground uppercase tracking-wider">out of 100</span>
+                    <span className="text-[10px] text-muted-foreground uppercase tracking-wider">{t('scorecard.outOf100')}</span>
                   </div>
                 </div>
                 <div className="mt-2 flex items-center gap-4 text-xs">
-                  <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-emerald-500" /> Strong (≥75)</span>
-                  <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-amber-500" /> Moderate (50-74)</span>
-                  <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-red-500" /> At Risk (&lt;50)</span>
+                  <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-emerald-500" /> {t('scorecard.strongLegend')}</span>
+                  <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-amber-500" /> {t('scorecard.moderateLegend')}</span>
+                  <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-red-500" /> {t('scorecard.atRiskLegend')}</span>
                 </div>
               </CardContent>
             </Card>
@@ -792,10 +817,10 @@ export function DashboardView() {
               <div className="flex items-center justify-between">
                 <CardTitle className="text-sm font-semibold flex items-center gap-2">
                   <Clock className="w-4 h-4 text-emerald-600" />
-                  Recent Consolidation Runs
+                  {t('recentRuns.title')}
                 </CardTitle>
                 <button onClick={() => setActiveView('consolidation')} className="text-[10px] text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 font-medium transition-colors duration-150">
-                  View All →
+                  {t('recentRuns.viewAll')}
                 </button>
               </div>
             </CardHeader>
@@ -803,10 +828,10 @@ export function DashboardView() {
               <table className="w-full premium-table">
                 <thead>
                   <tr className="border-b border-slate-200 dark:border-slate-700">
-                    <th className="text-left text-[10px] font-semibold text-muted-foreground uppercase tracking-wider pb-2">Date</th>
-                    <th className="text-left text-[10px] font-semibold text-muted-foreground uppercase tracking-wider pb-2">Status</th>
-                    <th className="text-right text-[10px] font-semibold text-muted-foreground uppercase tracking-wider pb-2">Revenue</th>
-                    <th className="text-right text-[10px] font-semibold text-muted-foreground uppercase tracking-wider pb-2">Net Income</th>
+                    <th className="text-left text-[10px] font-semibold text-muted-foreground uppercase tracking-wider pb-2">{t('recentRuns.date')}</th>
+                    <th className="text-left text-[10px] font-semibold text-muted-foreground uppercase tracking-wider pb-2">{t('recentRuns.status')}</th>
+                    <th className="text-right text-[10px] font-semibold text-muted-foreground uppercase tracking-wider pb-2">{t('recentRuns.revenue')}</th>
+                    <th className="text-right text-[10px] font-semibold text-muted-foreground uppercase tracking-wider pb-2">{t('recentRuns.netIncome')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -815,7 +840,7 @@ export function DashboardView() {
                       <td className="text-xs py-2 tabular-nums">{run.date}</td>
                       <td className="py-2">
                         <Badge className="text-[10px] px-1.5 py-0.5 bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
-                          {run.status === 'completed' ? '✓ Completed' : run.status}
+                          {run.status === 'completed' ? t('recentRuns.completed') : run.status}
                         </Badge>
                       </td>
                       <td className="text-xs py-2 text-right tabular-nums font-medium">{run.revenue}</td>
@@ -841,9 +866,9 @@ export function DashboardView() {
                 <div>
                   <CardTitle className="text-base flex items-center gap-2">
                     <Activity className="w-4 h-4 text-teal-600" />
-                    Entity Health Comparison
+                    {t('entityHealth.title')}
                   </CardTitle>
-                  <CardDescription>Each entity&apos;s contribution to the overall group health score</CardDescription>
+                  <CardDescription>{t('entityHealth.desc')}</CardDescription>
                 </div>
                 <span className="text-[10px] text-muted-foreground">{lastUpdated}</span>
               </div>
@@ -896,8 +921,8 @@ export function DashboardView() {
             <div className="absolute inset-0 bg-gradient-to-r from-emerald-50/50 via-teal-50/30 to-transparent dark:from-emerald-950/20 dark:via-teal-950/10 dark:to-transparent pointer-events-none" />
             <div className="flex items-center justify-between relative z-10">
               <div>
-                <CardTitle className="text-base">Revenue Waterfall</CardTitle>
-                <CardDescription>Income statement walk from Revenue to Net Income (€)</CardDescription>
+                <CardTitle className="text-base">{t('waterfall.title')}</CardTitle>
+                <CardDescription>{t('waterfall.desc')}</CardDescription>
               </div>
               <span className="text-[10px] text-muted-foreground">{lastUpdated}</span>
             </div>
@@ -940,7 +965,7 @@ export function DashboardView() {
         transition={{ duration: 0.5, delay: 0.35 }}
       >
         <div className="flex items-center gap-2 mb-2">
-          <h3 className="text-sm font-semibold text-muted-foreground">Cash Flow Bridge</h3>
+          <h3 className="text-sm font-semibold text-muted-foreground">{t('cashFlowBridge')}</h3>
           <div className="flex-1 h-px bg-gradient-to-r from-emerald-200 to-transparent dark:from-emerald-800 dark:to-transparent" />
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -954,7 +979,7 @@ export function DashboardView() {
               <Card className="shadow-sm hover:shadow-lg hover:shadow-emerald-500/5 transition-shadow duration-300">
                 <CardContent className="p-3">
                   <div className="flex items-center justify-between mb-1">
-                    <p className="text-xs text-muted-foreground">{item.label}</p>
+                    <p className="text-xs text-muted-foreground">{t(`cf.${item.label}`)}</p>
                     {index < cashFlowBridge.length - 1 && (
                       <ArrowRight className="w-3 h-3 text-emerald-500 animate-flow-arrow hidden sm:block" />
                     )}
@@ -981,7 +1006,7 @@ export function DashboardView() {
             <CardContent className="p-4">
               <div className="flex items-center gap-2 mb-3">
                 <Activity className="w-4 h-4 text-emerald-600" />
-                <h3 className="text-sm font-semibold">Recent Activity</h3>
+                <h3 className="text-sm font-semibold">{t('recentActivity')}</h3>
               </div>
               <div className="space-y-3">
                 {recentActivity.map((item, i) => {
@@ -1019,8 +1044,8 @@ export function DashboardView() {
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
                 <div>
-                  <CardTitle className="text-base">Revenue by Entity</CardTitle>
-                  <CardDescription>Annual revenue breakdown (€)</CardDescription>
+                  <CardTitle className="text-base">{t('charts.revenueByEntity')}</CardTitle>
+                  <CardDescription>{t('charts.revenueByEntityDesc')}</CardDescription>
                 </div>
                 <span className="text-[10px] text-muted-foreground">{lastUpdated}</span>
               </div>
@@ -1063,8 +1088,8 @@ export function DashboardView() {
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
                 <div>
-                  <CardTitle className="text-base">EBITDA Margin Trend</CardTitle>
-                  <CardDescription>Monthly margin progression (%)</CardDescription>
+                  <CardTitle className="text-base">{t('charts.ebitdaMarginTrend')}</CardTitle>
+                  <CardDescription>{t('charts.ebitdaMarginTrendDesc')}</CardDescription>
                 </div>
                 <span className="text-[10px] text-muted-foreground">{lastUpdated}</span>
               </div>
@@ -1116,8 +1141,8 @@ export function DashboardView() {
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
                 <div>
-                  <CardTitle className="text-base">Revenue & EBITDA Trend</CardTitle>
-                  <CardDescription>Monthly progression (€)</CardDescription>
+                  <CardTitle className="text-base">{t('charts.revenueEbitdaTrend')}</CardTitle>
+                  <CardDescription>{t('charts.revenueEbitdaTrendDesc')}</CardDescription>
                 </div>
                 <span className="text-[10px] text-muted-foreground">{lastUpdated}</span>
               </div>
@@ -1156,8 +1181,8 @@ export function DashboardView() {
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
                 <div>
-                  <CardTitle className="text-base">Entity Revenue Contribution</CardTitle>
-                  <CardDescription>Proportional contribution to group revenue</CardDescription>
+                  <CardTitle className="text-base">{t('charts.entityContribution')}</CardTitle>
+                  <CardDescription>{t('charts.entityContributionDesc')}</CardDescription>
                 </div>
                 <span className="text-[10px] text-muted-foreground">{lastUpdated}</span>
               </div>

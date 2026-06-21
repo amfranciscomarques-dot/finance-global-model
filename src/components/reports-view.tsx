@@ -30,6 +30,8 @@ import { DataLoadError } from '@/components/data-load-error';
 import { ReportTemplate, GeneratedReport } from '@/lib/types';
 import { useAppStore } from '@/lib/store';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useTranslations, useLocale } from 'next-intl';
+import { dateLocale, type Locale } from '@/i18n/locale-context';
 
 // Report templates
 const reportTemplates: ReportTemplate[] = [
@@ -277,6 +279,8 @@ function exportReportAsExcel(reportType: string) {
 }
 
 export function ReportsView() {
+  const t = useTranslations('reports');
+  const loc = useLocale() as Locale;
   const { selectedPeriod, selectedScenario } = useAppStore();
   const [reports, setReports] = useState<GeneratedReport[]>([]);
   const [loading, setLoading] = useState(true);
@@ -370,61 +374,61 @@ export function ReportsView() {
 
   return (
     <div className="space-y-6">
-      {loadError && <DataLoadError message="Could not load reports from the server. Try refreshing." />}
+      {loadError && <DataLoadError message={t('loadError')} />}
       {/* Report Templates Grid */}
       <div>
         <div className="flex items-center justify-between mb-4">
           <div>
             <h2 className="text-lg font-semibold flex items-center gap-2">
               <FileText className="w-5 h-5 text-emerald-600" />
-              Report Templates
+              {t('templatesTitle')}
             </h2>
-            <p className="text-sm text-muted-foreground">Generate professional financial reports for your group</p>
+            <p className="text-sm text-muted-foreground">{t('templatesSubtitle')}</p>
           </div>
           <Badge variant="outline" className="text-[10px]">
             <Calendar className="w-3 h-3 mr-1" />
-            Period: {selectedPeriod}
+            {t('period', { period: selectedPeriod })}
           </Badge>
           <Badge className="text-[10px] bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800">
-            {generatedCount} Generated
+            {t('generatedCount', { count: generatedCount })}
           </Badge>
           {/* Download All Dropdown */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="sm" className="text-xs gap-1">
                 <FileSpreadsheet className="w-3.5 h-3.5" />
-                Download All
+                {t('downloadAll')}
                 <ChevronDown className="w-3 h-3" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem onClick={() => handleExportExcel('consolidated-income')} className="text-xs">
-                Income Statement (.xlsx)
+                {t('downloadItems.incomeXlsx')}
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => handleExportPDF('consolidated-income')} className="text-xs">
-                Income Statement (.pdf)
+                {t('downloadItems.incomePdf')}
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => handleExportExcel('consolidated-balance-sheet')} className="text-xs">
-                Balance Sheet (.xlsx)
+                {t('downloadItems.balanceXlsx')}
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => handleExportPDF('consolidated-balance-sheet')} className="text-xs">
-                Balance Sheet (.pdf)
+                {t('downloadItems.balancePdf')}
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => handleExportExcel('consolidated-cash-flow')} className="text-xs">
-                Cash Flow (.xlsx)
+                {t('downloadItems.cashXlsx')}
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => handleExportPDF('consolidated-cash-flow')} className="text-xs">
-                Cash Flow (.pdf)
+                {t('downloadItems.cashPdf')}
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => {
                 ['consolidated-income', 'consolidated-balance-sheet', 'consolidated-cash-flow'].forEach(rt => handleExportExcel(rt));
               }} className="text-xs font-medium text-emerald-700 dark:text-emerald-400">
-                All Statements (.xlsx)
+                {t('downloadItems.allXlsx')}
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => {
                 handleExportPDF('consolidated-income');
               }} className="text-xs font-medium text-emerald-700 dark:text-emerald-400">
-                All Statements (.pdf)
+                {t('downloadItems.allPdf')}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -433,7 +437,6 @@ export function ReportsView() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {reportTemplates.map((template, index) => {
             const Icon = iconMap[template.icon] || FileText;
-            const cat = categoryConfig[template.category];
             const isGenerating = generating === template.reportType;
             const gradientColors: Record<string, string> = {
               financial: 'from-emerald-600 to-teal-700',
@@ -458,21 +461,21 @@ export function ReportsView() {
                         <Icon className="w-5 h-5 text-white" />
                       </div>
                       <Badge className="bg-white/20 text-white border-0 text-[9px] hover:bg-white/30">
-                        {cat.label}
+                        {t(`categories.${template.category}`)}
                       </Badge>
                     </div>
-                    <h3 className="text-sm font-bold text-white mt-3 leading-tight">{template.title}</h3>
+                    <h3 className="text-sm font-bold text-white mt-3 leading-tight">{t(`templates.${template.reportType}.title`)}</h3>
                   </div>
                   <CardContent className="p-4 pt-3">
                     <p className="text-xs text-muted-foreground mb-3 line-clamp-2 min-h-[2rem]">
-                      {template.description}
+                      {t(`templates.${template.reportType}.description`)}
                     </p>
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
                         <Clock className="w-3 h-3" />
                         {template.lastGenerated
-                          ? new Date(template.lastGenerated).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-                          : 'Never'}
+                          ? new Date(template.lastGenerated).toLocaleDateString(dateLocale(loc), { month: 'short', day: 'numeric' })
+                          : t('never')}
                       </div>
                       <div className="flex items-center gap-1">
                         <Button
@@ -480,7 +483,7 @@ export function ReportsView() {
                           size="sm"
                           className="text-xs h-7 w-7 p-0"
                           onClick={() => handleExportExcel(template.reportType)}
-                          title="Export Excel"
+                          title={t('exportExcelTitle')}
                         >
                           <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
                         </Button>
@@ -497,7 +500,7 @@ export function ReportsView() {
                           ) : (
                             <ChevronRight className="w-3 h-3 mr-0.5" />
                           )}
-                          {isGenerating ? 'Generating...' : 'Generate'}
+                          {isGenerating ? t('generating') : t('generate')}
                         </Button>
                       </div>
                     </div>
@@ -519,10 +522,10 @@ export function ReportsView() {
                   <div>
                     <DialogTitle className="flex items-center gap-2 text-lg">
                       <FileText className="w-5 h-5 text-emerald-600" />
-                      {demoReportData[previewReport].title}
+                      {t(`templates.${previewReport}.title`)}
                     </DialogTitle>
                     <DialogDescription className="mt-1">
-                      TechNova Group · Period: {selectedPeriod} · Base Scenario · All Entities
+                      {t('previewSubtitle', { period: selectedPeriod })}
                     </DialogDescription>
                   </div>
                   <Button variant="ghost" size="icon" onClick={() => setPreviewReport(null)}>
@@ -539,11 +542,11 @@ export function ReportsView() {
                     <div className="flex items-center justify-between">
                       <div>
                         <h2 className="text-base font-bold">TechNova Group</h2>
-                        <p className="text-xs text-muted-foreground">{demoReportData[previewReport].title}</p>
+                        <p className="text-xs text-muted-foreground">{t(`templates.${previewReport}.title`)}</p>
                       </div>
                       <div className="text-right">
-                        <p className="text-xs font-medium">As of {new Date(selectedPeriod + '-01').toLocaleDateString('en-US', { year: 'numeric', month: 'long' })}</p>
-                        <p className="text-[10px] text-muted-foreground">Amounts in thousands (€K)</p>
+                        <p className="text-xs font-medium">{t('asOf', { date: new Date(selectedPeriod + '-01').toLocaleDateString(dateLocale(loc), { year: 'numeric', month: 'long' }) })}</p>
+                        <p className="text-[10px] text-muted-foreground">{t('amountsInThousands')}</p>
                       </div>
                     </div>
                   </div>
@@ -602,10 +605,10 @@ export function ReportsView() {
                   {/* Report Footer */}
                   <div className="px-6 py-3 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 flex items-center justify-between">
                     <p className="text-[10px] text-muted-foreground">
-                      Generated on {new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })} · ConsolidaçãoFX
+                      {t('generatedOn', { date: new Date().toLocaleDateString(dateLocale(loc), { year: 'numeric', month: 'long', day: 'numeric' }) })}
                     </p>
                     <p className="text-[10px] text-muted-foreground">
-                      Page 1 of 1
+                      {t('pageOf')}
                     </p>
                   </div>
                 </div>
@@ -614,7 +617,7 @@ export function ReportsView() {
               {/* Export buttons */}
               <div className="px-6 py-3 border-t flex items-center justify-between bg-slate-50 dark:bg-slate-800/50">
                 <p className="text-xs text-muted-foreground">
-                  {demoReportData[previewReport].rows.length} rows · {demoReportData[previewReport].headers.length} columns
+                  {t('rowsColumns', { rows: demoReportData[previewReport].rows.length, cols: demoReportData[previewReport].headers.length })}
                 </p>
                 <div className="flex items-center gap-2">
                   <Button
@@ -624,7 +627,7 @@ export function ReportsView() {
                     onClick={() => exportReportAsCSV(previewReport)}
                   >
                     <Download className="w-3 h-3 mr-1" />
-                    Export CSV
+                    {t('exportCSV')}
                   </Button>
                   <Button
                     variant="outline"
@@ -633,7 +636,7 @@ export function ReportsView() {
                     onClick={() => exportReportAsExcel(previewReport)}
                   >
                     <Table2 className="w-3 h-3 mr-1" />
-                    Export Excel
+                    {t('exportExcel')}
                   </Button>
                 </div>
               </div>
@@ -647,9 +650,9 @@ export function ReportsView() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Clock className="w-5 h-5 text-teal-600" />
-            Recent Reports
+            {t('recentTitle')}
           </CardTitle>
-          <CardDescription>Recently generated reports and exports</CardDescription>
+          <CardDescription>{t('recentDesc')}</CardDescription>
         </CardHeader>
         <CardContent>
           {loading ? (
@@ -663,12 +666,12 @@ export function ReportsView() {
               <table className="w-full text-sm">
                 <thead className="sticky top-0 bg-white dark:bg-slate-900 z-10 border-b-2 border-slate-200 dark:border-slate-700">
                   <tr>
-                    <th className="text-left px-4 py-2.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">Report</th>
-                    <th className="text-left px-4 py-2.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">Period</th>
-                    <th className="text-left px-4 py-2.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">Scenario</th>
-                    <th className="text-left px-4 py-2.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">Format</th>
-                    <th className="text-left px-4 py-2.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">Generated</th>
-                    <th className="text-right px-4 py-2.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">Actions</th>
+                    <th className="text-left px-4 py-2.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('recentHeaders.report')}</th>
+                    <th className="text-left px-4 py-2.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('recentHeaders.period')}</th>
+                    <th className="text-left px-4 py-2.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('recentHeaders.scenario')}</th>
+                    <th className="text-left px-4 py-2.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('recentHeaders.format')}</th>
+                    <th className="text-left px-4 py-2.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('recentHeaders.generated')}</th>
+                    <th className="text-right px-4 py-2.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('recentHeaders.actions')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -690,7 +693,7 @@ export function ReportsView() {
                           <td className="px-4 py-2.5">
                             <div className="flex items-center gap-2">
                               <FileText className="w-4 h-4 text-emerald-500" />
-                              <span className="text-xs font-medium">{report.title}</span>
+                              <span className="text-xs font-medium">{demoReportData[report.reportType as keyof typeof demoReportData] ? t(`templates.${report.reportType}.title`) : report.title}</span>
                             </div>
                           </td>
                           <td className="px-4 py-2.5 text-xs font-mono">{report.period}</td>
@@ -705,7 +708,7 @@ export function ReportsView() {
                             </Badge>
                           </td>
                           <td className="px-4 py-2.5 text-xs text-muted-foreground">
-                            {new Date(report.generatedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                            {new Date(report.generatedAt).toLocaleDateString(dateLocale(loc), { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                           </td>
                           <td className="px-4 py-2.5 text-right">
                             <Button
@@ -718,7 +721,7 @@ export function ReportsView() {
                               }}
                             >
                               <ChevronRight className="w-3 h-3 mr-0.5" />
-                              View
+                              {t('view')}
                             </Button>
                           </td>
                         </motion.tr>

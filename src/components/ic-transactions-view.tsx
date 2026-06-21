@@ -26,6 +26,7 @@ import { ICTransaction } from '@/lib/types';
 import { DataLoadError } from '@/components/data-load-error';
 import { useAppStore } from '@/lib/store';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useTranslations } from 'next-intl';
 
 // Demo fallback data
 const demoICTransactions: ICTransaction[] = [
@@ -125,6 +126,7 @@ function getEliminationStatus(tx: ICTransaction): string {
 }
 
 export function ICTransactionsView() {
+  const t = useTranslations('icTransactions');
   const { selectedPeriod } = useAppStore();
   const [transactions, setTransactions] = useState<ICTransaction[]>([]);
   const [loading, setLoading] = useState(true);
@@ -218,7 +220,7 @@ export function ICTransactionsView() {
   }
 
   const exportCSV = () => {
-    const headers = ['Transaction ID', 'From Entity', 'To Entity', 'Type', 'Amount (Local)', 'Amount (EUR)', 'Currency', 'Period', 'Matching Ref', 'Status'];
+    const headers = [t('csv.txId'), t('csv.from'), t('csv.to'), t('csv.type'), t('csv.amountLocal'), t('csv.amountEur'), t('csv.currency'), t('csv.period'), t('csv.matchRef'), t('csv.status')];
     const rows = filtered.map(tx => [
       tx.transactionId,
       tx.fromEntityCode,
@@ -246,10 +248,10 @@ export function ICTransactionsView() {
       {/* Summary Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: 'IC Revenue', value: totalICRevenue, icon: TrendingUp, color: 'from-emerald-500/10 to-emerald-600/5', textColor: 'text-emerald-700 dark:text-emerald-400', borderColor: 'border-emerald-200 dark:border-emerald-800/50', format: 'currency' },
-          { label: 'IC Expenses', value: totalICExpenses, icon: TrendingDown, color: 'from-amber-500/10 to-amber-600/5', textColor: 'text-amber-700 dark:text-amber-400', borderColor: 'border-amber-200 dark:border-amber-800/50', format: 'currency' },
-          { label: 'Net IC Balance', value: netICBalance, icon: Scale, color: 'from-teal-500/10 to-teal-600/5', textColor: 'text-teal-700 dark:text-teal-400', borderColor: 'border-teal-200 dark:border-teal-800/50', format: 'currency' },
-          { label: 'Uneliminated', value: uneliminatedCount, icon: AlertCircle, color: 'from-rose-500/10 to-rose-600/5', textColor: 'text-rose-700 dark:text-rose-400', borderColor: 'border-rose-200 dark:border-rose-800/50', format: 'count' },
+          { label: t('cards.revenue'), value: totalICRevenue, icon: TrendingUp, color: 'from-emerald-500/10 to-emerald-600/5', textColor: 'text-emerald-700 dark:text-emerald-400', borderColor: 'border-emerald-200 dark:border-emerald-800/50', format: 'currency' },
+          { label: t('cards.expenses'), value: totalICExpenses, icon: TrendingDown, color: 'from-amber-500/10 to-amber-600/5', textColor: 'text-amber-700 dark:text-amber-400', borderColor: 'border-amber-200 dark:border-amber-800/50', format: 'currency' },
+          { label: t('cards.netBalance'), value: netICBalance, icon: Scale, color: 'from-teal-500/10 to-teal-600/5', textColor: 'text-teal-700 dark:text-teal-400', borderColor: 'border-teal-200 dark:border-teal-800/50', format: 'currency' },
+          { label: t('cards.uneliminated'), value: uneliminatedCount, icon: AlertCircle, color: 'from-rose-500/10 to-rose-600/5', textColor: 'text-rose-700 dark:text-rose-400', borderColor: 'border-rose-200 dark:border-rose-800/50', format: 'count' },
         ].map((card, i) => {
           const Icon = card.icon;
           return (
@@ -282,7 +284,7 @@ export function ICTransactionsView() {
             <div className="flex items-center gap-3">
               <CardTitle className="flex items-center gap-2">
                 <ArrowLeftRight className="w-5 h-5 text-emerald-600" />
-                Entity Transaction Flow
+                {t('flowTitle')}
               </CardTitle>
               {/* Matching Rate Circle */}
               <div className="flex items-center gap-2">
@@ -293,7 +295,7 @@ export function ICTransactionsView() {
                   </svg>
                   <span className="absolute inset-0 flex items-center justify-center text-[9px] font-bold">{matchingRate}%</span>
                 </div>
-                <span className="text-[10px] text-muted-foreground">Matched</span>
+                <span className="text-[10px] text-muted-foreground">{t('matched')}</span>
               </div>
             </div>
             <Button
@@ -303,10 +305,10 @@ export function ICTransactionsView() {
               className="text-xs"
             >
               {showDiagram ? <ChevronUp className="w-4 h-4 mr-1" /> : <ChevronDown className="w-4 h-4 mr-1" />}
-              {showDiagram ? 'Collapse' : 'Expand'}
+              {showDiagram ? t('collapse') : t('expand')}
             </Button>
           </div>
-          <CardDescription>Visual representation of intercompany transaction flows</CardDescription>
+          <CardDescription>{t('flowDesc')}</CardDescription>
         </CardHeader>
         <AnimatePresence>
           {showDiagram && (
@@ -321,7 +323,7 @@ export function ICTransactionsView() {
                 <div className="bg-slate-50 dark:bg-slate-900/50 rounded-xl p-4 lg:p-6 overflow-x-auto">
                   <div className="min-w-[600px] space-y-3">
                     {Array.from(entityFlows.entries()).map(([key, flow], index) => {
-                      const typeInfo = typeConfig[flow.type] || { label: flow.type, color: 'text-slate-600' };
+                      const typeInfo = { label: typeConfig[flow.type] ? t(`types.${flow.type}`) : flow.type, color: typeConfig[flow.type]?.color || 'text-slate-600' };
                       return (
                         <motion.div
                           key={key}
@@ -408,9 +410,9 @@ export function ICTransactionsView() {
             <div>
               <CardTitle className="flex items-center gap-2">
                 <ArrowLeftRight className="w-5 h-5 text-teal-600" />
-                IC Transactions
+                {t('title')}
               </CardTitle>
-              <CardDescription>{filtered.length} transactions for {selectedPeriod}</CardDescription>
+              <CardDescription>{t('countForPeriod', { count: filtered.length, period: selectedPeriod })}</CardDescription>
             </div>
             <div className="flex items-center gap-2">
               <Button
@@ -419,7 +421,7 @@ export function ICTransactionsView() {
                 onClick={exportCSV}
               >
                 <Download className="w-4 h-4 mr-1" />
-                Export
+                {t('export')}
               </Button>
               <Button
                 size="sm"
@@ -432,7 +434,7 @@ export function ICTransactionsView() {
                 ) : (
                   <Zap className="w-4 h-4 mr-1" />
                 )}
-                Run Eliminations
+                {t('runEliminations')}
               </Button>
             </div>
           </div>
@@ -443,7 +445,7 @@ export function ICTransactionsView() {
             <div className="relative flex-1 min-w-[200px]">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
-                placeholder="Search by ID or matching reference..."
+                placeholder={t('searchPlaceholder')}
                 className="pl-10 h-8 text-sm"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
@@ -452,9 +454,9 @@ export function ICTransactionsView() {
             <div className="flex items-center gap-1.5">
               <Filter className="w-3.5 h-3.5 text-muted-foreground" />
               <Select value={filterEntity} onValueChange={setFilterEntity}>
-                <SelectTrigger className="w-32 h-8 text-xs"><SelectValue placeholder="Entity" /></SelectTrigger>
+                <SelectTrigger className="w-32 h-8 text-xs"><SelectValue placeholder={t('entity')} /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Entities</SelectItem>
+                  <SelectItem value="all">{t('allEntities')}</SelectItem>
                   {entities.map(e => (
                     <SelectItem key={e} value={e}>{e}</SelectItem>
                   ))}
@@ -462,23 +464,23 @@ export function ICTransactionsView() {
               </Select>
             </div>
             <Select value={filterType} onValueChange={setFilterType}>
-              <SelectTrigger className="w-28 h-8 text-xs"><SelectValue placeholder="Type" /></SelectTrigger>
+              <SelectTrigger className="w-28 h-8 text-xs"><SelectValue placeholder={t('type')} /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Types</SelectItem>
-                <SelectItem value="sale">Sale</SelectItem>
-                <SelectItem value="purchase">Purchase</SelectItem>
-                <SelectItem value="service">Service</SelectItem>
-                <SelectItem value="loan">Loan</SelectItem>
-                <SelectItem value="dividend">Dividend</SelectItem>
+                <SelectItem value="all">{t('allTypes')}</SelectItem>
+                <SelectItem value="sale">{t('types.sale')}</SelectItem>
+                <SelectItem value="purchase">{t('types.purchase')}</SelectItem>
+                <SelectItem value="service">{t('types.service')}</SelectItem>
+                <SelectItem value="loan">{t('types.loan')}</SelectItem>
+                <SelectItem value="dividend">{t('types.dividend')}</SelectItem>
               </SelectContent>
             </Select>
             <Select value={filterStatus} onValueChange={setFilterStatus}>
-              <SelectTrigger className="w-32 h-8 text-xs"><SelectValue placeholder="Status" /></SelectTrigger>
+              <SelectTrigger className="w-32 h-8 text-xs"><SelectValue placeholder={t('statusLabel')} /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="pending">Pending</SelectItem>
-                <SelectItem value="matched">Matched</SelectItem>
-                <SelectItem value="eliminated">Eliminated</SelectItem>
+                <SelectItem value="all">{t('allStatus')}</SelectItem>
+                <SelectItem value="pending">{t('statuses.pending')}</SelectItem>
+                <SelectItem value="matched">{t('statuses.matched')}</SelectItem>
+                <SelectItem value="eliminated">{t('statuses.eliminated')}</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -495,15 +497,15 @@ export function ICTransactionsView() {
               <table className="w-full text-sm">
                 <thead className="sticky top-0 bg-white dark:bg-slate-900 z-10 border-b-2 border-slate-200 dark:border-slate-700">
                   <tr>
-                    <th className="text-left px-3 py-2.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">Transaction ID</th>
-                    <th className="text-left px-3 py-2.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">From → To</th>
-                    <th className="text-left px-3 py-2.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">Type</th>
-                    <th className="text-right px-3 py-2.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">Amount (Local)</th>
-                    <th className="text-right px-3 py-2.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">Amount (EUR)</th>
-                    <th className="text-left px-3 py-2.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">CCY</th>
-                    <th className="text-left px-3 py-2.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">Period</th>
-                    <th className="text-left px-3 py-2.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">Match Ref</th>
-                    <th className="text-left px-3 py-2.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">Status</th>
+                    <th className="text-left px-3 py-2.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('headers.txId')}</th>
+                    <th className="text-left px-3 py-2.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('headers.fromTo')}</th>
+                    <th className="text-left px-3 py-2.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('headers.type')}</th>
+                    <th className="text-right px-3 py-2.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('headers.amountLocal')}</th>
+                    <th className="text-right px-3 py-2.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('headers.amountEur')}</th>
+                    <th className="text-left px-3 py-2.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('headers.ccy')}</th>
+                    <th className="text-left px-3 py-2.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('headers.period')}</th>
+                    <th className="text-left px-3 py-2.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('headers.matchRef')}</th>
+                    <th className="text-left px-3 py-2.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('headers.status')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -512,7 +514,7 @@ export function ICTransactionsView() {
                       const status = getEliminationStatus(tx);
                       const statusInfo = statusConfig[status];
                       const StatusIcon = statusInfo.icon;
-                      const typeInfo = typeConfig[tx.transactionType] || { label: tx.transactionType, color: 'text-slate-600' };
+                      const typeInfo = { label: typeConfig[tx.transactionType] ? t(`types.${tx.transactionType}`) : tx.transactionType, color: typeConfig[tx.transactionType]?.color || 'text-slate-600' };
                       return (
                         <motion.tr
                           key={tx.id}
@@ -557,7 +559,7 @@ export function ICTransactionsView() {
                           <td className="px-3 py-2.5">
                             <Badge className={`${statusInfo.bgColor} ${statusInfo.color} border ${statusInfo.borderColor} text-[10px] hover:${statusInfo.bgColor} gap-1 px-1.5 py-0`}>
                               <StatusIcon className="w-3 h-3" />
-                              {statusInfo.label}
+                              {t(`statuses.${status}`)}
                             </Badge>
                           </td>
                         </motion.tr>
@@ -568,7 +570,7 @@ export function ICTransactionsView() {
               </table>
               {filtered.length === 0 && (
                 <div className="text-center py-8 text-sm text-muted-foreground">
-                  No IC transactions match your filters
+                  {t('noMatch')}
                 </div>
               )}
             </div>
