@@ -20,6 +20,7 @@ import { Scenario, Entity } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { demoScenarios, scenarioComparison as fallbackComparison } from '@/lib/demo-data';
 import { formatEUR } from '@/lib/utils';
+import { DataLoadError } from '@/components/data-load-error';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const scenarioColors: Record<string, string> = {
@@ -99,10 +100,12 @@ export function ScenariosView() {
   const [scenarioComparison, setScenarioComparison] = useState(fallbackComparison);
   const [isRunning, setIsRunning] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
     async function loadScenarios() {
+      setLoadError(false);
       try {
         const data = await getScenarios();
         if (data && data.length > 0) {
@@ -110,7 +113,8 @@ export function ScenariosView() {
           if (data[0].id) setSelectedScenario(data[0].id);
         }
       } catch (err) {
-        console.log('Using fallback scenarios');
+        console.error('Failed to load scenarios', err);
+        setLoadError(true);
       } finally {
         setLoading(false);
       }
@@ -131,9 +135,9 @@ export function ScenariosView() {
     try {
       const entities = await getEntities();
       const entityCodes = entities.map((e: Entity) => e.code);
-      const result = await runScenario(currentScenario.id, selectedPeriod, entityCodes);
+      await runScenario(currentScenario.id, selectedPeriod, entityCodes);
       toast({ title: 'Scenario Completed', description: `${currentScenario.name} simulation finished` });
-    } catch (err: any) {
+    } catch {
       toast({ title: 'Scenario Run', description: 'Simulation completed with fallback data', variant: 'default' });
     } finally {
       setTimeout(() => setIsRunning(false), 1500);
@@ -148,6 +152,7 @@ export function ScenariosView() {
 
   return (
     <div className="space-y-6">
+      {loadError && <DataLoadError />}
       {/* Scenario Cards with Gradient Backgrounds */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {scenarios.map((scenario, index) => {

@@ -15,6 +15,7 @@ import {
 import { Separator } from '@/components/ui/separator';
 import { getAuditTrail } from '@/lib/api';
 import { AuditEntry, AuditActionType } from '@/lib/types';
+import { DataLoadError } from '@/components/data-load-error';
 import { motion, AnimatePresence } from 'framer-motion';
 
 // Demo fallback data
@@ -165,6 +166,7 @@ function exportAuditLog(entries: AuditEntry[]) {
 export function AuditTrailView() {
   const [entries, setEntries] = useState<AuditEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [search, setSearch] = useState('');
   const [filterAction, setFilterAction] = useState<string>('all');
   const [dateFrom, setDateFrom] = useState('');
@@ -172,6 +174,7 @@ export function AuditTrailView() {
 
   const loadEntries = useCallback(async () => {
     setLoading(true);
+    setLoadError(false);
     try {
       const data = await getAuditTrail({
         actionType: filterAction !== 'all' ? filterAction : undefined,
@@ -179,8 +182,10 @@ export function AuditTrailView() {
         dateTo: dateTo || undefined,
       });
       setEntries(data.length > 0 ? data : demoAuditEntries);
-    } catch {
+    } catch (err) {
+      console.error('Failed to load audit trail', err);
       setEntries(demoAuditEntries);
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -214,6 +219,7 @@ export function AuditTrailView() {
 
   return (
     <div className="space-y-6">
+      {loadError && <DataLoadError />}
       {/* Summary Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
         {[

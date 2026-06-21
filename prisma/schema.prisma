@@ -16,7 +16,7 @@ datasource db {
 
 model Entity {
   id                    String    @id @default(cuid())
-  code                  String    @unique                    // PT0001, ES0002, DE0003
+  code                  String    @unique                    // Entity code, e.g. GRSTL, ECOGRES
   legalName             String
   countryCode           String                               // PT, ES, DE, FR, UK
   localCurrency         String                               // EUR, GBP, etc.
@@ -68,6 +68,9 @@ model COAMapping {
   groupCOACode          String                               // Maps to ChartOfAccount.code
   groupCOA              ChartOfAccount @relation(fields: [groupCOACode], references: [code])
   createdAt             DateTime  @default(now())
+
+  @@unique([entityCode, localAccountCode])   // one local account per entity maps to a single group account
+  @@index([groupCOACode])
 }
 
 // ==========================================

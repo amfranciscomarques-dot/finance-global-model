@@ -25,6 +25,8 @@ import {
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { getReports, generateReport, exportExcel, exportPDF } from '@/lib/api';
+import { formatNumber as formatGrouped } from '@/lib/format';
+import { DataLoadError } from '@/components/data-load-error';
 import { ReportTemplate, GeneratedReport } from '@/lib/types';
 import { useAppStore } from '@/lib/store';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -221,15 +223,8 @@ const demoReportData: Record<string, { headers: string[]; rows: (string | number
 function formatNumber(value: string | number): string {
   if (typeof value === 'string') return value;
   if (value === 0) return '—';
-  const abs = Math.abs(value);
-  if (abs >= 1000) {
-    return new Intl.NumberFormat('en-US', {
-      signDisplay: 'auto',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(value);
-  }
-  return value.toString();
+  // de-DE grouping (1.234.567), consistent with the rest of the app.
+  return Math.abs(value) >= 1000 ? formatGrouped(value) : value.toString();
 }
 
 function isRowHighlight(label: string): boolean {
@@ -285,17 +280,21 @@ export function ReportsView() {
   const { selectedPeriod, selectedScenario } = useAppStore();
   const [reports, setReports] = useState<GeneratedReport[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [generating, setGenerating] = useState<string | null>(null);
   const [previewReport, setPreviewReport] = useState<string | null>(null);
   const [generatedCount, setGeneratedCount] = useState(0);
 
   const loadData = useCallback(async () => {
     setLoading(true);
+    setLoadError(false);
     try {
       const data = await getReports();
       setReports(data);
-    } catch {
+    } catch (err) {
+      console.error('Failed to load reports', err);
       setReports([]);
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -371,6 +370,7 @@ export function ReportsView() {
 
   return (
     <div className="space-y-6">
+      {loadError && <DataLoadError message="Could not load reports from the server. Try refreshing." />}
       {/* Report Templates Grid */}
       <div>
         <div className="flex items-center justify-between mb-4">

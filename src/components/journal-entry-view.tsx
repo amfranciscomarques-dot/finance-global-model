@@ -23,6 +23,8 @@ import {
 import { useAppStore } from '@/lib/store';
 import { getJournalEntries, createJournalEntry, getCOA, getEntities } from '@/lib/api';
 import { JournalEntry, JournalEntryLine, COAAccount, Entity } from '@/lib/types';
+import { formatCompactEUR, formatNumber } from '@/lib/format';
+import { DataLoadError } from '@/components/data-load-error';
 import { motion, AnimatePresence } from 'framer-motion';
 
 // ============================================================
@@ -139,16 +141,6 @@ const demoEntities: Entity[] = [
 // ============================================================
 // HELPERS
 // ============================================================
-function fmtEuro(v: number): string {
-  if (Math.abs(v) >= 1000000) return `€${(v / 1000000).toFixed(1)}M`;
-  if (Math.abs(v) >= 1000) return `€${(v / 1000).toFixed(0)}K`;
-  return `€${v.toFixed(0)}`;
-}
-
-function fmtFull(v: number): string {
-  return new Intl.NumberFormat('de-DE', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(v);
-}
-
 const emptyLine = (): JournalEntryLine => ({
   entityCode: '',
   accountCode: '',
@@ -166,6 +158,7 @@ export function JournalEntryView() {
   const [entries, setEntries] = useState<JournalEntry[]>(demoEntries);
   const [coa, setCOA] = useState<COAAccount[]>(demoCOA);
   const [entities, setEntities] = useState<Entity[]>(demoEntities);
+  const [loadError, setLoadError] = useState(false);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -181,6 +174,7 @@ export function JournalEntryView() {
 
   const loadData = useCallback(async () => {
     setLoading(true);
+    setLoadError(false);
     try {
       const [entriesData, coaData, entitiesData] = await Promise.all([
         getJournalEntries({ period: selectedPeriod }),
@@ -190,8 +184,9 @@ export function JournalEntryView() {
       if (entriesData?.length > 0) setEntries(entriesData);
       if (coaData?.length > 0) setCOA(coaData);
       if (entitiesData?.length > 0) setEntities(entitiesData);
-    } catch {
-      console.log('Using fallback journal entry data');
+    } catch (err) {
+      console.error('Failed to load journal entry data', err);
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -301,6 +296,7 @@ export function JournalEntryView() {
 
   return (
     <div className="space-y-6">
+      {loadError && <DataLoadError />}
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -352,7 +348,7 @@ export function JournalEntryView() {
                       <Skeleton className="h-8 w-24" />
                     ) : (
                       <p className="text-2xl font-bold">
-                        {card.isCount ? card.value : card.isStatus ? card.value : fmtEuro(card.value as number)}
+                        {card.isCount ? card.value : card.isStatus ? card.value : formatCompactEUR(card.value as number)}
                       </p>
                     )}
                   </div>
@@ -521,11 +517,11 @@ export function JournalEntryView() {
                 <div className="flex items-center gap-6 text-sm">
                   <div className="flex items-center gap-2">
                     <span className="text-muted-foreground">Debits:</span>
-                    <span className="font-semibold tabular-nums">{fmtFull(totalDebits)}</span>
+                    <span className="font-semibold tabular-nums">{formatNumber(totalDebits)}</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="text-muted-foreground">Credits:</span>
-                    <span className="font-semibold tabular-nums">{fmtFull(totalCredits)}</span>
+                    <span className="font-semibold tabular-nums">{formatNumber(totalCredits)}</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="text-muted-foreground">Balance:</span>
@@ -535,7 +531,7 @@ export function JournalEntryView() {
                       </Badge>
                     ) : (
                       <Badge className="bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 gap-1">
-                        <XCircle className="w-3 h-3" /> {fmtFull(balance)}
+                        <XCircle className="w-3 h-3" /> {formatNumber(balance)}
                       </Badge>
                     )}
                   </div>
@@ -619,7 +615,7 @@ export function JournalEntryView() {
                         </TableCell>
                         <TableCell className="text-sm">{entry.date}</TableCell>
                         <TableCell className="text-sm max-w-64 truncate">{entry.description}</TableCell>
-                        <TableCell className="text-right tabular-nums font-medium text-sm">{fmtEuro(entry.totalDebits)}</TableCell>
+                        <TableCell className="text-right tabular-nums font-medium text-sm">{formatCompactEUR(entry.totalDebits)}</TableCell>
                         <TableCell>
                           <Badge variant="outline" className="text-[10px]">{entry.lines.length} lines</Badge>
                         </TableCell>
@@ -728,12 +724,12 @@ export function JournalEntryView() {
                           <div className="text-right">
                             {line.debit > 0 && (
                               <p className="font-semibold text-sm text-emerald-700 dark:text-emerald-400 tabular-nums">
-                                Dr {fmtFull(line.debit)}
+                                Dr {formatNumber(line.debit)}
                               </p>
                             )}
                             {line.credit > 0 && (
                               <p className="font-semibold text-sm text-teal-700 dark:text-teal-400 tabular-nums">
-                                Cr {fmtFull(line.credit)}
+                                Cr {formatNumber(line.credit)}
                               </p>
                             )}
                           </div>
@@ -747,17 +743,17 @@ export function JournalEntryView() {
                 <div className="border-t pt-3 space-y-1">
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">Total Debits</span>
-                    <span className="font-semibold tabular-nums">{fmtFull(selectedEntry.totalDebits)}</span>
+                    <span className="font-semibold tabular-nums">{formatNumber(selectedEntry.totalDebits)}</span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">Total Credits</span>
-                    <span className="font-semibold tabular-nums">{fmtFull(selectedEntry.totalCredits)}</span>
+                    <span className="font-semibold tabular-nums">{formatNumber(selectedEntry.totalCredits)}</span>
                   </div>
                   <div className="h-px bg-slate-200 dark:bg-slate-700 my-1" />
                   <div className="flex justify-between text-sm font-bold">
                     <span>Difference</span>
                     <span className={selectedEntry.isBalanced ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}>
-                      {fmtFull(selectedEntry.totalDebits - selectedEntry.totalCredits)}
+                      {formatNumber(selectedEntry.totalDebits - selectedEntry.totalCredits)}
                     </span>
                   </div>
                 </div>

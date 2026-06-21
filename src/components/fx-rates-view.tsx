@@ -21,6 +21,7 @@ import { LineChart, Line, ResponsiveContainer, YAxis } from 'recharts';
 import { getExchangeRates, createExchangeRate } from '@/lib/api';
 import { ExchangeRateInfo } from '@/lib/types';
 import { demoFxRates } from '@/lib/demo-data';
+import { DataLoadError } from '@/components/data-load-error';
 import { useToast } from '@/hooks/use-toast';
 import { motion } from 'framer-motion';
 
@@ -71,6 +72,7 @@ export function FxRatesView() {
   const [activeTab, setActiveTab] = useState('closing');
   const [rates, setRates] = useState<ExchangeRateInfo[]>(demoFxRates);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [alertDialogOpen, setAlertDialogOpen] = useState(false);
@@ -81,13 +83,15 @@ export function FxRatesView() {
 
   const loadRates = useCallback(async () => {
     setLoading(true);
+    setLoadError(false);
     try {
       const data = await getExchangeRates(undefined, activeTab);
       if (data && data.length > 0) {
         setRates(data);
       }
     } catch (err) {
-      console.log('Using fallback FX rates');
+      console.error('Failed to load FX rates', err);
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -106,8 +110,8 @@ export function FxRatesView() {
       setDialogOpen(false);
       setNewRate({ currency: '', rateType: 'closing', rate: 0, source: 'Manual', rateDate: '2024-12-31' });
       toast({ title: 'Rate Added', description: `${newRate.currency} rate added successfully` });
-    } catch (err: any) {
-      toast({ title: 'Error', description: err.message, variant: 'destructive' });
+    } catch (err) {
+      toast({ title: 'Error', description: err instanceof Error ? err.message : 'Failed to add rate', variant: 'destructive' });
     } finally {
       setSaving(false);
     }
@@ -120,6 +124,7 @@ export function FxRatesView() {
 
   return (
     <div className="space-y-6">
+      {loadError && <DataLoadError />}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h2 className="text-lg font-semibold flex items-center gap-2">

@@ -1,5 +1,6 @@
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
+import { formatCompactEUR } from "./format"
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -7,10 +8,6 @@ export function cn(...inputs: ClassValue[]) {
 
 // API amounts (trialBalance.amountEUR and everything derived from it) are in
 // full euros — not thousands. Scale adaptively for compact display.
-export function formatEUR(value: number, decimals = 1): string {
-  const sign = value < 0 ? '-' : '';
-  const abs = Math.abs(value);
-  if (abs >= 1_000_000) return `${sign}€${(abs / 1_000_000).toFixed(decimals)}M`;
-  if (abs >= 1_000) return `${sign}€${(abs / 1_000).toFixed(0)}K`;
-  return `${sign}€${abs.toFixed(0)}`;
-}
+// Canonical implementation now lives in `./format`; re-exported here for the
+// existing call sites that import it from `@/lib/utils`.
+export const formatEUR = formatCompactEUR;

@@ -13,7 +13,7 @@ import {
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { runConsolidation, getEntities, getConsolidationRuns, exportExcel, exportPDF } from '@/lib/api';
 import { useAppStore } from '@/lib/store';
-import { formatEUR } from '@/lib/utils';
+import { formatNumber as fmt, formatCompactEUR } from '@/lib/format';
 import { Entity, IncomeStatement, BalanceSheet, CashFlowStatement, ConsolidatedResult } from '@/lib/types';
 import { AnimatedCounter } from '@/components/animated-counter';
 import { motion } from 'framer-motion';
@@ -52,10 +52,6 @@ interface ConsolidationRun {
   processingTime: number;
   createdAt: string;
   status: string;
-}
-
-function fmt(value: number): string {
-  return new Intl.NumberFormat('de-DE', { minimumFractionDigits: 0, maximumFractionDigits: 1 }).format(value);
 }
 
 function ValueCell({ value, isSubtotal = false, isTotal = false }: { value: number; isSubtotal?: boolean; isTotal?: boolean }) {
@@ -197,7 +193,7 @@ export function ConsolidationView() {
     try {
       const runs = await getConsolidationRuns();
       if (runs && runs.length > 0) {
-        setHistory(runs.map((r: any) => {
+        setHistory(runs.map((r) => {
           // Parse period - could be Date object, ISO string, or YYYY-MM
           let periodStr = '';
           if (typeof r.period === 'string') {
@@ -490,7 +486,7 @@ export function ConsolidationView() {
                 <FileText className="w-4 h-4" /> PDF
               </Button>
               <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 w-fit dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800">
-                {entityCodes.length} Entities · {formatEUR(Math.abs(eliminationsApplied), 2)} IC Eliminations
+                {entityCodes.length} Entities · {formatCompactEUR(Math.abs(eliminationsApplied), 2)} IC Eliminations
               </Badge>
               <Button className={`bg-emerald-600 hover:bg-emerald-700 active:scale-95 transition-all ${consolidationStatus === 'idle' ? 'animate-pulse' : ''}`} onClick={runConsolidationEngine} disabled={loading}>
                 {loading ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Play className="w-4 h-4 mr-1" />}
@@ -705,15 +701,15 @@ export function ConsolidationView() {
                     <div className="flex gap-4 mt-2 text-xs">
                       <div>
                         <span className="text-muted-foreground">Revenue: </span>
-                        <span className="font-medium">{formatEUR(run.totalRevenue)}</span>
+                        <span className="font-medium">{formatCompactEUR(run.totalRevenue)}</span>
                       </div>
                       <div>
                         <span className="text-muted-foreground">Assets: </span>
-                        <span className="font-medium">{formatEUR(run.totalAssets)}</span>
+                        <span className="font-medium">{formatCompactEUR(run.totalAssets)}</span>
                       </div>
                       <div>
                         <span className="text-muted-foreground">Net Income: </span>
-                        <span className="font-medium text-emerald-600 dark:text-emerald-400">{formatEUR(run.netIncome)}</span>
+                        <span className="font-medium text-emerald-600 dark:text-emerald-400">{formatCompactEUR(run.netIncome)}</span>
                       </div>
                     </div>
                   </div>

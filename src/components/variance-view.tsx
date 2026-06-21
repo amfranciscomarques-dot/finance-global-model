@@ -18,16 +18,9 @@ import { getVariance } from '@/lib/api';
 import { useAppStore } from '@/lib/store';
 import { VarianceData } from '@/lib/types';
 import { demoVarianceData, availablePeriods } from '@/lib/demo-data';
-import { formatEUR } from '@/lib/utils';
+import { formatCompactEUR, formatNumber } from '@/lib/format';
+import { DataLoadError } from '@/components/data-load-error';
 import { motion } from 'framer-motion';
-
-function fmt(v: number): string {
-  return formatEUR(v);
-}
-
-function fmtFull(v: number): string {
-  return new Intl.NumberFormat('de-DE', { minimumFractionDigits: 0, maximumFractionDigits: 1 }).format(v);
-}
 
 function exportVarianceCSV(data: VarianceData[], filename: string) {
   const headers = ['Metric', 'Actual', 'Budget', 'Forecast', 'Var vs Budget', 'Var vs Forecast', '% Var (Budget)'];
@@ -58,7 +51,7 @@ function VarianceTooltip({ active, payload, label }: { active?: boolean; payload
       {payload.map((entry, index) => (
         <p key={index} className="flex items-center gap-2">
           <span className="w-2 h-2 rounded-full" style={{ backgroundColor: entry.color }} />
-          <span className="font-semibold">€{fmtFull(entry.value)}K</span>
+          <span className="font-semibold">€{formatNumber(entry.value)}K</span>
         </p>
       ))}
     </div>
@@ -116,16 +109,19 @@ export function VarianceView() {
   const { selectedPeriod, setSelectedPeriod } = useAppStore();
   const [varianceData, setVarianceData] = useState<VarianceData[]>(demoVarianceData);
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState(false);
 
   const loadVariance = useCallback(async () => {
     setLoading(true);
+    setLoadError(false);
     try {
       const data = await getVariance(selectedPeriod);
       if (data && data.length > 0) {
         setVarianceData(data);
       }
     } catch (err) {
-      console.log('Using fallback variance data');
+      console.error('Failed to load variance data', err);
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -161,6 +157,7 @@ export function VarianceView() {
 
   return (
     <div className="space-y-6">
+      {loadError && <DataLoadError />}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h2 className="text-lg font-semibold flex items-center gap-2">
@@ -199,7 +196,7 @@ export function VarianceView() {
               {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : (
                 <>
                   <p className={`text-2xl font-bold ${revenueVariance && revenueVariance.varianceVsBudget >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
-                    {revenueVariance ? `${revenueVariance.varianceVsBudget >= 0 ? '+' : ''}${formatEUR(Math.abs(revenueVariance.varianceVsBudget))}` : '+€1.4M'}
+                    {revenueVariance ? `${revenueVariance.varianceVsBudget >= 0 ? '+' : ''}${formatCompactEUR(Math.abs(revenueVariance.varianceVsBudget))}` : '+€1.4M'}
                   </p>
                   <p className={`text-xs flex items-center gap-0.5 mt-1 ${revenueVariance && revenueVariance.varianceVsBudget >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
                     {revenueVariance && revenueVariance.varianceVsBudget >= 0 ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
@@ -217,7 +214,7 @@ export function VarianceView() {
               {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : (
                 <>
                   <p className={`text-2xl font-bold ${ebitdaVariance && ebitdaVariance.varianceVsBudget >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
-                    {ebitdaVariance ? `${ebitdaVariance.varianceVsBudget >= 0 ? '+' : ''}${formatEUR(Math.abs(ebitdaVariance.varianceVsBudget))}` : '+€0.8M'}
+                    {ebitdaVariance ? `${ebitdaVariance.varianceVsBudget >= 0 ? '+' : ''}${formatCompactEUR(Math.abs(ebitdaVariance.varianceVsBudget))}` : '+€0.8M'}
                   </p>
                   <p className={`text-xs flex items-center gap-0.5 mt-1 ${ebitdaVariance && ebitdaVariance.varianceVsBudget >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
                     {ebitdaVariance && ebitdaVariance.varianceVsBudget >= 0 ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
@@ -235,7 +232,7 @@ export function VarianceView() {
               {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : (
                 <>
                   <p className={`text-2xl font-bold ${netIncomeVariance && netIncomeVariance.varianceVsBudget >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
-                    {netIncomeVariance ? `${netIncomeVariance.varianceVsBudget >= 0 ? '+' : ''}${formatEUR(Math.abs(netIncomeVariance.varianceVsBudget))}` : '+€0.6M'}
+                    {netIncomeVariance ? `${netIncomeVariance.varianceVsBudget >= 0 ? '+' : ''}${formatCompactEUR(Math.abs(netIncomeVariance.varianceVsBudget))}` : '+€0.6M'}
                   </p>
                   <p className={`text-xs flex items-center gap-0.5 mt-1 ${netIncomeVariance && netIncomeVariance.varianceVsBudget >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
                     {netIncomeVariance && netIncomeVariance.varianceVsBudget >= 0 ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
@@ -345,17 +342,17 @@ export function VarianceView() {
                       return (
                         <TableRow key={row.metric} className={`cursor-pointer transition-colors duration-150 ${index % 2 === 1 ? 'bg-slate-50/50 dark:bg-slate-800/20' : ''}`}>
                           <TableCell className="font-medium">{row.metric}</TableCell>
-                          <TableCell className="text-right tabular-nums">{fmtFull(row.actual)}</TableCell>
-                          <TableCell className="text-right tabular-nums">{fmtFull(row.budget)}</TableCell>
-                          <TableCell className="text-right tabular-nums">{fmtFull(row.forecast)}</TableCell>
+                          <TableCell className="text-right tabular-nums">{formatNumber(row.actual)}</TableCell>
+                          <TableCell className="text-right tabular-nums">{formatNumber(row.budget)}</TableCell>
+                          <TableCell className="text-right tabular-nums">{formatNumber(row.forecast)}</TableCell>
                           <TableCell className={`text-right tabular-nums font-medium ${budgetFav ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
                             <span className="flex items-center justify-end gap-1">
                               {row.varianceVsBudget >= 0 ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
-                              {fmtFull(Math.abs(row.varianceVsBudget))}
+                              {formatNumber(Math.abs(row.varianceVsBudget))}
                             </span>
                           </TableCell>
                           <TableCell className={`text-right tabular-nums ${isFavorableForecast ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
-                            {row.varianceVsForecast >= 0 ? '+' : '-'}{fmtFull(Math.abs(row.varianceVsForecast))}
+                            {row.varianceVsForecast >= 0 ? '+' : '-'}{formatNumber(Math.abs(row.varianceVsForecast))}
                           </TableCell>
                           <TableCell className="text-right">
                             <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium ${

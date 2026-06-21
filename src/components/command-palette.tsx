@@ -366,7 +366,7 @@ export function CommandPalette() {
         ? async () => {
             try {
               const entities = await getEntities();
-              const entityCodes = entities.map((e: any) => e.code);
+              const entityCodes = entities.map((e) => e.code);
               if (entityCodes.length === 0) throw new Error('No entities found');
               await runConsolidation({
                 period: selectedPeriod,
@@ -374,8 +374,8 @@ export function CommandPalette() {
                 scenarioType: selectedScenario,
               });
               toast.success('Consolidation completed successfully');
-            } catch (err: any) {
-              toast.error(err.message || 'Consolidation failed');
+            } catch (err) {
+              toast.error(err instanceof Error ? err.message : 'Consolidation failed');
             }
             setOpen(false);
           }
@@ -401,8 +401,8 @@ export function CommandPalette() {
                     try {
                       await seedDatabase();
                       toast.success('Database seeded with demo data');
-                    } catch (err: any) {
-                      toast.error(err.message || 'Seeding failed');
+                    } catch (err) {
+                      toast.error(err instanceof Error ? err.message : 'Seeding failed');
                     }
                     setOpen(false);
                   }

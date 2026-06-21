@@ -25,6 +25,8 @@ import {
 import { getBudgetVsActual, getBudgetVariance, saveBudgetEntry } from '@/lib/api';
 import { useAppStore } from '@/lib/store';
 import { BudgetVsActualSummary, BudgetVarianceDetail } from '@/lib/types';
+import { formatCompactEUR, formatNumber } from '@/lib/format';
+import { DataLoadError } from '@/components/data-load-error';
 import { motion, AnimatePresence } from 'framer-motion';
 
 // ============================================================
@@ -111,16 +113,6 @@ const demoVarianceData: BudgetVarianceDetail[] = [
 // ============================================================
 // HELPERS
 // ============================================================
-function fmtEuro(v: number): string {
-  if (Math.abs(v) >= 1000000) return `€${(v / 1000000).toFixed(1)}M`;
-  if (Math.abs(v) >= 1000) return `€${(v / 1000).toFixed(0)}K`;
-  return `€${v.toFixed(0)}`;
-}
-
-function fmtFull(v: number): string {
-  return new Intl.NumberFormat('de-DE', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(v);
-}
-
 function getVarianceColor(pct: number): string {
   if (pct >= 2) return 'text-emerald-600 dark:text-emerald-400';
   if (pct >= 0) return 'text-emerald-500 dark:text-emerald-400';
@@ -168,7 +160,7 @@ function BudgetTooltip({ active, payload, label }: { active?: boolean; payload?:
         <p key={index} className="flex items-center gap-2">
           <span className="w-2 h-2 rounded-full" style={{ backgroundColor: entry.color }} />
           <span className="text-slate-400">{entry.name}:</span>
-          <span className="font-semibold">{fmtEuro(entry.value)}</span>
+          <span className="font-semibold">{formatCompactEUR(entry.value)}</span>
         </p>
       ))}
     </div>
@@ -202,6 +194,7 @@ export function BudgetVsActualView() {
   const [summary, setSummary] = useState<BudgetVsActualSummary>(demoSummary);
   const [varianceData, setVarianceData] = useState<BudgetVarianceDetail[]>(demoVarianceData);
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState(false);
   const [selectedEntity, setSelectedEntity] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -212,6 +205,7 @@ export function BudgetVsActualView() {
 
   const loadData = useCallback(async () => {
     setLoading(true);
+    setLoadError(false);
     try {
       const [budgetData, varianceResult] = await Promise.all([
         getBudgetVsActual({ period: selectedPeriod }),
@@ -224,7 +218,8 @@ export function BudgetVsActualView() {
         setVarianceData(varianceResult.varianceData);
       }
     } catch (err) {
-      console.log('Using fallback budget data');
+      console.error('Failed to load budget data', err);
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -277,6 +272,7 @@ export function BudgetVsActualView() {
 
   return (
     <div className="space-y-6">
+      {loadError && <DataLoadError />}
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -366,7 +362,7 @@ export function BudgetVsActualView() {
                       <Skeleton className="h-8 w-24" />
                     ) : (
                       <p className={`text-2xl font-bold ${card.isPercent ? (card.value >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400') : ''}`}>
-                        {card.isPercent ? `${card.value >= 0 ? '+' : ''}${card.value.toFixed(1)}%` : fmtEuro(card.value)}
+                        {card.isPercent ? `${card.value >= 0 ? '+' : ''}${card.value.toFixed(1)}%` : formatCompactEUR(card.value)}
                       </p>
                     )}
                     {!card.isPercent && card.trend !== null && (
@@ -450,12 +446,12 @@ export function BudgetVsActualView() {
                               <p className="text-xs text-muted-foreground">{entity.entityCode}</p>
                             </div>
                           </TableCell>
-                          <TableCell className="text-right tabular-nums font-medium">{fmtEuro(entity.totalBudget)}</TableCell>
-                          <TableCell className="text-right tabular-nums font-medium">{fmtEuro(entity.totalActual)}</TableCell>
+                          <TableCell className="text-right tabular-nums font-medium">{formatCompactEUR(entity.totalBudget)}</TableCell>
+                          <TableCell className="text-right tabular-nums font-medium">{formatCompactEUR(entity.totalActual)}</TableCell>
                           <TableCell className={`text-right tabular-nums font-medium ${isOverBudget ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
                             <span className="flex items-center justify-end gap-1">
                               {isOverBudget ? <ArrowDownRight className="w-3 h-3" /> : <ArrowUpRight className="w-3 h-3" />}
-                              {isOverBudget ? '-' : '+'}{fmtEuro(Math.abs(entity.variance))}
+                              {isOverBudget ? '-' : '+'}{formatCompactEUR(Math.abs(entity.variance))}
                             </span>
                           </TableCell>
                           <TableCell className="text-right">
@@ -505,7 +501,7 @@ export function BudgetVsActualView() {
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" opacity={0.3} vertical={false} />
                   <XAxis dataKey="category" tick={{ fontSize: 11 }} stroke="var(--color-muted-foreground)" />
-                  <YAxis yAxisId="amount" tick={{ fontSize: 11 }} tickFormatter={(v) => fmtEuro(v)} stroke="var(--color-muted-foreground)" />
+                  <YAxis yAxisId="amount" tick={{ fontSize: 11 }} tickFormatter={(v) => formatCompactEUR(v)} stroke="var(--color-muted-foreground)" />
                   <YAxis yAxisId="pct" orientation="right" tick={{ fontSize: 11 }} tickFormatter={(v) => `${v}%`} stroke="var(--color-muted-foreground)" domain={[-10, 10]} />
                   <Tooltip content={<BudgetTooltip />} />
                   <Legend wrapperStyle={{ fontSize: 11 }} />
@@ -584,12 +580,12 @@ export function BudgetVsActualView() {
                             <TableCell>
                               <Badge variant="outline" className="text-[10px]">{row.category}</Badge>
                             </TableCell>
-                            <TableCell className="text-right tabular-nums">{fmtFull(row.budgetAmount)}</TableCell>
-                            <TableCell className="text-right tabular-nums">{fmtFull(row.actualAmount)}</TableCell>
+                            <TableCell className="text-right tabular-nums">{formatNumber(row.budgetAmount)}</TableCell>
+                            <TableCell className="text-right tabular-nums">{formatNumber(row.actualAmount)}</TableCell>
                             <TableCell className={`text-right tabular-nums font-medium ${getVarianceColor(row.variancePct)}`}>
                               <span className="flex items-center justify-end gap-1">
                                 {isFavorable ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
-                                {isFavorable ? '+' : '-'}{fmtFull(Math.abs(row.variance))}
+                                {isFavorable ? '+' : '-'}{formatNumber(Math.abs(row.variance))}
                               </span>
                             </TableCell>
                             <TableCell className="text-right">
@@ -628,12 +624,12 @@ export function BudgetVsActualView() {
                         </div>
                         <div className="bg-teal-50/80 dark:bg-teal-950/30 rounded-lg p-3 text-center">
                           <p className="text-xs text-muted-foreground">Total Budget</p>
-                          <p className="text-lg font-bold text-teal-600 dark:text-teal-400">{fmtEuro(totalBudget)}</p>
+                          <p className="text-lg font-bold text-teal-600 dark:text-teal-400">{formatCompactEUR(totalBudget)}</p>
                         </div>
                         <div className={`${totalVariance >= 0 ? 'bg-emerald-50/80 dark:bg-emerald-950/30' : 'bg-amber-50/80 dark:bg-amber-950/30'} rounded-lg p-3 text-center`}>
                           <p className="text-xs text-muted-foreground">Net Variance</p>
                           <p className={`text-lg font-bold ${totalVariance >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}`}>
-                            {totalVariance >= 0 ? '+' : '-'}{fmtEuro(Math.abs(totalVariance))}
+                            {totalVariance >= 0 ? '+' : '-'}{formatCompactEUR(Math.abs(totalVariance))}
                           </p>
                         </div>
                       </>

@@ -10,9 +10,10 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Progress } from '@/components/ui/progress';
-import { useAppStore } from '@/lib/store';
+import { useAppStore, type ViewType } from '@/lib/store';
 import { getWorkflow } from '@/lib/api';
 import { WorkflowStep, WorkflowData } from '@/lib/types';
+import { DataLoadError } from '@/components/data-load-error';
 import { motion, AnimatePresence } from 'framer-motion';
 
 // ============================================================
@@ -120,15 +121,18 @@ export function WorkflowView() {
   const { selectedPeriod, setActiveView } = useAppStore();
   const [workflow, setWorkflow] = useState<WorkflowData>(demoWorkflow);
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState(false);
   const [selectedStepId, setSelectedStepId] = useState<string | null>('step-5');
 
   const loadData = useCallback(async () => {
     setLoading(true);
+    setLoadError(false);
     try {
       const data = await getWorkflow({ period: selectedPeriod });
       if (data?.steps?.length > 0) setWorkflow(data);
-    } catch {
-      console.log('Using fallback workflow data');
+    } catch (err) {
+      console.error('Failed to load workflow data', err);
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -147,6 +151,7 @@ export function WorkflowView() {
 
   return (
     <div className="space-y-6">
+      {loadError && <DataLoadError />}
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -373,7 +378,7 @@ export function WorkflowView() {
                         className="w-full border-emerald-200 dark:border-emerald-800/50 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
                         onClick={() => {
                           if (selectedStep.navigateTo) {
-                            setActiveView(selectedStep.navigateTo as any);
+                            setActiveView(selectedStep.navigateTo as ViewType);
                           }
                         }}
                       >

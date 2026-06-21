@@ -22,6 +22,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
 import { getCOA, getCOAMappings, createCOAAccount } from '@/lib/api';
 import { COAAccount, COAMapping } from '@/lib/types';
+import { DataLoadError } from '@/components/data-load-error';
 import { useToast } from '@/hooks/use-toast';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -111,6 +112,7 @@ export function COAView() {
   const [accounts, setAccounts] = useState<COAAccount[]>([]);
   const [mappings, setMappings] = useState<COAMapping[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [search, setSearch] = useState('');
   const [filterType, setFilterType] = useState<string>('all');
   const [filterStatement, setFilterStatement] = useState<string>('all');
@@ -124,16 +126,16 @@ export function COAView() {
 
   const loadData = useCallback(async () => {
     setLoading(true);
+    setLoadError(false);
     try {
-      const [coaData, mappingData] = await Promise.all([
-        getCOA().catch(() => demoCOA),
-        getCOAMappings().catch(() => demoMappings),
-      ]);
+      const [coaData, mappingData] = await Promise.all([getCOA(), getCOAMappings()]);
       setAccounts(coaData.length > 0 ? coaData : demoCOA);
       setMappings(mappingData.length > 0 ? mappingData : demoMappings);
-    } catch {
+    } catch (err) {
+      console.error('Failed to load chart of accounts', err);
       setAccounts(demoCOA);
       setMappings(demoMappings);
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -152,8 +154,8 @@ export function COAView() {
       setDialogOpen(false);
       setNewAccount({ code: '', name: '', accountType: 'asset', statementType: 'balance', level: 1, isIntercompany: false, sortOrder: 0 });
       toast({ title: 'Account Created', description: `${created.code} - ${created.name}` });
-    } catch (err: any) {
-      toast({ title: 'Error', description: err.message, variant: 'destructive' });
+    } catch (err) {
+      toast({ title: 'Error', description: err instanceof Error ? err.message : 'Failed to create account', variant: 'destructive' });
     } finally {
       setSaving(false);
     }
@@ -186,6 +188,7 @@ export function COAView() {
 
   return (
     <div className="space-y-6">
+      {loadError && <DataLoadError />}
       {/* Summary Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {[
@@ -264,7 +267,7 @@ export function COAView() {
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <Label>Account Type</Label>
-                          <Select value={newAccount.accountType || 'asset'} onValueChange={(v: any) => setNewAccount({ ...newAccount, accountType: v })}>
+                          <Select value={newAccount.accountType || 'asset'} onValueChange={(v) => setNewAccount({ ...newAccount, accountType: v as COAAccount['accountType'] })}>
                             <SelectTrigger><SelectValue /></SelectTrigger>
                             <SelectContent>
                               <SelectItem value="revenue">Revenue</SelectItem>
@@ -277,7 +280,7 @@ export function COAView() {
                         </div>
                         <div className="space-y-2">
                           <Label>Statement Type</Label>
-                          <Select value={newAccount.statementType || 'balance'} onValueChange={(v: any) => setNewAccount({ ...newAccount, statementType: v })}>
+                          <Select value={newAccount.statementType || 'balance'} onValueChange={(v) => setNewAccount({ ...newAccount, statementType: v as COAAccount['statementType'] })}>
                             <SelectTrigger><SelectValue /></SelectTrigger>
                             <SelectContent>
                               <SelectItem value="income">Income Statement</SelectItem>

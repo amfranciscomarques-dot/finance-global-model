@@ -315,6 +315,27 @@ export interface BudgetVarianceDetail {
 // SYSTEM SETTINGS
 // ============================================================
 
+export interface ApiEndpointStatus {
+  path: string;
+  method: string;
+  status: string;
+  avgResponseTime: string;
+}
+
+export interface VersionHistoryEntry {
+  version: string;
+  date: string;
+  notes: string;
+}
+
+export interface EnvironmentInfo {
+  nodeVersion: string;
+  dbType: string;
+  cacheStatus: string;
+  platform: string;
+  runtime: string;
+}
+
 export interface SystemSettings {
   consolidation: {
     roundingTolerance: number;
@@ -328,6 +349,7 @@ export interface SystemSettings {
     rateTypePreference: string;
     ecbApiEnabled: boolean;
     refreshFrequencyHours: number;
+    exchangeRateProvider?: string;
   };
   validationRules: Array<{
     id: string;
@@ -343,6 +365,20 @@ export interface SystemSettings {
     recordCount: number;
     lastBackup: string;
     nodeVersion: string;
+    // Optional extended fields returned by GET /api/settings (live DB stats)
+    apiEndpoints?: ApiEndpointStatus[];
+    versionHistory?: VersionHistoryEntry[];
+    environment?: EnvironmentInfo;
+    entityCount?: number;
+    coaCount?: number;
+    coaMappingCount?: number;
+    exchangeRateCount?: number;
+    trialBalanceCount?: number;
+    icTransactionCount?: number;
+    budgetEntryCount?: number;
+    forecastCount?: number;
+    consolidationRunCount?: number;
+    scenarioCount?: number;
   };
 }
 

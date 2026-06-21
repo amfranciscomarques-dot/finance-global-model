@@ -20,6 +20,8 @@ import {
 import { getTrendAnalysis } from '@/lib/api';
 import { useAppStore } from '@/lib/store';
 import { TrendData, TrendPeriod } from '@/lib/types';
+import { formatCompactEUR } from '@/lib/format';
+import { DataLoadError } from '@/components/data-load-error';
 import { motion } from 'framer-motion';
 
 // ============================================================
@@ -161,9 +163,7 @@ const METRICS = [
 function fmtMetric(v: number, metric: string): string {
   if (metric === 'leverage') return `${v.toFixed(2)}x`;
   if (metric === 'ebitdaMargin') return `${v.toFixed(1)}%`;
-  if (Math.abs(v) >= 1000000) return `€${(v / 1000000).toFixed(1)}M`;
-  if (Math.abs(v) >= 1000) return `€${(v / 1000).toFixed(0)}K`;
-  return `€${v.toFixed(0)}`;
+  return formatCompactEUR(v);
 }
 
 function fmtChangePct(pct: number): string {
@@ -297,12 +297,14 @@ export function TrendAnalysisView() {
   const [selectedMetric, setSelectedMetric] = useState('revenue');
   const [trendData, setTrendData] = useState<TrendData | null>(null);
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState(false);
   const [changeView, setChangeView] = useState<'qoq' | 'yoy'>('qoq');
   const [comparePeriod1, setComparePeriod1] = useState('2024-09');
   const [comparePeriod2, setComparePeriod2] = useState('2024-12');
 
   const loadData = useCallback(async () => {
     setLoading(true);
+    setLoadError(false);
     try {
       const data = await getTrendAnalysis({
         metric: selectedMetric,
@@ -313,8 +315,10 @@ export function TrendAnalysisView() {
       } else {
         setTrendData(generateDemoData(selectedMetric));
       }
-    } catch {
+    } catch (err) {
+      console.error('Failed to load trend data', err);
       setTrendData(generateDemoData(selectedMetric));
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -426,6 +430,7 @@ export function TrendAnalysisView() {
 
   return (
     <div className="space-y-6">
+      {loadError && <DataLoadError />}
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>

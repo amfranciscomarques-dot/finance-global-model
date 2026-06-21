@@ -21,7 +21,9 @@ import {
 } from '@/components/ui/tooltip';
 import { Skeleton } from '@/components/ui/skeleton';
 import { getICTransactions, runEliminations } from '@/lib/api';
+import { formatNumber as formatGrouped, formatCompactEUR } from '@/lib/format';
 import { ICTransaction } from '@/lib/types';
+import { DataLoadError } from '@/components/data-load-error';
 import { useAppStore } from '@/lib/store';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -103,19 +105,17 @@ const typeConfig: Record<string, { label: string; color: string }> = {
   dividend: { label: 'Dividend', color: 'text-rose-600 dark:text-rose-400' },
 };
 
+// de-DE grouping with a leading currency symbol, consistent with the rest of
+// the app (€1.234). Multi-currency: IC legs can be GBP/USD etc.
+const CURRENCY_SYMBOLS: Record<string, string> = { EUR: '€', GBP: '£', USD: '$' };
 function formatCurrency(value: number, currency: string = 'EUR'): string {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency,
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(value);
+  const symbol = CURRENCY_SYMBOLS[currency] ?? `${currency} `;
+  const sign = value < 0 ? '-' : '';
+  return `${sign}${symbol}${formatGrouped(Math.abs(value))}`;
 }
 
 function formatCurrencyShort(value: number): string {
-  if (Math.abs(value) >= 1000000) return `€${(value / 1000000).toFixed(1)}M`;
-  if (Math.abs(value) >= 1000) return `€${(value / 1000).toFixed(0)}K`;
-  return `€${value.toFixed(0)}`;
+  return formatCompactEUR(value);
 }
 
 function getEliminationStatus(tx: ICTransaction): string {
@@ -128,6 +128,7 @@ export function ICTransactionsView() {
   const { selectedPeriod } = useAppStore();
   const [transactions, setTransactions] = useState<ICTransaction[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [eliminating, setEliminating] = useState(false);
   const [search, setSearch] = useState('');
   const [filterEntity, setFilterEntity] = useState<string>('all');
@@ -137,11 +138,14 @@ export function ICTransactionsView() {
 
   const loadData = useCallback(async () => {
     setLoading(true);
+    setLoadError(false);
     try {
       const data = await getICTransactions({ period: selectedPeriod });
       setTransactions(data.length > 0 ? data : demoICTransactions);
-    } catch {
+    } catch (err) {
+      console.error('Failed to load IC transactions', err);
       setTransactions(demoICTransactions);
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -238,6 +242,7 @@ export function ICTransactionsView() {
 
   return (
     <div className="space-y-6">
+      {loadError && <DataLoadError />}
       {/* Summary Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[

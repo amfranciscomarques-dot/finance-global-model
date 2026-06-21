@@ -1,16 +1,34 @@
 'use client';
 
 import { useEffect, useState, useCallback, useMemo } from 'react';
-import { TrendingUp, TrendingDown, DollarSign, BarChart3, CircleDollarSign, Percent, Loader2, Play, FileDown, GitBranch, ArrowRight, Activity, Shield, CheckCircle2, AlertTriangle, XCircle, Clock, Database, Building2, Zap, Eye } from 'lucide-react';
+import { TrendingUp, TrendingDown, DollarSign, BarChart3, CircleDollarSign, Percent, Loader2, Play, FileDown, GitBranch, ArrowRight, Activity, Shield, CheckCircle2, AlertTriangle, XCircle, Clock, Building2, Eye } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useAppStore } from '@/lib/store';
-import { runConsolidation, getEntities, getCOA, getExchangeRates } from '@/lib/api';
-import { KPIs, Entity } from '@/lib/types';
-import { formatEUR } from '@/lib/utils';
+import { runConsolidation, getEntities, getCOA, getExchangeRates, getTrendAnalysis, getConsolidationRuns, getAuditTrail, type ConsolidationRunRecord } from '@/lib/api';
+import { KPIs, Entity, ConsolidatedResult, AuditEntry, ExchangeRateInfo } from '@/lib/types';
+import { formatCompactEUR } from '@/lib/format';
+import {
+  COLORS,
+  placeholderKPIs,
+  monthLabel,
+  previousPeriod,
+  buildWaterfall,
+  buildWaterfallChartData,
+  buildCashFlowBridge,
+  computeCardDeltas,
+  computeHealthIndicators,
+  computeOverallScore,
+  getTrafficLightColors,
+  entityHealthScore,
+  buildMarketSnapshot,
+  timeAgo,
+  ACTIVITY_META,
+  type TrafficLight,
+} from './dashboard/helpers';
 import { AnimatedCounter } from '@/components/animated-counter';
 import { motion } from 'framer-motion';
 import {
@@ -33,97 +51,6 @@ import {
   Label,
 } from 'recharts';
 
-const COLORS = ['#10b981', '#0d9488', '#f59e0b', '#64748b', '#f97316'];
-
-// Fallback demo data for when API is loading
-const fallbackKPIs: KPIs = {
-  totalRevenue: 51900,
-  totalEBITDA: 17580,
-  ebitdaMargin: 33.9,
-  netIncome: 8961,
-  totalAssets: 48210,
-  netDebt: 4152,
-  leverage: 0.46,
-  roe: 32.6,
-  roce: 24.9,
-  liquidityRatio: 2.0,
-};
-
-const fallbackRevenueTrend = [
-  { month: 'Jan', revenue: 38000, ebitda: 12600 },
-  { month: 'Feb', revenue: 39500, ebitda: 13200 },
-  { month: 'Mar', revenue: 41200, ebitda: 13800 },
-  { month: 'Apr', revenue: 40800, ebitda: 13500 },
-  { month: 'May', revenue: 42500, ebitda: 14200 },
-  { month: 'Jun', revenue: 44000, ebitda: 14800 },
-  { month: 'Jul', revenue: 43500, ebitda: 14600 },
-  { month: 'Aug', revenue: 42800, ebitda: 14300 },
-  { month: 'Sep', revenue: 45000, ebitda: 15200 },
-  { month: 'Oct', revenue: 47200, ebitda: 16000 },
-  { month: 'Nov', revenue: 49500, ebitda: 16800 },
-  { month: 'Dec', revenue: 51900, ebitda: 17580 },
-];
-
-const fallbackEntityContribution = [
-  { name: 'Portugal', value: 15000, code: 'PT0001' },
-  { name: 'España', value: 12000, code: 'ES0002' },
-  { name: 'Deutschland', value: 10500, code: 'DE0003' },
-  { name: 'UK', value: 8400, code: 'UK0004' },
-  { name: 'France', value: 6000, code: 'FR0005' },
-];
-
-// Waterfall data: Revenue → COGS → Gross Profit → OPEX → EBITDA → D&A → EBIT → Interest → EBT → Tax → Net Income
-const waterfallData = [
-  { name: 'Revenue', value: 51900, type: 'positive' },
-  { name: 'COGS', value: -18690, type: 'negative' },
-  { name: 'Gross Profit', value: 33210, type: 'subtotal' },
-  { name: 'OPEX', value: -15630, type: 'negative' },
-  { name: 'EBITDA', value: 17580, type: 'subtotal' },
-  { name: 'D&A', value: -4080, type: 'negative' },
-  { name: 'EBIT', value: 13500, type: 'subtotal' },
-  { name: 'Interest', value: -1530, type: 'negative' },
-  { name: 'EBT', value: 11970, type: 'subtotal' },
-  { name: 'Tax', value: -3009, type: 'negative' },
-  { name: 'Net Income', value: 8961, type: 'total' },
-];
-
-// Build stacked waterfall chart data with invisible base
-function buildWaterfallChartData() {
-  let running = 0;
-  return waterfallData.map((item) => {
-    let base: number;
-    let barValue: number;
-    if (item.type === 'positive' || item.type === 'total') {
-      base = 0;
-      barValue = item.value;
-    } else if (item.type === 'negative') {
-      running += item.value;
-      base = running;
-      barValue = Math.abs(item.value);
-    } else {
-      running = item.value;
-      base = 0;
-      barValue = item.value;
-    }
-    if (item.type === 'positive') running = item.value;
-    return { name: item.name, base, barValue, type: item.type, rawValue: item.value };
-  });
-}
-
-const waterfallChartData = buildWaterfallChartData();
-
-// Cash flow bridge data
-const cashFlowBridge = [
-  { label: 'Operating CF', value: 12003, color: '#10b981' },
-  { label: 'Investing CF', value: -6228, color: '#f59e0b' },
-  { label: 'Financing CF', value: -5063, color: '#64748b' },
-  { label: 'Net Change', value: 712, color: '#0d9488' },
-];
-
-function formatNumber(value: number): string {
-  return new Intl.NumberFormat('de-DE', { minimumFractionDigits: 0, maximumFractionDigits: 1 }).format(value);
-}
-
 // Custom tooltip component
 function CustomTooltip({ active, payload, label }: { active?: boolean; payload?: Array<{ name: string; value: number; color: string }>; label?: string }) {
   if (!active || !payload) return null;
@@ -136,7 +63,7 @@ function CustomTooltip({ active, payload, label }: { active?: boolean; payload?:
           <p key={index} className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full" style={{ backgroundColor: entry.color }} />
             <span className="text-slate-400">{entry.name}:</span>
-            <span className="font-semibold">{typeof entry.value === 'number' ? `€${formatNumber(entry.value)}K` : entry.value}</span>
+            <span className="font-semibold">{typeof entry.value === 'number' ? formatCompactEUR(entry.value) : entry.value}</span>
           </p>
         );
       })}
@@ -168,7 +95,7 @@ function WaterfallTooltip({ active, payload, label }: { active?: boolean; payloa
     <div className="bg-slate-900 text-white px-3 py-2 rounded-lg shadow-xl border border-slate-700 text-xs">
       <p className="font-medium mb-1 text-slate-300">{label}</p>
       <p className="font-semibold">
-        {data.rawValue >= 0 ? '+' : ''}€{formatNumber(Math.abs(data.rawValue))}K
+        {data.rawValue >= 0 ? '+' : ''}{formatCompactEUR(data.rawValue)}
       </p>
       <p className="text-slate-400 text-[10px] capitalize">{data.type}</p>
     </div>
@@ -193,167 +120,6 @@ function KPISkeleton() {
   );
 }
 
-// ============================================================
-// FINANCIAL HEALTH SCORECARD TYPES & DATA
-// ============================================================
-
-type TrafficLight = 'green' | 'amber' | 'red';
-type HealthLabel = 'Strong' | 'Moderate' | 'At Risk';
-
-interface HealthIndicator {
-  name: string;
-  value: number;
-  displayValue: string;
-  trafficLight: TrafficLight;
-  label: HealthLabel;
-  progressPct: number; // 0-100 representing where in the range
-  thresholdNote: string;
-  weight: number; // weight for overall score calculation
-  score: number; // 0-100 score for this indicator
-}
-
-function computeHealthIndicators(kpis: KPIs): HealthIndicator[] {
-  // Revenue Growth: Green >5%, Amber 0-5%, Red <0%
-  const revenueGrowth = 5.2; // from demo data trend
-  const revenueGrowthScore = revenueGrowth > 5 ? 100 : revenueGrowth > 0 ? (revenueGrowth / 5) * 70 + 30 : Math.max(0, (revenueGrowth / 0) * 30);
-  const revenueGrowthTL: TrafficLight = revenueGrowth > 5 ? 'green' : revenueGrowth >= 0 ? 'amber' : 'red';
-  const revenueGrowthLabel: HealthLabel = revenueGrowth > 5 ? 'Strong' : revenueGrowth >= 0 ? 'Moderate' : 'At Risk';
-
-  // EBITDA Margin: Green >25%, Amber 15-25%, Red <15%
-  const ebitdaMargin = kpis.ebitdaMargin;
-  const ebitdaMarginScore = ebitdaMargin > 25 ? 100 : ebitdaMargin >= 15 ? ((ebitdaMargin - 15) / 10) * 70 + 30 : Math.max(0, (ebitdaMargin / 15) * 30);
-  const ebitdaMarginTL: TrafficLight = ebitdaMargin > 25 ? 'green' : ebitdaMargin >= 15 ? 'amber' : 'red';
-  const ebitdaMarginLabel: HealthLabel = ebitdaMargin > 25 ? 'Strong' : ebitdaMargin >= 15 ? 'Moderate' : 'At Risk';
-
-  // Leverage Ratio: Green <2x, Amber 2-4x, Red >4x
-  const leverage = kpis.leverage;
-  const leverageScore = leverage < 2 ? 100 : leverage <= 4 ? 100 - ((leverage - 2) / 2) * 70 : Math.max(0, 30 - ((leverage - 4) / 2) * 30);
-  const leverageTL: TrafficLight = leverage < 2 ? 'green' : leverage <= 4 ? 'amber' : 'red';
-  const leverageLabel: HealthLabel = leverage < 2 ? 'Strong' : leverage <= 4 ? 'Moderate' : 'At Risk';
-
-  // Liquidity Ratio: Green >1.5, Amber 1.0-1.5, Red <1.0
-  const liquidity = kpis.liquidityRatio;
-  const liquidityScore = liquidity > 1.5 ? 100 : liquidity >= 1.0 ? ((liquidity - 1.0) / 0.5) * 70 + 30 : Math.max(0, (liquidity / 1.0) * 30);
-  const liquidityTL: TrafficLight = liquidity > 1.5 ? 'green' : liquidity >= 1.0 ? 'amber' : 'red';
-  const liquidityLabel: HealthLabel = liquidity > 1.5 ? 'Strong' : liquidity >= 1.0 ? 'Moderate' : 'At Risk';
-
-  // ROE: Green >15%, Amber 8-15%, Red <8%
-  const roe = kpis.roe;
-  const roeScore = roe > 15 ? 100 : roe >= 8 ? ((roe - 8) / 7) * 70 + 30 : Math.max(0, (roe / 8) * 30);
-  const roeTL: TrafficLight = roe > 15 ? 'green' : roe >= 8 ? 'amber' : 'red';
-  const roeLabel: HealthLabel = roe > 15 ? 'Strong' : roe >= 8 ? 'Moderate' : 'At Risk';
-
-  // Interest Coverage: Green >5x, Amber 2-5x, Red <2x (EBIT/Interest)
-  const ebit = 13500; // from demo data
-  const interestExpense = 1530;
-  const interestCoverage = ebit / interestExpense;
-  const interestCoverageScore = interestCoverage > 5 ? 100 : interestCoverage >= 2 ? ((interestCoverage - 2) / 3) * 70 + 30 : Math.max(0, (interestCoverage / 2) * 30);
-  const interestCoverageTL: TrafficLight = interestCoverage > 5 ? 'green' : interestCoverage >= 2 ? 'amber' : 'red';
-  const interestCoverageLabel: HealthLabel = interestCoverage > 5 ? 'Strong' : interestCoverage >= 2 ? 'Moderate' : 'At Risk';
-
-  return [
-    {
-      name: 'Revenue Growth',
-      value: revenueGrowth,
-      displayValue: `+${revenueGrowth}%`,
-      trafficLight: revenueGrowthTL,
-      label: revenueGrowthLabel,
-      progressPct: Math.min(100, Math.max(0, revenueGrowthScore)),
-      thresholdNote: 'Green >5% | Amber 0-5% | Red <0%',
-      weight: 0.15,
-      score: revenueGrowthScore,
-    },
-    {
-      name: 'EBITDA Margin',
-      value: ebitdaMargin,
-      displayValue: `${ebitdaMargin.toFixed(1)}%`,
-      trafficLight: ebitdaMarginTL,
-      label: ebitdaMarginLabel,
-      progressPct: Math.min(100, Math.max(0, ebitdaMarginScore)),
-      thresholdNote: 'Green >25% | Amber 15-25% | Red <15%',
-      weight: 0.20,
-      score: ebitdaMarginScore,
-    },
-    {
-      name: 'Leverage Ratio',
-      value: leverage,
-      displayValue: `${leverage.toFixed(2)}x`,
-      trafficLight: leverageTL,
-      label: leverageLabel,
-      progressPct: Math.min(100, Math.max(0, leverageScore)),
-      thresholdNote: 'Green <2x | Amber 2-4x | Red >4x',
-      weight: 0.20,
-      score: leverageScore,
-    },
-    {
-      name: 'Liquidity Ratio',
-      value: liquidity,
-      displayValue: `${liquidity.toFixed(1)}x`,
-      trafficLight: liquidityTL,
-      label: liquidityLabel,
-      progressPct: Math.min(100, Math.max(0, liquidityScore)),
-      thresholdNote: 'Green >1.5 | Amber 1.0-1.5 | Red <1.0',
-      weight: 0.15,
-      score: liquidityScore,
-    },
-    {
-      name: 'ROE',
-      value: roe,
-      displayValue: `${roe.toFixed(1)}%`,
-      trafficLight: roeTL,
-      label: roeLabel,
-      progressPct: Math.min(100, Math.max(0, roeScore)),
-      thresholdNote: 'Green >15% | Amber 8-15% | Red <8%',
-      weight: 0.15,
-      score: roeScore,
-    },
-    {
-      name: 'Interest Coverage',
-      value: interestCoverage,
-      displayValue: `${interestCoverage.toFixed(1)}x`,
-      trafficLight: interestCoverageTL,
-      label: interestCoverageLabel,
-      progressPct: Math.min(100, Math.max(0, interestCoverageScore)),
-      thresholdNote: 'Green >5x | Amber 2-5x | Red <2x',
-      weight: 0.15,
-      score: interestCoverageScore,
-    },
-  ];
-}
-
-function computeOverallScore(indicators: HealthIndicator[]): number {
-  return Math.round(indicators.reduce((sum, ind) => sum + ind.score * ind.weight, 0));
-}
-
-function getTrafficLightColors(tl: TrafficLight): { bg: string; fill: string; ring: string; text: string; progressBar: string } {
-  switch (tl) {
-    case 'green':
-      return {
-        bg: 'bg-emerald-100 dark:bg-emerald-900/30',
-        fill: 'fill-emerald-500',
-        ring: 'ring-emerald-400',
-        text: 'text-emerald-700 dark:text-emerald-400',
-        progressBar: 'bg-emerald-500',
-      };
-    case 'amber':
-      return {
-        bg: 'bg-amber-100 dark:bg-amber-900/30',
-        fill: 'fill-amber-500',
-        ring: 'ring-amber-400',
-        text: 'text-amber-700 dark:text-amber-400',
-        progressBar: 'bg-amber-500',
-      };
-    case 'red':
-      return {
-        bg: 'bg-red-100 dark:bg-red-900/30',
-        fill: 'fill-red-500',
-        ring: 'ring-red-400',
-        text: 'text-red-700 dark:text-red-400',
-        progressBar: 'bg-red-500',
-      };
-  }
-}
-
 function getTrafficLightIcon(tl: TrafficLight) {
   switch (tl) {
     case 'green': return <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />;
@@ -361,15 +127,6 @@ function getTrafficLightIcon(tl: TrafficLight) {
     case 'red': return <XCircle className="w-3.5 h-3.5 text-red-600 dark:text-red-400" />;
   }
 }
-
-// Peer comparison data (entity health scores)
-const peerComparisonData = [
-  { entity: 'PT0001', name: 'Portugal', score: 82 },
-  { entity: 'ES0002', name: 'España', score: 78 },
-  { entity: 'DE0003', name: 'Deutschland', score: 75 },
-  { entity: 'UK0004', name: 'UK', score: 80 },
-  { entity: 'FR0005', name: 'France', score: 62 },
-];
 
 function PeerTooltip({ active, payload }: { active?: boolean; payload?: Array<{ name: string; value: number; color: string; payload?: { entity: string; name: string; score: number } }> }) {
   if (!active || !payload || payload.length === 0) return null;
@@ -385,50 +142,161 @@ function PeerTooltip({ active, payload }: { active?: boolean; payload?: Array<{ 
 
 export function DashboardView() {
   const { selectedPeriod, selectedScenario, setActiveView } = useAppStore();
-  const [kpis, setKPIs] = useState<KPIs>(fallbackKPIs);
+  const [kpis, setKPIs] = useState<KPIs>(placeholderKPIs);
   const [entities, setEntities] = useState<Entity[]>([]);
   const [loading, setLoading] = useState(true);
-  const [entityContribution, setEntityContribution] = useState(fallbackEntityContribution);
-  const [revenueTrend] = useState(fallbackRevenueTrend);
-  const [lastUpdated] = useState('Dec 31, 2024 · 14:30');
+  const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<ConsolidatedResult | null>(null);
+  const [revenueTrend, setRevenueTrend] = useState<{ month: string; revenue: number; ebitda: number }[]>([]);
+  const [cardDeltas, setCardDeltas] = useState<Record<string, { trend: string; trendUp: boolean }>>({});
+  const [revenueGrowthPct, setRevenueGrowthPct] = useState(0);
+  const [lastUpdated, setLastUpdated] = useState('—');
   const [coaCount, setCoaCount] = useState(0);
   const [fxCount, setFxCount] = useState(0);
+  const [rates, setRates] = useState<ExchangeRateInfo[]>([]);
+  const [runs, setRuns] = useState<ConsolidationRunRecord[]>([]);
+  const [activity, setActivity] = useState<AuditEntry[]>([]);
+  const [kpiTrendSeries, setKpiTrendSeries] = useState<{ netIncome: number[]; assets: number[]; leverage: number[] }>({ netIncome: [], assets: [], leverage: [] });
 
   const ebitdaMarginTrend = revenueTrend.map(r => ({
     month: r.month,
     margin: r.revenue > 0 ? (r.ebitda / r.revenue * 100) : 0
   }));
 
+  // Charts derived straight from the live consolidation result.
+  const entityContribution = useMemo(
+    () => (result?.entityBreakdown ?? []).map((e) => ({
+      name: e.legalName,
+      value: e.incomeStatement.revenue,
+      code: e.entityCode,
+    })),
+    [result],
+  );
+  const waterfallChartData = useMemo(
+    () => (result ? buildWaterfallChartData(buildWaterfall(result.incomeStatement)) : []),
+    [result],
+  );
+  const cashFlowBridge = useMemo(
+    () => (result ? buildCashFlowBridge(result.cashFlow) : []),
+    [result],
+  );
+
+  // Entity Health Comparison — real per-entity scores with real codes/names.
+  const peerComparisonData = useMemo(
+    () => (result?.entityBreakdown ?? []).map((e) => ({
+      entity: e.entityCode,
+      name: e.legalName,
+      score: entityHealthScore(e),
+    })),
+    [result],
+  );
+
+  // FX Market Snapshot tiles from the real exchange-rate rows.
+  const marketSnapshot = useMemo(() => buildMarketSnapshot(rates), [rates]);
+
+  // Recent Consolidation Runs — the actual audit rows from the engine.
+  const recentConsolidationRuns = useMemo(
+    () => runs.slice(0, 3).map((r) => ({
+      id: r.id,
+      date: new Date(r.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+      status: r.status,
+      revenue: formatCompactEUR(r.totalRevenue ?? 0),
+      netIncome: formatCompactEUR(r.totalNetIncome ?? 0),
+    })),
+    [runs],
+  );
+
+  // Recent Activity feed — real synthesized audit entries.
+  const recentActivity = useMemo(
+    () => activity.slice(0, 5).map((a) => {
+      const meta = ACTIVITY_META[a.actionType] ?? { icon: Clock, color: 'text-slate-500' };
+      return { action: a.description, time: timeAgo(a.timestamp), icon: meta.icon, color: meta.color };
+    }),
+    [activity],
+  );
+
+  // Per-KPI mini sparklines from the real monthly trend series. ROCE has no
+  // trend endpoint, so its card simply shows no sparkline (omitted, not faked).
+  const ebitdaMarginSeries = useMemo(
+    () => revenueTrend.map((r) => (r.revenue > 0 ? (r.ebitda / r.revenue) * 100 : 0)),
+    [revenueTrend],
+  );
+  const kpiSparklines = useMemo<Record<string, number[]>>(
+    () => ({
+      'Total Revenue': revenueTrend.map((r) => r.revenue),
+      'EBITDA Margin': ebitdaMarginSeries,
+      'Net Income': kpiTrendSeries.netIncome,
+      'Total Assets': kpiTrendSeries.assets,
+      'Net Debt / EBITDA': kpiTrendSeries.leverage,
+    }),
+    [revenueTrend, ebitdaMarginSeries, kpiTrendSeries],
+  );
+
   const loadData = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       const entitiesData = await getEntities();
       setEntities(entitiesData);
 
-      // Real counts for the quick-stats row (best-effort).
+      // Real counts for the quick-stats row + FX snapshot (best-effort).
       try {
-        const [coa, rates] = await Promise.all([getCOA(), getExchangeRates()]);
+        const [coa, fxRates] = await Promise.all([getCOA(), getExchangeRates()]);
         if (Array.isArray(coa)) setCoaCount(coa.length);
-        if (Array.isArray(rates)) setFxCount(rates.length);
+        if (Array.isArray(fxRates)) {
+          setFxCount(fxRates.length);
+          setRates(fxRates);
+        }
       } catch {}
 
       const entityCodes = entitiesData.map((e: Entity) => e.code);
-      if (entityCodes.length > 0) {
-        try {
-          const result = await runConsolidation({
-            period: selectedPeriod,
-            entityCodes,
-            scenarioType: selectedScenario,
-          });
-          if (result?.kpis) {
-            setKPIs(result.kpis);
-          }
-        } catch (err) {
-          console.log('Using fallback KPI data:', err);
-        }
+      if (entityCodes.length === 0) {
+        setError('No entities found — load a company pack to see live figures.');
+        return;
       }
+
+      // Current period drives the KPIs, waterfall, entity contribution and
+      // cash-flow bridge; the prior period gives period-over-period deltas; the
+      // trend endpoint gives the monthly Revenue/EBITDA series. All real data.
+      const [current, prior, revTrend, ebitdaTrend, niTrend, assetTrend, levTrend, runsData, auditData] = await Promise.all([
+        runConsolidation({ period: selectedPeriod, entityCodes, scenarioType: selectedScenario }),
+        runConsolidation({ period: previousPeriod(selectedPeriod), entityCodes, scenarioType: selectedScenario }).catch(() => null),
+        getTrendAnalysis({ metric: 'revenue' }).catch(() => null),
+        getTrendAnalysis({ metric: 'ebitda' }).catch(() => null),
+        getTrendAnalysis({ metric: 'netincome' }).catch(() => null),
+        getTrendAnalysis({ metric: 'assets' }).catch(() => null),
+        getTrendAnalysis({ metric: 'leverage' }).catch(() => null),
+        getConsolidationRuns().catch(() => [] as ConsolidationRunRecord[]),
+        getAuditTrail().catch(() => [] as AuditEntry[]),
+      ]);
+
+      setResult(current);
+      if (current?.kpis) setKPIs(current.kpis);
+      setRuns(runsData);
+      setActivity(auditData);
+      setKpiTrendSeries({
+        netIncome: (niTrend?.periods ?? []).map((p) => p.value),
+        assets: (assetTrend?.periods ?? []).map((p) => p.value),
+        leverage: (levTrend?.periods ?? []).map((p) => p.value),
+      });
+
+      if (revTrend?.periods?.length) {
+        const ebitdaByPeriod = new Map((ebitdaTrend?.periods ?? []).map((p) => [p.period, p.value]));
+        setRevenueTrend(revTrend.periods.map((p) => ({
+          month: monthLabel(p.period),
+          revenue: p.value,
+          ebitda: ebitdaByPeriod.get(p.period) ?? 0,
+        })));
+      }
+
+      setCardDeltas(computeCardDeltas(current.kpis, prior?.kpis ?? null));
+      const priorRevenue = prior?.kpis?.totalRevenue ?? 0;
+      setRevenueGrowthPct(priorRevenue > 0 ? ((current.kpis.totalRevenue - priorRevenue) / priorRevenue) * 100 : 0);
+
+      setLastUpdated(new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' }));
     } catch (err) {
-      console.log('Using fallback data:', err);
+      console.error('Dashboard load failed:', err);
+      setError('Could not load live data from the server. Showing placeholder figures below.');
     } finally {
       setLoading(false);
     }
@@ -438,8 +306,16 @@ export function DashboardView() {
     loadData();
   }, [loadData]);
 
-  // Compute health indicators
-  const healthIndicators = useMemo(() => computeHealthIndicators(kpis), [kpis]);
+  // Health indicators — revenue growth and interest coverage come from the run.
+  const healthIndicators = useMemo(
+    () => computeHealthIndicators(
+      kpis,
+      revenueGrowthPct,
+      result?.incomeStatement.ebit ?? 0,
+      result ? Math.abs(result.incomeStatement.interestExpense) : 0,
+    ),
+    [kpis, revenueGrowthPct, result],
+  );
   const overallScore = useMemo(() => computeOverallScore(healthIndicators), [healthIndicators]);
 
   // Donut gauge data
@@ -455,9 +331,7 @@ export function DashboardView() {
     {
       title: 'Total Revenue',
       value: kpis.totalRevenue / 1_000_000,
-      displayValue: formatEUR(kpis.totalRevenue),
-      trend: '+5.2%',
-      trendUp: true,
+      displayValue: formatCompactEUR(kpis.totalRevenue),
       icon: DollarSign,
       description: 'Consolidated group revenue',
       gradient: 'from-emerald-50/80 to-white dark:from-emerald-950/30 dark:to-slate-900',
@@ -472,8 +346,6 @@ export function DashboardView() {
       title: 'EBITDA Margin',
       value: kpis.ebitdaMargin,
       displayValue: `${kpis.ebitdaMargin.toFixed(1)}%`,
-      trend: '+0.4pp',
-      trendUp: true,
       icon: Percent,
       description: 'Operating profitability',
       gradient: 'from-teal-50/80 to-white dark:from-teal-950/30 dark:to-slate-900',
@@ -487,9 +359,7 @@ export function DashboardView() {
     {
       title: 'Net Income',
       value: kpis.netIncome / 1_000_000,
-      displayValue: formatEUR(kpis.netIncome),
-      trend: '+8.1%',
-      trendUp: true,
+      displayValue: formatCompactEUR(kpis.netIncome),
       icon: BarChart3,
       description: 'Bottom-line earnings',
       gradient: 'from-amber-50/80 to-white dark:from-amber-950/30 dark:to-slate-900',
@@ -503,9 +373,7 @@ export function DashboardView() {
     {
       title: 'Total Assets',
       value: kpis.totalAssets / 1_000_000,
-      displayValue: formatEUR(kpis.totalAssets),
-      trend: '+2.3%',
-      trendUp: true,
+      displayValue: formatCompactEUR(kpis.totalAssets),
       icon: CircleDollarSign,
       description: 'Total group assets',
       gradient: 'from-emerald-50/80 to-white dark:from-emerald-950/30 dark:to-slate-900',
@@ -520,8 +388,6 @@ export function DashboardView() {
       title: 'Net Debt / EBITDA',
       value: kpis.leverage,
       displayValue: `${kpis.leverage.toFixed(2)}x`,
-      trend: '-0.1x',
-      trendUp: true,
       icon: TrendingDown,
       description: 'Leverage ratio',
       gradient: 'from-slate-50/80 to-white dark:from-slate-800/30 dark:to-slate-900',
@@ -536,8 +402,6 @@ export function DashboardView() {
       title: 'ROCE',
       value: kpis.roce,
       displayValue: `${kpis.roce.toFixed(1)}%`,
-      trend: '+1.2pp',
-      trendUp: true,
       icon: TrendingUp,
       description: 'Return on capital employed',
       gradient: 'from-orange-50/80 to-white dark:from-orange-950/30 dark:to-slate-900',
@@ -565,25 +429,7 @@ export function DashboardView() {
     { label: 'Currencies', value: String(currencies.length || '—'), icon: Shield, color: 'text-emerald-600 dark:text-emerald-400', detail: `Reporting in EUR; group currencies: ${currencies.join(', ') || '—'}` },
   ];
 
-  // Recent Activity Feed
-  const recentActivity = [
-    { action: 'Consolidation completed', time: '2 min ago', icon: CheckCircle2, color: 'text-emerald-500' },
-    { action: 'FX rates updated (ECB)', time: '15 min ago', icon: DollarSign, color: 'text-teal-500' },
-    { action: 'Data import — PT0001', time: '1 hour ago', icon: Database, color: 'text-amber-500' },
-    { action: 'IC elimination run', time: '3 hours ago', icon: Zap, color: 'text-emerald-500' },
-    { action: 'Budget entry saved', time: '5 hours ago', icon: Clock, color: 'text-slate-500' },
-  ];
-
   // Inline sparkline SVG for KPI cards
-  const kpiSparklines = [
-    [38, 40, 41, 42, 44, 52], // Revenue
-    [32, 33, 33.5, 34, 34.5, 33.9], // EBITDA Margin
-    [7.5, 7.8, 8.1, 8.3, 8.5, 8.96], // Net Income
-    [45, 46, 46.5, 47, 47.5, 48.2], // Total Assets
-    [0.52, 0.50, 0.48, 0.47, 0.46, 0.46], // Leverage
-    [22, 23, 23.5, 24, 24.5, 24.9], // ROCE
-  ];
-
   function MiniSparklineSVG({ data, color = '#10b981' }: { data: number[]; color?: string }) {
     const min = Math.min(...data);
     const max = Math.max(...data);
@@ -597,20 +443,6 @@ export function DashboardView() {
       </svg>
     );
   }
-
-  // Market Snapshot data
-  const marketSnapshot = [
-    { pair: 'EUR/USD', rate: '1.0847', change: '+0.12%', up: true, sparkline: [1.081, 1.082, 1.083, 1.0825, 1.084, 1.0847] },
-    { pair: 'EUR/GBP', rate: '0.8564', change: '-0.05%', up: false, sparkline: [0.858, 0.857, 0.8568, 0.8572, 0.8565, 0.8564] },
-    { pair: 'EUR/JPY', rate: '162.34', change: '+0.28%', up: true, sparkline: [161.2, 161.5, 161.8, 162.0, 162.1, 162.34] },
-  ];
-
-  // Recent Consolidation Runs
-  const recentConsolidationRuns = [
-    { date: 'Dec 31, 2024', status: 'completed' as const, revenue: '€51.9M', netIncome: '€9.0M' },
-    { date: 'Nov 30, 2024', status: 'completed' as const, revenue: '€49.5M', netIncome: '€8.5M' },
-    { date: 'Oct 31, 2024', status: 'completed' as const, revenue: '€47.2M', netIncome: '€7.8M' },
-  ];
 
   function MarketSparklineSVG({ data, color }: { data: number[]; color: string }) {
     const min = Math.min(...data);
@@ -630,6 +462,15 @@ export function DashboardView() {
     <div className="space-y-6 relative">
       {/* Subtle animated gradient background */}
       <div className="absolute inset-0 -z-10 opacity-[0.03] dark:opacity-[0.05] pointer-events-none rounded-xl bg-gradient-to-br from-emerald-400 via-teal-400 to-emerald-300 animate-gradient" />
+
+      {/* Data-load error banner — makes a failed fetch (and the placeholder
+          figures shown in its place) explicit rather than silently fabricated. */}
+      {error && (
+        <div className="flex items-start gap-2 rounded-lg border border-amber-300 dark:border-amber-800/60 bg-amber-50 dark:bg-amber-950/30 px-3 py-2 text-amber-800 dark:text-amber-300">
+          <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+          <p className="text-xs">{error}</p>
+        </div>
+      )}
 
       {/* Welcome Greeting */}
       <motion.div
@@ -753,6 +594,7 @@ export function DashboardView() {
         ) : (
           kpiCards.map((kpi, index) => {
             const Icon = kpi.icon;
+            const delta = cardDeltas[kpi.title];
             return (
               <motion.div
                 key={kpi.title}
@@ -792,7 +634,9 @@ export function DashboardView() {
                               delay={index * 0.1}
                             />
                           </p>
-                          <MiniSparklineSVG data={kpiSparklines[index]} color={kpi.trendUp ? '#10b981' : '#f59e0b'} />
+                          {(kpiSparklines[kpi.title]?.length ?? 0) > 1 && (
+                            <MiniSparklineSVG data={kpiSparklines[kpi.title]} color={(delta?.trendUp ?? true) ? '#10b981' : '#f59e0b'} />
+                          )}
                         </div>
                         <div className="flex items-center gap-2">
                           <p className="text-xs text-muted-foreground">{kpi.description}</p>
@@ -809,10 +653,12 @@ export function DashboardView() {
                         <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400">
                           <Icon className="w-4 h-4" />
                         </div>
-                        <span className={`text-xs font-medium flex items-center gap-0.5 ${kpi.trendUp ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
-                          {kpi.trendUp ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-                          {kpi.trend}
-                        </span>
+                        {delta && (
+                          <span className={`text-xs font-medium flex items-center gap-0.5 ${delta.trendUp ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
+                            {delta.trendUp ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                            {delta.trend}
+                          </span>
+                        )}
                       </div>
                     </div>
                   </CardContent>
@@ -965,7 +811,7 @@ export function DashboardView() {
                 </thead>
                 <tbody>
                   {recentConsolidationRuns.map((run, i) => (
-                    <tr key={run.date} className={`cursor-pointer transition-colors duration-150 ${i % 2 === 0 ? 'bg-slate-50/50 dark:bg-slate-800/20' : ''} hover:bg-emerald-50/50 dark:hover:bg-emerald-950/10`}>
+                    <tr key={run.id} className={`cursor-pointer transition-colors duration-150 ${i % 2 === 0 ? 'bg-slate-50/50 dark:bg-slate-800/20' : ''} hover:bg-emerald-50/50 dark:hover:bg-emerald-950/10`}>
                       <td className="text-xs py-2 tabular-nums">{run.date}</td>
                       <td className="py-2">
                         <Badge className="text-[10px] px-1.5 py-0.5 bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
@@ -1051,7 +897,7 @@ export function DashboardView() {
             <div className="flex items-center justify-between relative z-10">
               <div>
                 <CardTitle className="text-base">Revenue Waterfall</CardTitle>
-                <CardDescription>Income statement walk from Revenue to Net Income (€K)</CardDescription>
+                <CardDescription>Income statement walk from Revenue to Net Income (€)</CardDescription>
               </div>
               <span className="text-[10px] text-muted-foreground">{lastUpdated}</span>
             </div>
@@ -1062,11 +908,11 @@ export function DashboardView() {
                 <BarChart data={waterfallChartData} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" opacity={0.3} vertical={false} />
                   <XAxis dataKey="name" tick={{ fontSize: 10 }} stroke="var(--color-muted-foreground)" interval={0} angle={-30} textAnchor="end" height={60} />
-                  <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `${(v / 1000).toFixed(0)}M`} stroke="var(--color-muted-foreground)" />
+                  <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => formatCompactEUR(v, 0)} stroke="var(--color-muted-foreground)" />
                   <RechartsTooltip content={<WaterfallTooltip />} />
                   <ReferenceLine y={0} stroke="#94a3b8" strokeWidth={1} />
                   <Bar dataKey="base" stackId="waterfall" fill="transparent" name="base" />
-                  <Bar dataKey="barValue" stackId="waterfall" radius={[3, 3, 0, 0]} name="Value" label={{ position: 'top', fill: '#64748b', fontSize: 9, formatter: (v: number) => `${(v / 1000).toFixed(1)}K` }}>
+                  <Bar dataKey="barValue" stackId="waterfall" radius={[3, 3, 0, 0]} name="Value" label={{ position: 'top', fill: '#64748b', fontSize: 9, formatter: (v: number) => formatCompactEUR(v) }}>
                     {waterfallChartData.map((entry, index) => (
                       <Cell
                         key={`cell-${index}`}
@@ -1114,7 +960,7 @@ export function DashboardView() {
                     )}
                   </div>
                   <p className={`text-lg font-bold ${item.value >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}`}>
-                    {item.value >= 0 ? '+' : ''}€{(Math.abs(item.value) / 1000).toFixed(1)}M
+                    {item.value >= 0 ? '+' : ''}{formatCompactEUR(item.value)}
                   </p>
                 </CardContent>
               </Card>
@@ -1174,7 +1020,7 @@ export function DashboardView() {
               <div className="flex items-center justify-between">
                 <div>
                   <CardTitle className="text-base">Revenue by Entity</CardTitle>
-                  <CardDescription>Annual revenue breakdown (€K)</CardDescription>
+                  <CardDescription>Annual revenue breakdown (€)</CardDescription>
                 </div>
                 <span className="text-[10px] text-muted-foreground">{lastUpdated}</span>
               </div>
@@ -1193,7 +1039,7 @@ export function DashboardView() {
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" opacity={0.3} vertical={false} />
                     <XAxis dataKey="name" tick={{ fontSize: 12 }} stroke="var(--color-muted-foreground)" />
-                    <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `${(v / 1000).toFixed(0)}M`} stroke="var(--color-muted-foreground)" />
+                    <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => formatCompactEUR(v, 0)} stroke="var(--color-muted-foreground)" />
                     <RechartsTooltip content={<CustomTooltip />} />
                     <Bar dataKey="value" radius={[6, 6, 0, 0]} name="Revenue">
                       {entityContribution.map((_, index) => (
@@ -1235,7 +1081,7 @@ export function DashboardView() {
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" opacity={0.3} vertical={false} />
                     <XAxis dataKey="month" tick={{ fontSize: 12 }} stroke="var(--color-muted-foreground)" />
-                    <YAxis domain={[31, 36]} tick={{ fontSize: 11 }} tickFormatter={(v) => `${v}%`} stroke="var(--color-muted-foreground)" />
+                    <YAxis domain={['auto', 'auto']} tick={{ fontSize: 11 }} tickFormatter={(v) => `${v}%`} stroke="var(--color-muted-foreground)" />
                     <RechartsTooltip content={<PercentTooltip />} />
                     <Line
                       type="monotone"
@@ -1271,7 +1117,7 @@ export function DashboardView() {
               <div className="flex items-center justify-between">
                 <div>
                   <CardTitle className="text-base">Revenue & EBITDA Trend</CardTitle>
-                  <CardDescription>Monthly progression (€K)</CardDescription>
+                  <CardDescription>Monthly progression (€)</CardDescription>
                 </div>
                 <span className="text-[10px] text-muted-foreground">{lastUpdated}</span>
               </div>
@@ -1288,7 +1134,7 @@ export function DashboardView() {
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" opacity={0.3} vertical={false} />
                     <XAxis dataKey="month" tick={{ fontSize: 12 }} stroke="var(--color-muted-foreground)" />
-                    <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `${(v / 1000).toFixed(0)}M`} stroke="var(--color-muted-foreground)" />
+                    <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => formatCompactEUR(v, 0)} stroke="var(--color-muted-foreground)" />
                     <RechartsTooltip content={<CustomTooltip />} />
                     <Legend />
                     <Line type="monotone" dataKey="revenue" stroke="#0d9488" strokeWidth={2.5} dot={false} name="Revenue" activeDot={{ r: 5, stroke: '#fff', strokeWidth: 2 }} />

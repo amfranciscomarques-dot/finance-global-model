@@ -60,8 +60,8 @@ export function GroupSelectScreen() {
       await loadPack(pack.id, true);
       setActiveView('dashboard');
       setSelectedCompany({ code: 'GROUP', name: pack.name });
-    } catch (err: any) {
-      toast({ title: 'Error', description: err.message, variant: 'destructive' });
+    } catch (err) {
+      toast({ title: 'Error', description: err instanceof Error ? err.message : 'Failed to load group', variant: 'destructive' });
       setLoadingGroupId(null);
     }
   };
@@ -76,8 +76,8 @@ export function GroupSelectScreen() {
       toast({ title: 'Group Created', description: `${newGroupName.trim()} — add companies to begin.` });
       setActiveView('entities');
       setSelectedCompany({ code: 'GROUP', name: newGroupName.trim() });
-    } catch (err: any) {
-      toast({ title: 'Error', description: err.message, variant: 'destructive' });
+    } catch (err) {
+      toast({ title: 'Error', description: err instanceof Error ? err.message : 'Failed to create group', variant: 'destructive' });
     } finally {
       setSaving(false);
     }

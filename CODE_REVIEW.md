@@ -325,3 +325,204 @@ To balance the report, the following are clear strengths:
 ---
 
 *End of report. No files were modified.*
+
+---
+
+# Code Review — Pass 2: Frontend / UI layer (2026-06-20)
+
+> Follow-on pass. The first report (above) covered the backend — engine, `src/lib/finance/*`, tax, projects, and the API routes — and all of its findings are remediated. This pass focuses on the surface the first report only flagged for *size*: the ~15 view components, the client data layer (`src/lib/api.ts`, `src/lib/store.ts`), the never-opened routes, and the Prisma schema. **No code was modified.**
+
+## Phase 0 — prior remediation re-verified
+
+Re-ran the gates against current `main` (clean tree, now a git repo):
+
+- `npm test` → **36 passed / 7 files** (engine, finance, metrics, scenarios/run, import, kpis, app-settings).
+- `npm run lint` → **exit 0** (curated rule set, no errors).
+- `npm run build` → **exit 0** with `ignoreBuildErrors: false` (the TS step really runs).
+- Spot-checks of the closed findings: no `new Function` in `src/`, `src/middleware.ts` present, only `package-lock.json` (no `bun.lock`), `tsconfig` `strict: true`. **The Pass-1 backend report still stands.**
+
+## Findings at a glance
+
+| # | Severity | Area | Finding |
+|---|----------|------|---------|
+| F1 | 🟠 High | Correctness (presentation) | Dashboard charts & trend badges are hardcoded demo data, not derived from real figures |
+| F2 | 🟠 High | Correctness (units) | Revenue Waterfall labels the same `/1000` data as "K" (bar) and "M" (axis) — off by 1000× |
+| F3 | 🟡 Medium | UX/Consistency | Number locale split: most views `de-DE`, but Reports & IC Transactions use `en-US` |
+| F4 | 🟡 Medium | Quality | Number formatting duplicated per-component instead of using shared `formatEUR` |
+| F5 | 🟡 Medium | Correctness/Trust | 14 views silently render fabricated "demo fallback" numbers on a swallowed API error |
+| F6 | 🟡 Medium | Security | `middleware.ts` guards only the wipe set; other mutating routes (+ `ai-chat`) stay open |
+| F7 | 🟢 Low | Quality | `@tanstack/react-query` installed but never used (dead dep); all fetching hand-rolled |
+| F8 | 🟢 Low | Quality | `src/lib/api.ts` is `any`-typed and shape-guesses with `data.x || data` |
+| F9 | 🟢 Low | Data model | Schema hygiene: missing `COAMapping` unique/index, stringly-typed fields, comment drift |
+| F10 | 🟢 Low | Quality | Stale `|| '51,900'` magic fallback in `data-import-view` |
+| F11 | 🟢 Low | Maintainability | Several view components 45–69 KB (carried from Pass-1 #15) |
+
+---
+
+## 🟠 F1. The dashboard mixes real KPIs with hardcoded charts/trends
+
+`src/components/dashboard-view.tsx`. The KPI **card values** are real — `loadData()` calls `runConsolidation(...)` and `setKPIs(result.kpis)` (lines ~402–435). But almost everything else on the flagship screen is a module-level constant rendered directly, unaffected by period/entity/scenario:
+
+- `revenueTrend` (monthly Revenue/EBITDA, lines ~52–65) → drives the revenue trend **and** the derived `ebitdaMarginTrend` (line ~397).
+- `fallbackEntityContribution` (lines ~67–73) → the entity-contribution donut.
+- `waterfallData` (lines ~76–88) → the Revenue Waterfall. Its numbers (Revenue 51 900, Net Income 8 961) don't match the real golden figures (group revenue ~52.2M, consolidated ~41.5M, Grestel RL 1.39M).
+- `cashFlowBridge` (lines ~116–121) → the cash-flow bridge cards.
+- `computeHealthIndicators` hardcodes `const revenueGrowth = 5.2; // from demo data trend` (line 217) — the scorecard's revenue-growth pillar is fixed.
+- All five KPI-card `trend` badges are literals: `'+5.2%'`, `'+0.4pp'`, `'+8.1%'`, `'+2.3%'`, `'+1.2pp'` (lines 459, 475, 491, 507, 539).
+
+For a consolidation tool, presenting real headline numbers next to fabricated charts/deltas is misleading. **Fix:** derive these from the consolidation result already fetched (or the `/api/trends` endpoint), or label them explicitly as illustrative.
+
+## 🟠 F2. Revenue Waterfall mislabels magnitude
+
+`src/components/dashboard-view.tsx`:
+- Y-axis (line 1065): `tickFormatter={(v) => `${(v / 1000).toFixed(0)}M`}` — treats data as thousands → millions, suffix **M**.
+- Bar-top label (line 1069): `formatter: (v) => `${(v / 1000).toFixed(1)}K`` — same `/1000`, suffix **K**.
+
+Same series, two magnitude labels in one chart; the bar labels read e.g. "4.2K" for a €4.2M bar (card subtitle also says "(€K)"). One of the two is wrong. **Fix:** one scale/suffix; ideally route through a shared compact formatter (F4).
+
+## 🟡 F3. Inconsistent number locale
+
+Most views format with `de-DE` (`1.234,56` — the correct EUR/PT convention): `dashboard-view:124`, `consolidation-view:58`, `variance-view:29`, `budget-vs-actual-view:121`, `journal-entry-view:149`, `entities-view:1114/1136`, `animated-counter:49`, `data-import-view`. But the consolidated **Reports** screen (`reports-view.tsx:226`) and **IC Transactions** (`ic-transactions-view.tsx:107`) use `en-US` (`1,234.56`), as do several timestamps (`consolidation-view:274`, `compliance-view:313`). The screen users export shows a different convention than the rest of the app. **Fix:** standardize on one locale.
+
+## 🟡 F4. Formatting logic is duplicated, not shared
+
+`src/lib/utils.ts` exports `formatEUR`, but ~8 components redefine their own `formatNumber` / `formatCurrency` / `formatCurrencyShort` with subtly different rules (decimals, locale, `0 → '—'`). There are ~101 ad-hoc `toFixed` / `toLocaleString` / `NumberFormat` calls across 19 component files. **Fix:** one `src/lib/format.ts` (currency, compact-magnitude, percent — locale-aware) used everywhere; this also fixes F2 and F3 structurally.
+
+## 🟡 F5. "Demo fallback" data renders silently on API failure
+
+14 views carry module-level `// Demo fallback data` constants and fall back to them inside a swallowed `catch` (e.g. `dashboard-view` lines ~426–431: `catch (err) { console.log('Using fallback…') }`). On any backend error a financial app shows *plausible fabricated numbers* with no error or empty state — the user cannot tell real data from demo. This is fine as an **initial placeholder** (`consolidation-view` does it correctly — replaces on first fetch, comments "not demo data"), but as an **error fallback** it is dangerous in this domain. **Fix:** surface explicit error/empty states; reserve demo data for an intentional, visible "demo mode."
+
+Affected (have the marker): `budget-vs-actual`, `compliance`, `coa`, `cash-flow-forecast`, `audit-trail`, `data-import`, `ic-transactions`, `journal-entry`, `reports`, `settings`, `trend-analysis`, `workflow`, `consolidation` (placeholder-only), `dashboard`.
+
+## 🟡 F6. Middleware guards only the wipe set
+
+`src/middleware.ts` is well-documented and right-sized for a demo, but `PROTECTED` only covers `POST /api/packs`, `POST /api/import`, `settings` writes, and any `DELETE`. With `ADMIN_TOKEN` set (deployed demo), anonymous callers can still **mutate the shared dataset** via `POST /api/entities`, `PUT /api/entities/[id]`, `POST /api/coa`, `POST /api/exchange-rates`, `POST /api/journal-entries`, `POST /api/budget`, `POST /api/scenarios`, `POST /api/forecast`, and `POST /api/ic-transactions/eliminate` — plus `POST /api/ai-chat`, which forwards DB content to a third-party LLM and **incurs cost**. **Fix:** default to protecting all mutating methods and allowlist the genuinely safe interactive POSTs (consolidation / scenario-run); gate `ai-chat` for cost + data-egress regardless.
+
+## 🟢 F7. `@tanstack/react-query` is a dead dependency
+
+Installed, but zero usages — no `QueryClient`, `QueryClientProvider`, `useQuery`, or `useMutation` anywhere in `src/`. All data fetching is hand-rolled `useEffect` + `fetch` across 23 components, each re-implementing loading/error/refetch-on-selection-change. **Fix:** either adopt it (caching, dedup, refetch on period/entity change, real error states — would also resolve F5) or drop the dep.
+
+## 🟢 F8. `api.ts` is `any`-typed and shape-guesses
+
+Every function in `src/lib/api.ts` does `fetchAPI<any>(...)` then `return data.entities || data` (etc.) to tolerate two possible envelopes. **Fix:** type the responses and standardize the response envelope so the client isn't guessing at runtime.
+
+## 🟢 F9. Schema hygiene (`prisma/schema.prisma`)
+
+- `COAMapping` has no `@@unique([entityCode, localAccountCode])` and no index on `entityCode`/`groupCOACode` → duplicate local mappings are possible and lookups table-scan.
+- `ConsolidationRun.entityCodes` is a stringly-typed JSON array (no validation).
+- `Entity.code` comment examples (`PT0001, ES0002, DE0003`) drifted from the real seeded codes (`GRSTL`/`ECOGRES`/…).
+- `COAMapping` → generated client `db.cOAMapping` (carried over from Pass-1 #14; awkward to grep).
+- No `userId`/`orgId` — multi-tenant is **intentionally deferred** per the middleware note; listed for completeness, not as a defect.
+
+## 🟢 F10. Stale magic fallback
+
+`src/components/data-import-view.tsx:527` — `€${totalAmount.toLocaleString('de-DE') || '51,900'}`. `toLocaleString` never returns a falsy string, so `|| '51,900'` is a dead branch and a leftover demo literal. Remove.
+
+## 🟢 F11. Large components
+
+`entities-view` 69 KB, `dashboard-view` 63 KB, `settings-view` 62 KB, `trend-analysis-view` 46 KB, `compliance-view` 45 KB (carried from Pass-1 #15). Decompose table/chart/modal subcomponents — this also makes the real-vs-demo-data boundary (F1/F5) easier to police.
+
+---
+
+## What's good (frontend)
+
+- **`consolidation-view.tsx`** drives the full per-entity statement grid straight from the live engine breakdown (explicitly "not demo data"), recomputes the balance check to the cent, and derives its quality score from the run rather than hardcoding it.
+- **`workflow/route.ts`** is fully DB-driven — each step status is computed from real counts, no hardcoded steps.
+- **`store.ts`** is minimal and correct: UI state only (active view, selected period/scenario, sidebar), with server state kept out of the global store.
+- **`formatEUR`** in `utils.ts` is the right adaptive-scaling idea — it's just under-used (F4).
+- Loading skeletons exist (`KPISkeleton`, etc.) — the structure for proper loading states is already there; it's the *error* path (F5) that needs work.
+
+## Suggested remediation order
+
+1. **Quick wins:** F2 (one-line label fix), F10 (delete dead fallback).
+2. **Credibility (the finance-demo risk):** F1 + F5 — wire the dashboard charts/trends to real data and replace silent demo-fallback with explicit error/empty states.
+3. **Consistency:** F4 then F3 — centralize formatting in `src/lib/format.ts`, standardize locale.
+4. **Security:** F6 — tighten the middleware allowlist; gate `ai-chat`.
+5. **Architecture:** F7/F8 — adopt or drop react-query; type the API layer.
+6. **Data model & maintainability:** F9, F11 — ongoing.
+
+---
+
+## Remediation applied — 2026-06-20 (Pass 2 fixes)
+
+Gates after changes: `npm run lint` → **0 errors** (the 162 remaining warnings are all the pre-existing `no-explicit-any` in `api.ts` — that's F8). `npm test` → **36/36**. `npm run build` → **success** with `ignoreBuildErrors: false`.
+
+**Fixed**
+
+- **F1 — dashboard wired to real data.** `dashboard-view.tsx` now derives the Revenue Waterfall from the live `incomeStatement`, the entity-contribution bar/donut from `entityBreakdown` (real entity names, not the `PT0001`/`España` placeholders), and the cash-flow bridge from `cashFlow`. The Revenue/EBITDA and EBITDA-margin trend charts come from `/api/trends`; KPI-card trend badges and the scorecard's revenue-growth + interest-coverage pillars are now period-over-period deltas from a prior-period consolidation (badges are **omitted when there's no prior data** rather than faked). Removed the hardcoded `waterfallData`, `cashFlowBridge`, `revenueTrend`, `fallbackEntityContribution`, `revenueGrowth = 5.2`, `ebit = 13500`, and the five literal `+x%` badges.
+- **F2 — waterfall magnitude.** Axis and bar labels both route through `formatCompactEUR` (full euros → consistent €M/€K); card subtitle `(€K)` → `(€)`. No more "K vs M" mismatch.
+- **F3 — locale.** `reports-view` and `ic-transactions-view` number formatting moved to the shared `de-DE` helpers. (Dates intentionally stay `en-US`, matching the English UI chrome.)
+- **F4 — shared formatting.** New `src/lib/format.ts` is the single source (`formatNumber` / `formatCurrency` / `formatCompactEUR` / `formatPercent`); `utils.formatEUR` re-exports it. Adopted in the files touched above; a full sweep of the remaining ~16 components is follow-up.
+- **F5 — silent fallback.** Dashboard now shows an explicit error banner on load failure and labels the placeholder figures as such, instead of silently rendering fabricated numbers. Pattern established on the dashboard; the other ~13 views still need the same treatment — follow-up.
+- **F6 — middleware.** Switched to **default-deny** for all mutating methods with a 2-entry allowlist (consolidation, scenario-run). `ai-chat` (cost + data egress), entity/coa/budget/fx/journal/eliminate writes, and `seed` are now gated when `ADMIN_TOKEN` is set.
+- **F7 — dropped `@tanstack/react-query`** (package.json + lockfile).
+- **F9 (partial)** — fixed the `Entity.code` comment drift (now `GRSTL`/`ECOGRES`).
+- **F10 — removed** the dead `|| '51,900'` fallback.
+
+**Deferred (noted, not done)** — *all four since completed; see the next section.*
+
+- **F8** — typing `api.ts` (the lint `no-explicit-any` warnings); mechanical but broad.
+- **F9 (rest)** — `COAMapping` `@@unique`/index needs a DB migration that can fail on existing duplicates; left for an intentional `prisma migrate`.
+- **F11** — large-component decomposition.
+- **F1 residual** — the dashboard still has decorative hardcodes that were *not* in F1's original list: the KPI mini-sparklines, Market Snapshot FX, Recent Activity feed, Recent Consolidation Runs table, and the Entity Health peer-comparison scores (still using `PT0001`-style codes).
+
+*End of Pass 2 remediation.*
+
+---
+
+## Remediation applied — 2026-06-20 (Pass 2 deferred follow-ups)
+
+The four deferred items above are now done. Gates after changes: `npm run lint` → **0 errors / 0 `no-explicit-any`** (remaining warnings are pre-existing `no-unused-vars` (67), `react-hooks/set-state-in-effect` (23), and 2 other react-hooks — none introduced here). `npm test` → **49/49** (36 + 13 new). `npm run build` → **success** with `ignoreBuildErrors: false`.
+
+**Fixed**
+
+- **F8 — `api.ts` fully typed.** Removed all 44 `any` in `api.ts` plus 24 more across components (68 → 0 `no-explicit-any`). `fetchAPI<T>` no longer leaks `any`; a typed `unwrap<T>(data, key)` helper replaces the `data.x || data` shape-guessing; loosely-typed mutations return a shared `ActionResult`; `getConsolidationRuns` returns a real `ConsolidationRunRecord[]`. Component `catch (err: any)` → `catch (err)` with `err instanceof Error` narrowing; `(v: any)`/`(r: any)` callbacks given real types. `SystemSettings` extended with the live-stat fields `settings-view` reads (killing eight `as any` casts).
+- **F9 (rest) — `COAMapping` constraint + atomic upsert.** Added `@@unique([entityCode, localAccountCode])` and `@@index([groupCOACode])`. Verified the live DB had 0 duplicates (100 rows) before applying via `prisma db push`. The POST route's manual find-then-update/create is now a race-free `upsert` on the compound key (smoke-tested: create → update keeps one row).
+- **F1 residual — last dashboard hardcodes wired to real data.** Recent Consolidation Runs ← `getConsolidationRuns`; Recent Activity ← `getAuditTrail`; Entity Health Comparison ← per-entity scores derived from `entityBreakdown` (real codes/names, no more `PT0001`); Market Snapshot ← real `getExchangeRates` (closing rate + YTD change); KPI sparklines ← real `/api/trends` series (revenue/EBITDA-margin/net-income/assets/leverage; ROCE has no trend endpoint, so its card simply shows no sparkline — omitted, not faked). End-to-end smoke-tested against the running dev server.
+- **F11 — dashboard decomposition (first slice).** Extracted the pure logic (period/number transforms, waterfall + cash-flow builders, the health-scorecard model, FX-snapshot + activity helpers) into `src/components/dashboard/helpers.ts` (332 lines) with a golden-value test (`helpers.test.ts`, 13 cases). `dashboard-view.tsx` dropped 1445 → 1141 lines and is now wiring/JSX only. The other large views (`settings`, `entities`, …) remain monolithic — same pattern applies as further follow-up.
+
+**Still open (smaller, lower-value)**
+
+- `no-unused-vars` (67) and `react-hooks/set-state-in-effect` (23) warnings are pre-existing and untouched here.
+- The F4/F3 formatter + F5 error-state sweep across the remaining ~13 views, and decomposing the other large components (`settings-view`, `entities-view`), are the natural next increments.
+
+*End of Pass 2 deferred follow-ups.*
+
+---
+
+## Remediation applied — 2026-06-21 (F3/F4/F5 view sweep)
+
+The formatter-centralization (F4), locale (F3) and silent-fallback (F5) sweep across the remaining views is now done. Gates after changes: `npx eslint .` → **0 errors** (87 warnings, all pre-existing `react-hooks/set-state-in-effect` + `no-unused-vars`; **5 fewer** than before — using the `catch` binding and dropping dead `fmt` removed some). `npm test` → **49/49**. `npm run build` (`ignoreBuildErrors: false`) → **success**, 34/34 pages.
+
+**Fixed**
+
+- **F5 — explicit error states everywhere.** New shared [`DataLoadError`](src/components/data-load-error.tsx) banner (the dashboard's amber `AlertTriangle` pattern, factored out so it isn't copy-pasted 15×). Wired a `loadError` flag into every view that previously swallowed its fetch error and rendered demo/placeholder numbers silently: `budget-vs-actual`, `journal-entry`, `fx-rates`, `workflow`, `variance`, `audit-trail`, `compliance`, `coa`, `ic-transactions`, `trend-analysis`, `data-import`, `reports`, `scenarios`, `settings`, `cash-flow-forecast`, plus `entities`. Each `catch` now `console.error`s and flips the flag (was `console.log('Using fallback…')` or an empty `catch {}`); the banner renders at the top of the view. Messages are honest per view: "Showing placeholder figures below." where demo data backs the fallback, and a plain "Could not load … Try refreshing." where the fallback is an empty state (`reports`, `entities`) or import history (`data-import`). `coa` additionally lost its inline `.catch(() => demo)` swallows so the single outer catch is the one fallback point.
+- **F4 — formatting routed through `src/lib/format.ts`.** Removed the per-component formatters that re-rolled the locale/decimal rules and pointed the call sites at the shared module: `budget-vs-actual` & `journal-entry` (`fmtEuro`→`formatCompactEUR`, `fmtFull`→`formatNumber`), `variance` (dropped a dead `fmt`, `fmtFull`→`formatNumber`, `formatEUR`→`formatCompactEUR`), `consolidation` (`fmt`→`formatNumber`, `formatEUR`→`formatCompactEUR`), `trend-analysis` (`fmtMetric`'s €M/€K branch → `formatCompactEUR`), and `entities` (two inline `new Intl.NumberFormat('de-DE')` → `formatNumber`). `reports` and `ic-transactions` were already importing from `format.ts` (their local wrappers are the legitimate string-passthrough / multi-currency cases) and were left as-is.
+- **F3 — locale.** No number-locale work remained: the earlier pass already moved `reports`/`ic-transactions` to `de-DE`, and a sweep confirmed every remaining `en-US` `toLocaleString` is a **date** (kept `en-US` on purpose, matching the English UI chrome).
+
+**Notes / intentionally left**
+
+- `projects-view`'s `fmtMoney` is kept local: it is genuinely multi-currency ($ / €, 2-dp M, lowercase k) and the EUR-only shared compact formatter doesn't cover it.
+- `scripts/**` added to the eslint `ignores` — the untracked Puppeteer screenshot helper (`scripts/shotgen/shoot.js`) is a Node dev script that legitimately uses `require`, and shouldn't be subject to the Next browser-app TS rules. This was the sole lint *error*; it is unrelated to the app.
+- The `KPIs` `no-unused-vars` warning in `api.ts` (leftover from the F8 rewrite) and the pre-existing `set-state-in-effect` warnings are untouched.
+- Decomposing `settings-view` / `entities-view` (F11) is still the remaining large-component work.
+
+*End of F3/F4/F5 view sweep.*
+
+---
+
+## Remediation applied - 2026-06-21 (F11 - settings/entities decomposition)
+
+The two remaining monolithic components were decomposed following the dashboard pattern: pure logic moved into a co-located `helpers.ts` with golden tests, leaving each view as JSX/wiring. This is a pure structural extraction - no displayed values changed; the tests lock in current behaviour. Gates after changes: `npx eslint .` -> **0 errors** (85 warnings, all pre-existing `set-state-in-effect` + `no-unused-vars`; **2 fewer** - removing the dead `ownershipA`/`ownershipB` locals). `npm test` -> **68/68** (10 files; +12 entities, +7 settings cases). `npm run build` (`ignoreBuildErrors: false`) -> **success**, 34/34 pages.
+
+**Fixed**
+
+- **F11 - `entities-view` decomposed.** New [`src/components/entities/helpers.ts`](src/components/entities/helpers.ts) (158 lines) holds the comparison-metric model (`buildComparisonMetrics`, `formatMetricValue`, `computeMetricDelta`, `countMetricLeads`, `buildEntityBarChartData`), ownership math (`normalizeOwnership`, `buildOwnershipWaterfall`, `buildOwnershipData`), `buildFinancialRatios`, the pure CSV builder `toEntityCSV`, and the presentation-data maps (`countryFlags`/`countryNames`/`PIE_COLORS`/`sparklineData`/`geoData`). Covered by [`helpers.test.ts`](src/components/entities/helpers.test.ts) (12 cases). `entities-view.tsx` dropped 1199 -> 1038 lines. Side effects of the extraction: `normalizeOwnership` deduped the `<= 1 ? *100 : x` pattern repeated ~9x inline; `computeMetricDelta` deduped the identical diff/pctDiff/isPositive trio in the two comparison tables; two dead locals (`ownershipA`/`ownershipB`, computed but never read) were dropped. The JSX-returning bits (`getMethodBadge`, `MiniSparkline`, `ComparisonTooltip`) stayed in the component.
+- **F11 - `settings-view` decomposed.** New [`src/components/settings/helpers.ts`](src/components/settings/helpers.ts) (133 lines) holds the demo fallback data (`demoSettings`, `demoCurrencyPairs`, `demoApiEndpoints`, `demoVersionHistory`, `demoTableCounts`, `defaultEnvironmentInfo`) plus the pure transforms: `buildTableCounts` (live system stats -> table-count rows, returns `null` when stats are absent so demo counts aren't overwritten with zeros), the id generators `makeValidationRuleId`/`makeCurrencyPairId`, and `countActiveRules`/`countHealthyEndpoints`. Covered by [`helpers.test.ts`](src/components/settings/helpers.test.ts) (7 cases). `settings-view.tsx` dropped 1266 -> 1126 lines (the ~85-line demo-data block and the inline table-count mapping are gone). The side-effectful handlers (`updateSettings` + toast + Blob/file IO) stayed in the component.
+
+**Notes / intentionally left**
+
+- `formatMetricValue` is kept as-is (renders the comparison's EUR-K-scaled values as EUR M) rather than reconciled with the shared `formatCompactEUR`, which expects full euros - changing it would alter displayed figures, out of scope for a structural extraction.
+- The pre-existing `set-state-in-effect` and remaining `no-unused-vars` warnings are untouched. With F11 done, all the originally-deferred follow-ups (F8, F9, F11, F1-residual, F3/F4/F5) are complete.
+
+*End of F11 decomposition.*

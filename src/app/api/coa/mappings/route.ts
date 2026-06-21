@@ -66,32 +66,32 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check for existing mapping and upsert
-    const existing = await db.cOAMapping.findFirst({
+    // Atomic upsert on the (entityCode, localAccountCode) natural key — the DB
+    // unique constraint guarantees one mapping per local account per entity and
+    // removes the find-then-write race the manual version had.
+    const existing = await db.cOAMapping.findUnique({
       where: {
-        entityCode: validated.entityCode,
-        localAccountCode: validated.localAccountCode,
+        entityCode_localAccountCode: {
+          entityCode: validated.entityCode,
+          localAccountCode: validated.localAccountCode,
+        },
       },
+      select: { id: true },
     });
 
-    if (existing) {
-      // Update existing mapping
-      const mapping = await db.cOAMapping.update({
-        where: { id: existing.id },
-        data: {
-          localAccountName: validated.localAccountName,
-          localCOAType: validated.localCOAType,
-          groupCOACode: validated.groupCOACode,
+    const mapping = await db.cOAMapping.upsert({
+      where: {
+        entityCode_localAccountCode: {
+          entityCode: validated.entityCode,
+          localAccountCode: validated.localAccountCode,
         },
-        include: {
-          groupCOA: { select: { code: true, name: true, accountType: true, statementType: true } },
-        },
-      });
-      return NextResponse.json({ mapping, updated: true });
-    }
-
-    const mapping = await db.cOAMapping.create({
-      data: {
+      },
+      update: {
+        localAccountName: validated.localAccountName,
+        localCOAType: validated.localCOAType,
+        groupCOACode: validated.groupCOACode,
+      },
+      create: {
         entityCode: validated.entityCode,
         localAccountCode: validated.localAccountCode,
         localAccountName: validated.localAccountName,
@@ -103,7 +103,8 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    return NextResponse.json({ mapping, updated: false }, { status: 201 });
+    const updated = existing !== null;
+    return NextResponse.json({ mapping, updated }, { status: updated ? 200 : 201 });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(

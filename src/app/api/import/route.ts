@@ -98,8 +98,8 @@ export async function POST(request: NextRequest) {
         });
 
         imported++;
-      } catch (rowError: any) {
-        errors.push(`Row ${i + 1}: ${rowError.message}`);
+      } catch (rowError) {
+        errors.push(`Row ${i + 1}: ${rowError instanceof Error ? rowError.message : String(rowError)}`);
       }
     }
 

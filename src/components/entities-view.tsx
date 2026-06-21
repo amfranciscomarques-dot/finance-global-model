@@ -57,40 +57,29 @@ import {
   Legend,
 } from 'recharts';
 import { getEntities, createEntity } from '@/lib/api';
-import { Entity, IncomeStatement, BalanceSheet } from '@/lib/types';
+import { Entity } from '@/lib/types';
 import { incomeStatements, balanceSheets, demoEntities } from '@/lib/demo-data';
+import { formatNumber } from '@/lib/format';
+import { DataLoadError } from '@/components/data-load-error';
+import {
+  PIE_COLORS,
+  countryFlags,
+  countryNames,
+  sparklineData,
+  geoData,
+  normalizeOwnership,
+  toEntityCSV,
+  buildComparisonMetrics,
+  formatMetricValue,
+  computeMetricDelta,
+  countMetricLeads,
+  buildEntityBarChartData,
+  buildOwnershipWaterfall,
+  buildOwnershipData,
+  buildFinancialRatios,
+} from '@/components/entities/helpers';
 import { useToast } from '@/hooks/use-toast';
 import { motion, AnimatePresence } from 'framer-motion';
-
-const countryFlags: Record<string, string> = {
-  PT: '🇵🇹', ES: '🇪🇸', DE: '🇩🇪', GB: '🇬🇧', FR: '🇫🇷',
-  IT: '🇮🇹', NL: '🇳🇱', US: '🇺🇸', CH: '🇨🇭', JP: '🇯🇵',
-};
-
-const countryNames: Record<string, string> = {
-  PT: 'Portugal', ES: 'Spain', DE: 'Germany', GB: 'United Kingdom', FR: 'France',
-  IT: 'Italy', NL: 'Netherlands', US: 'United States', CH: 'Switzerland', JP: 'Japan',
-};
-
-const PIE_COLORS = ['#10b981', '#f59e0b', '#64748b'];
-
-// Revenue sparkline data per entity (last 6 months trend)
-const sparklineData: Record<string, number[]> = {
-  PT0001: [12500, 13200, 13800, 14200, 14600, 15000],
-  ES0002: [10200, 10800, 11200, 11500, 11800, 12000],
-  DE0003: [8800, 9200, 9600, 10000, 10200, 10500],
-  UK0004: [6800, 7200, 7500, 7800, 8100, 8400],
-  FR0005: [5000, 5200, 5400, 5600, 5800, 6000],
-};
-
-// Geographic map data
-const geoData = [
-  { code: 'PT', flag: '🇵🇹', name: 'Portugal', entity: 'PT0001', revenue: '€15.0M', method: 'Full', ownership: 100 },
-  { code: 'ES', flag: '🇪🇸', name: 'Spain', entity: 'ES0002', revenue: '€12.0M', method: 'Full', ownership: 100 },
-  { code: 'DE', flag: '🇩🇪', name: 'Germany', entity: 'DE0003', revenue: '€10.5M', method: 'Full', ownership: 80 },
-  { code: 'GB', flag: '🇬🇧', name: 'United Kingdom', entity: 'UK0004', revenue: '€8.4M', method: 'Full', ownership: 100 },
-  { code: 'FR', flag: '🇫🇷', name: 'France', entity: 'FR0005', revenue: '€6.0M', method: 'Proportional', ownership: 50 },
-];
 
 function getMethodBadge(method: string) {
   switch (method) {
@@ -120,74 +109,12 @@ function MiniSparkline({ data, color = '#10b981' }: { data: number[]; color?: st
 }
 
 function exportToCSV(entities: Entity[], filename: string) {
-  const headers = ['Code', 'Legal Name', 'Country', 'Currency', 'Method', 'Ownership %', 'Sector', 'Status'];
-  const rows = entities.map(e => [
-    e.code,
-    e.legalName,
-    e.countryCode,
-    e.localCurrency,
-    e.consolidationMethod,
-    e.ownershipPercentage <= 1 ? Math.round(e.ownershipPercentage * 100) : e.ownershipPercentage,
-    e.sector || '',
-    e.isActive ? 'Active' : 'Inactive',
-  ]);
-
-  const csvContent = [headers.join(','), ...rows.map(r => r.map(v => `"${v}"`).join(','))].join('\n');
-  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const blob = new Blob([toEntityCSV(entities)], { type: 'text/csv;charset=utf-8;' });
   const link = document.createElement('a');
   link.href = URL.createObjectURL(blob);
   link.download = filename;
   link.click();
   URL.revokeObjectURL(link.href);
-}
-
-// ============================================================
-// ENTITY COMPARISON HELPERS
-// ============================================================
-
-interface ComparisonMetric {
-  label: string;
-  entityA: number;
-  entityB: number;
-  format: 'currency' | 'percent' | 'ratio';
-  higherIsBetter: boolean;
-}
-
-function buildComparisonMetrics(isA: IncomeStatement, bsA: BalanceSheet, isB: IncomeStatement, bsB: BalanceSheet, entityA: Entity, entityB: Entity): ComparisonMetric[] {
-  const ownershipA = entityA.ownershipPercentage <= 1 ? entityA.ownershipPercentage * 100 : entityA.ownershipPercentage;
-  const ownershipB = entityB.ownershipPercentage <= 1 ? entityB.ownershipPercentage * 100 : entityB.ownershipPercentage;
-
-  return [
-    // Income Statement
-    { label: 'Revenue', entityA: isA.revenue, entityB: isB.revenue, format: 'currency', higherIsBetter: true },
-    { label: 'COGS', entityA: Math.abs(isA.cogs), entityB: Math.abs(isB.cogs), format: 'currency', higherIsBetter: false },
-    { label: 'Gross Profit', entityA: isA.grossProfit, entityB: isB.grossProfit, format: 'currency', higherIsBetter: true },
-    { label: 'EBITDA', entityA: isA.ebitda, entityB: isB.ebitda, format: 'currency', higherIsBetter: true },
-    { label: 'EBIT', entityA: isA.ebit, entityB: isB.ebit, format: 'currency', higherIsBetter: true },
-    { label: 'Net Income', entityA: isA.netIncome, entityB: isB.netIncome, format: 'currency', higherIsBetter: true },
-    // Balance Sheet
-    { label: 'Total Assets', entityA: bsA.totalAssets, entityB: bsB.totalAssets, format: 'currency', higherIsBetter: true },
-    { label: 'Current Assets', entityA: bsA.currentAssets, entityB: bsB.currentAssets, format: 'currency', higherIsBetter: true },
-    { label: 'Total Liabilities', entityA: bsA.totalLiabilities, entityB: bsB.totalLiabilities, format: 'currency', higherIsBetter: false },
-    { label: 'Total Equity', entityA: bsA.totalEquity, entityB: bsB.totalEquity, format: 'currency', higherIsBetter: true },
-    // Key Ratios
-    { label: 'ROE', entityA: (isA.netIncome / bsA.totalEquity) * 100, entityB: (isB.netIncome / bsB.totalEquity) * 100, format: 'percent', higherIsBetter: true },
-    { label: 'ROA', entityA: (isA.netIncome / bsA.totalAssets) * 100, entityB: (isB.netIncome / bsB.totalAssets) * 100, format: 'percent', higherIsBetter: true },
-    { label: 'EBITDA Margin', entityA: (isA.ebitda / isA.revenue) * 100, entityB: (isB.ebitda / isB.revenue) * 100, format: 'percent', higherIsBetter: true },
-    { label: 'Current Ratio', entityA: bsA.currentAssets / bsA.currentLiabilities, entityB: bsB.currentAssets / bsB.currentLiabilities, format: 'ratio', higherIsBetter: true },
-    { label: 'Debt/Equity', entityA: bsA.totalLiabilities / bsA.totalEquity, entityB: bsB.totalLiabilities / bsB.totalEquity, format: 'ratio', higherIsBetter: false },
-  ];
-}
-
-function formatMetricValue(value: number, format: 'currency' | 'percent' | 'ratio'): string {
-  switch (format) {
-    case 'currency':
-      return `€${(value / 1000).toFixed(1)}M`;
-    case 'percent':
-      return `${value.toFixed(1)}%`;
-    case 'ratio':
-      return `${value.toFixed(2)}x`;
-  }
 }
 
 function ComparisonTooltip({ active, payload, label }: { active?: boolean; payload?: Array<{ name: string; value: number; color: string }>; label?: string }) {
@@ -209,6 +136,7 @@ function ComparisonTooltip({ active, payload, label }: { active?: boolean; paylo
 export function EntitiesView() {
   const [search, setSearch] = useState('');
   const [entities, setEntities] = useState<Entity[]>([]);
+  const [loadError, setLoadError] = useState(false);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -228,11 +156,13 @@ export function EntitiesView() {
 
   const loadEntities = useCallback(async () => {
     setLoading(true);
+    setLoadError(false);
     try {
       const data = await getEntities(search || undefined);
       setEntities(data);
     } catch (err) {
       console.error('Failed to load entities:', err);
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -262,8 +192,8 @@ export function EntitiesView() {
         consolidationMethod: 'full', ownershipPercentage: 100, sector: 'Technology', isActive: true,
       });
       toast({ title: 'Entity Created', description: `${created.code} - ${created.legalName}` });
-    } catch (err: any) {
-      toast({ title: 'Error', description: err.message, variant: 'destructive' });
+    } catch (err) {
+      toast({ title: 'Error', description: err instanceof Error ? err.message : 'Failed to create entity', variant: 'destructive' });
     } finally {
       setSaving(false);
     }
@@ -288,18 +218,10 @@ export function EntitiesView() {
   const entityIS = selectedEntity ? incomeStatements[selectedEntity.code] : null;
   const entityBS = selectedEntity ? balanceSheets[selectedEntity.code] : null;
 
-  const ownershipData = selectedEntity ? [
-    { name: 'Group Share', value: selectedEntity.ownershipPercentage <= 1 ? selectedEntity.ownershipPercentage * 100 : selectedEntity.ownershipPercentage },
-    { name: 'Minority', value: 100 - (selectedEntity.ownershipPercentage <= 1 ? selectedEntity.ownershipPercentage * 100 : selectedEntity.ownershipPercentage) },
-  ] : [];
+  const ownershipData = selectedEntity ? buildOwnershipData(selectedEntity) : [];
 
   // Financial ratios for selected entity
-  const financialRatios = selectedEntity && entityIS && entityBS ? [
-    { label: 'ROE', value: ((entityIS.netIncome / entityBS.totalEquity) * 100).toFixed(1) + '%', color: 'text-emerald-600 dark:text-emerald-400' },
-    { label: 'ROA', value: ((entityIS.netIncome / entityBS.totalAssets) * 100).toFixed(1) + '%', color: 'text-teal-600 dark:text-teal-400' },
-    { label: 'Current Ratio', value: (entityBS.currentAssets / entityBS.currentLiabilities).toFixed(2) + 'x', color: 'text-emerald-600 dark:text-emerald-400' },
-    { label: 'Debt/Equity', value: (entityBS.totalLiabilities / entityBS.totalEquity).toFixed(2) + 'x', color: 'text-amber-600 dark:text-amber-400' },
-  ] : [];
+  const financialRatios = entityIS && entityBS ? buildFinancialRatios(entityIS, entityBS) : [];
 
   // ============================================================
   // COMPARISON COMPUTED DATA
@@ -312,59 +234,30 @@ export function EntitiesView() {
   const bsB = entityB ? balanceSheets[entityB.code] : null;
 
   const comparisonMetrics = useMemo(() => {
-    if (!isA || !bsA || !isB || !bsB || !entityA || !entityB) return [];
-    return buildComparisonMetrics(isA, bsA, isB, bsB, entityA, entityB);
-  }, [isA, bsA, isB, bsB, entityA, entityB]);
+    if (!isA || !bsA || !isB || !bsB) return [];
+    return buildComparisonMetrics(isA, bsA, isB, bsB);
+  }, [isA, bsA, isB, bsB]);
 
   // Grouped metrics for display
   const incomeMetrics = comparisonMetrics.filter(m => ['Revenue', 'COGS', 'Gross Profit', 'EBITDA', 'EBIT', 'Net Income'].includes(m.label));
   const balanceMetrics = comparisonMetrics.filter(m => ['Total Assets', 'Current Assets', 'Total Liabilities', 'Total Equity'].includes(m.label));
   const ratioMetrics = comparisonMetrics.filter(m => ['ROE', 'ROA', 'EBITDA Margin', 'Current Ratio', 'Debt/Equity'].includes(m.label));
+  const metricLeads = useMemo(() => countMetricLeads(comparisonMetrics), [comparisonMetrics]);
 
   // Bar chart data for visual comparison
-  const barChartData = useMemo(() => {
-    if (!isA || !bsA || !isB || !bsB || !entityA || !entityB) return [];
-    return [
-      { metric: 'Revenue', [entityA.code]: isA.revenue, [entityB.code]: isB.revenue },
-      { metric: 'EBITDA', [entityA.code]: isA.ebitda, [entityB.code]: isB.ebitda },
-      { metric: 'Net Income', [entityA.code]: isA.netIncome, [entityB.code]: isB.netIncome },
-      { metric: 'Total Assets', [entityA.code]: bsA.totalAssets, [entityB.code]: bsB.totalAssets },
-    ];
-  }, [isA, bsA, isB, bsB, entityA, entityB]);
+  const barChartData = useMemo(() => (
+    isA && bsA && isB && bsB && entityA && entityB ? buildEntityBarChartData(isA, bsA, isB, bsB, entityA, entityB) : []
+  ), [isA, bsA, isB, bsB, entityA, entityB]);
 
   // Ownership/Minority impact waterfall data
-  const ownershipWaterfallA = useMemo(() => {
-    if (!isA || !entityA) return [];
-    const ownership = entityA.ownershipPercentage <= 1 ? entityA.ownershipPercentage * 100 : entityA.ownershipPercentage;
-    const minorityPct = 100 - ownership;
-    const netIncome = isA.netIncome;
-    const minorityShare = netIncome * (minorityPct / 100);
-    const groupShare = netIncome - minorityShare;
-    return [
-      { name: 'Net Income', value: netIncome, fill: '#10b981' },
-      { name: 'Minority Share', value: -minorityShare, fill: '#f59e0b' },
-      { name: 'Group Share', value: groupShare, fill: '#0d9488' },
-    ];
-  }, [isA, entityA]);
-
-  const ownershipWaterfallB = useMemo(() => {
-    if (!isB || !entityB) return [];
-    const ownership = entityB.ownershipPercentage <= 1 ? entityB.ownershipPercentage * 100 : entityB.ownershipPercentage;
-    const minorityPct = 100 - ownership;
-    const netIncome = isB.netIncome;
-    const minorityShare = netIncome * (minorityPct / 100);
-    const groupShare = netIncome - minorityShare;
-    return [
-      { name: 'Net Income', value: netIncome, fill: '#10b981' },
-      { name: 'Minority Share', value: -minorityShare, fill: '#f59e0b' },
-      { name: 'Group Share', value: groupShare, fill: '#0d9488' },
-    ];
-  }, [isB, entityB]);
+  const ownershipWaterfallA = useMemo(() => (isA && entityA ? buildOwnershipWaterfall(isA, entityA) : []), [isA, entityA]);
+  const ownershipWaterfallB = useMemo(() => (isB && entityB ? buildOwnershipWaterfall(isB, entityB) : []), [isB, entityB]);
 
   const canCompare = entityA && entityB && isA && bsA && isB && bsB && entityA.code !== entityB.code;
 
   return (
     <div className="space-y-6">
+      {loadError && <DataLoadError message="Could not load entities from the server. Try refreshing." />}
       {/* Geographic Map Section */}
       <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
         <div className="flex items-center gap-2 mb-3">
@@ -567,7 +460,7 @@ export function EntitiesView() {
                       </TableCell>
                       <TableCell><Badge variant="outline" className="font-mono text-xs">{entity.localCurrency}</Badge></TableCell>
                       <TableCell>{getMethodBadge(entity.consolidationMethod)}</TableCell>
-                      <TableCell className="text-right font-medium">{entity.ownershipPercentage <= 1 ? Math.round(entity.ownershipPercentage * 100) : entity.ownershipPercentage}%</TableCell>
+                      <TableCell className="text-right font-medium">{Math.round(normalizeOwnership(entity.ownershipPercentage))}%</TableCell>
                       <TableCell>
                         <span className="flex items-center gap-1">
                           <span className={`w-2.5 h-2.5 rounded-full ${
@@ -749,9 +642,7 @@ export function EntitiesView() {
                               </TableHeader>
                               <TableBody>
                                 {incomeMetrics.map((metric, index) => {
-                                  const diff = metric.entityA - metric.entityB;
-                                  const pctDiff = metric.entityB !== 0 ? (diff / Math.abs(metric.entityB)) * 100 : 0;
-                                  const isPositive = metric.higherIsBetter ? diff > 0 : diff < 0;
+                                  const { diff, pctDiff, isPositive } = computeMetricDelta(metric);
                                   return (
                                     <motion.tr
                                       key={metric.label}
@@ -796,9 +687,7 @@ export function EntitiesView() {
                               </TableHeader>
                               <TableBody>
                                 {balanceMetrics.map((metric, index) => {
-                                  const diff = metric.entityA - metric.entityB;
-                                  const pctDiff = metric.entityB !== 0 ? (diff / Math.abs(metric.entityB)) * 100 : 0;
-                                  const isPositive = metric.higherIsBetter ? diff > 0 : diff < 0;
+                                  const { diff, pctDiff, isPositive } = computeMetricDelta(metric);
                                   return (
                                     <motion.tr
                                       key={metric.label}
@@ -869,7 +758,7 @@ export function EntitiesView() {
                                 <CardContent className="p-4">
                                   <p className="text-xs text-muted-foreground uppercase font-semibold mb-1">{entityA!.code} Leads In</p>
                                   <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
-                                    {comparisonMetrics.filter(m => (m.higherIsBetter ? m.entityA > m.entityB : m.entityA < m.entityB)).length}
+                                    {metricLeads.a}
                                   </p>
                                   <p className="text-xs text-muted-foreground">out of {comparisonMetrics.length} metrics</p>
                                 </CardContent>
@@ -880,7 +769,7 @@ export function EntitiesView() {
                                 <CardContent className="p-4">
                                   <p className="text-xs text-muted-foreground uppercase font-semibold mb-1">{entityB!.code} Leads In</p>
                                   <p className="text-2xl font-bold text-amber-600 dark:text-amber-400">
-                                    {comparisonMetrics.filter(m => (m.higherIsBetter ? m.entityB > m.entityA : m.entityB < m.entityA)).length}
+                                    {metricLeads.b}
                                   </p>
                                   <p className="text-xs text-muted-foreground">out of {comparisonMetrics.length} metrics</p>
                                 </CardContent>
@@ -909,7 +798,7 @@ export function EntitiesView() {
                                 <Card className="shadow-sm border border-slate-200/60 dark:border-slate-700/40">
                                   <CardContent className="p-4">
                                     <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
-                                      {entityA.code} — Ownership: {entityA.ownershipPercentage <= 1 ? Math.round(entityA.ownershipPercentage * 100) : entityA.ownershipPercentage}%
+                                      {entityA.code} — Ownership: {Math.round(normalizeOwnership(entityA.ownershipPercentage))}%
                                     </p>
                                     <div className="space-y-2">
                                       {ownershipWaterfallA.map((item) => (
@@ -939,7 +828,7 @@ export function EntitiesView() {
                                 <Card className="shadow-sm border border-slate-200/60 dark:border-slate-700/40">
                                   <CardContent className="p-4">
                                     <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
-                                      {entityB.code} — Ownership: {entityB.ownershipPercentage <= 1 ? Math.round(entityB.ownershipPercentage * 100) : entityB.ownershipPercentage}%
+                                      {entityB.code} — Ownership: {Math.round(normalizeOwnership(entityB.ownershipPercentage))}%
                                     </p>
                                     <div className="space-y-2">
                                       {ownershipWaterfallB.map((item) => (
@@ -1058,11 +947,11 @@ export function EntitiesView() {
                       <div className="space-y-2">
                         <div className="flex items-center gap-2">
                           <div className="w-3 h-3 rounded-full bg-emerald-500" />
-                          <span className="text-sm">Group: {selectedEntity.ownershipPercentage <= 1 ? Math.round(selectedEntity.ownershipPercentage * 100) : selectedEntity.ownershipPercentage}%</span>
+                          <span className="text-sm">Group: {Math.round(normalizeOwnership(selectedEntity.ownershipPercentage))}%</span>
                         </div>
                         <div className="flex items-center gap-2">
                           <div className="w-3 h-3 rounded-full bg-amber-500" />
-                          <span className="text-sm">Minority: {100 - (selectedEntity.ownershipPercentage <= 1 ? Math.round(selectedEntity.ownershipPercentage * 100) : selectedEntity.ownershipPercentage)}%</span>
+                          <span className="text-sm">Minority: {100 - Math.round(normalizeOwnership(selectedEntity.ownershipPercentage))}%</span>
                         </div>
                       </div>
                     </div>
@@ -1111,7 +1000,7 @@ export function EntitiesView() {
                         ].map((row) => (
                           <div key={row.label} className="flex justify-between text-sm py-1 border-b border-slate-100 dark:border-slate-800 last:border-0">
                             <span className="text-muted-foreground">{row.label}</span>
-                            <span className={`font-medium tabular-nums ${row.color}`}>{new Intl.NumberFormat('de-DE').format(row.value)}</span>
+                            <span className={`font-medium tabular-nums ${row.color}`}>{formatNumber(row.value)}</span>
                           </div>
                         ))}
                       </div>
@@ -1133,7 +1022,7 @@ export function EntitiesView() {
                           ].map((row) => (
                             <div key={row.label} className="flex justify-between text-sm py-1 border-b border-slate-100 dark:border-slate-800 last:border-0">
                               <span className="text-muted-foreground">{row.label}</span>
-                              <span className={`font-medium tabular-nums ${row.color || ''}`}>{new Intl.NumberFormat('de-DE').format(row.value)}</span>
+                              <span className={`font-medium tabular-nums ${row.color || ''}`}>{formatNumber(row.value)}</span>
                             </div>
                           ))}
                         </div>

@@ -39,6 +39,7 @@ import { motion, type Variants } from 'framer-motion';
 import { useAppStore } from '@/lib/store';
 import { getForecast, saveForecastAssumptions } from '@/lib/api';
 import { formatEUR } from '@/lib/utils';
+import { DataLoadError } from '@/components/data-load-error';
 import { CashFlowForecast, ForecastPeriod } from '@/lib/types';
 
 // ============================================================
@@ -178,14 +179,14 @@ const itemVariants: Variants = {
 // ============================================================
 // CUSTOM TOOLTIP
 // ============================================================
-function ForecastTooltip({ active, payload, label }: any) {
+function ForecastTooltip({ active, payload, label }: { active?: boolean; payload?: Array<{ payload: ForecastPeriod }>; label?: string }) {
   if (!active || !payload?.length) return null;
   const data = payload[0]?.payload as ForecastPeriod | undefined;
   if (!data) return null;
 
   return (
     <div className="bg-slate-900 dark:bg-slate-800 text-white rounded-lg shadow-xl p-3 text-xs border border-slate-700">
-      <p className="font-semibold mb-1.5 text-emerald-400">{formatMonth(label)}</p>
+      <p className="font-semibold mb-1.5 text-emerald-400">{formatMonth(label ?? '')}</p>
       {data.isForecast && <Badge className="text-[8px] bg-amber-500/20 text-amber-400 mb-1.5 h-4">Forecast</Badge>}
       <div className="space-y-1">
         <div className="flex justify-between gap-4">
@@ -252,9 +253,11 @@ export function CashFlowForecastView() {
   const [capexGrowth, setCapexGrowth] = useState(3.0);
   const [workingCapitalDays, setWorkingCapitalDays] = useState(45);
   const [debtRepayment, setDebtRepayment] = useState(200);
+  const [loadError, setLoadError] = useState(false);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
+    setLoadError(false);
     try {
       const result = await getForecast({ period: selectedPeriod, scenario: selectedScenario });
       setData(result);
@@ -262,13 +265,15 @@ export function CashFlowForecastView() {
       setCapexGrowth(result.assumptions.capexGrowthRate);
       setWorkingCapitalDays(result.assumptions.workingCapitalDays);
       setDebtRepayment(result.assumptions.debtRepaymentSchedule);
-    } catch {
+    } catch (err) {
+      console.error('Failed to load cash-flow forecast', err);
       const demo = getDemoForecast();
       setData(demo);
       setRevenueGrowth(demo.assumptions.revenueGrowthRate);
       setCapexGrowth(demo.assumptions.capexGrowthRate);
       setWorkingCapitalDays(demo.assumptions.workingCapitalDays);
       setDebtRepayment(demo.assumptions.debtRepaymentSchedule);
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -344,6 +349,7 @@ export function CashFlowForecastView() {
 
   return (
     <motion.div variants={containerVariants} initial="hidden" animate="visible" className="space-y-6">
+      {loadError && <DataLoadError />}
       {/* Gradient divider */}
       <div className="h-px bg-gradient-to-r from-transparent via-emerald-300 dark:via-emerald-700 to-transparent" />
 

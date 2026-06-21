@@ -13,6 +13,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { getCompliance, ComplianceData } from '@/lib/api';
 import { ComplianceCheck, EntityCompliance, JurisdictionCompliance, Violation } from '@/lib/types';
+import { DataLoadError } from '@/components/data-load-error';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip,
@@ -237,11 +238,13 @@ function CustomTooltip({ active, payload, label }: { active?: boolean; payload?:
 export function ComplianceView() {
   const [data, setData] = useState<ComplianceData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [expandedCheck, setExpandedCheck] = useState<string | null>(null);
   const [selectedEntity, setSelectedEntity] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
     setLoading(true);
+    setLoadError(false);
     try {
       const result = await getCompliance({ period: '2024-12' });
       if (result && result.checks && result.checks.length > 0) {
@@ -249,8 +252,10 @@ export function ComplianceView() {
       } else {
         setData(demoComplianceData);
       }
-    } catch {
+    } catch (err) {
+      console.error('Failed to load compliance data', err);
       setData(demoComplianceData);
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -292,6 +297,7 @@ export function ComplianceView() {
 
   return (
     <div className="space-y-6">
+      {loadError && <DataLoadError />}
       {/* Overall Score + Summary Cards Row */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* Overall Compliance Score Card */}

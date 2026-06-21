@@ -19,6 +19,7 @@ import { Separator } from '@/components/ui/separator';
 import { Progress } from '@/components/ui/progress';
 import { importTrialBalance, getImportHistory } from '@/lib/api';
 import { ImportRecord, ImportHistoryEntry } from '@/lib/types';
+import { DataLoadError } from '@/components/data-load-error';
 import { useToast } from '@/hooks/use-toast';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -70,17 +71,21 @@ export function DataImportView() {
   const [importResult, setImportResult] = useState<{ imported: number; errors: string[] } | null>(null);
   const [history, setHistory] = useState<ImportHistoryEntry[]>([]);
   const [historyLoading, setHistoryLoading] = useState(true);
+  const [historyError, setHistoryError] = useState(false);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [dragOver, setDragOver] = useState(false);
   const { toast } = useToast();
 
   const loadHistory = useCallback(async () => {
     setHistoryLoading(true);
+    setHistoryError(false);
     try {
       const data = await getImportHistory();
       setHistory(data.length > 0 ? data : demoImportHistory);
-    } catch {
+    } catch (err) {
+      console.error('Failed to load import history', err);
       setHistory(demoImportHistory);
+      setHistoryError(true);
     } finally {
       setHistoryLoading(false);
     }
@@ -233,9 +238,10 @@ export function DataImportView() {
 
       toast({ title: 'Import Complete', description: `Successfully imported records` });
       loadHistory();
-    } catch (err: any) {
-      setValidationErrors([err.message || 'Import failed']);
-      toast({ title: 'Import Failed', description: err.message, variant: 'destructive' });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Import failed';
+      setValidationErrors([msg]);
+      toast({ title: 'Import Failed', description: msg, variant: 'destructive' });
     } finally {
       setImporting(false);
     }
@@ -266,6 +272,7 @@ export function DataImportView() {
 
   return (
     <div className="space-y-6">
+      {historyError && <DataLoadError message="Could not load import history from the server. Showing sample entries below." />}
       {/* Step Progress */}
       <Card className="shadow-sm border border-slate-200/60 dark:border-slate-700/40">
         <CardContent className="p-4">
@@ -524,7 +531,7 @@ export function DataImportView() {
                     { label: 'Records', value: Math.max(csvPreview.length - 1, 0), color: 'from-emerald-500/10 to-emerald-600/5', textColor: 'text-emerald-700 dark:text-emerald-400', borderColor: 'border-emerald-200 dark:border-emerald-800/50' },
                     { label: 'Entities', value: entityCodes.length || 5, color: 'from-teal-500/10 to-teal-600/5', textColor: 'text-teal-700 dark:text-teal-400', borderColor: 'border-teal-200 dark:border-teal-800/50' },
                     { label: 'Date Range', value: periods.length > 0 ? periods[0] : '2024-12', color: 'from-amber-500/10 to-amber-600/5', textColor: 'text-amber-700 dark:text-amber-400', borderColor: 'border-amber-200 dark:border-amber-800/50', small: true },
-                    { label: 'Total Amount', value: `€${totalAmount.toLocaleString('de-DE') || '51,900'}`, color: 'from-slate-500/10 to-slate-600/5', textColor: 'text-slate-700 dark:text-slate-400', borderColor: 'border-slate-200 dark:border-slate-700/50', small: true },
+                    { label: 'Total Amount', value: `€${totalAmount.toLocaleString('de-DE')}`, color: 'from-slate-500/10 to-slate-600/5', textColor: 'text-slate-700 dark:text-slate-400', borderColor: 'border-slate-200 dark:border-slate-700/50', small: true },
                   ].map((card, i) => (
                     <motion.div
                       key={card.label}

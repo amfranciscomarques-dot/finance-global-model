@@ -8,10 +8,31 @@ async function fetchAPI<T>(url: string, options?: RequestInit): Promise<T> {
     ...options,
   });
   if (!res.ok) {
-    const error = await res.json().catch(() => ({ error: 'Request failed' }));
+    const error = (await res.json().catch(() => ({ error: 'Request failed' }))) as { error?: string };
     throw new Error(error.error || `HTTP ${res.status}`);
   }
-  return res.json();
+  return res.json() as Promise<T>;
+}
+
+// Several endpoints return their payload either bare or wrapped in a single
+// named envelope key (e.g. GET /entities → `Entity[]` OR `{ entities: Entity[] }`).
+// `unwrap` returns the wrapped value when present, otherwise the response itself —
+// preserving the original `data.key || data` behaviour without resorting to `any`.
+function unwrap<T>(data: unknown, key: string): T {
+  if (data && typeof data === 'object' && !Array.isArray(data)) {
+    const wrapped = (data as Record<string, unknown>)[key];
+    if (wrapped !== undefined && wrapped !== null) return wrapped as T;
+  }
+  return data as T;
+}
+
+// Generic result shape for mutation endpoints whose response body callers don't
+// read field-by-field (load pack, seed, run scenario, save budget, ...).
+export interface ActionResult {
+  success?: boolean;
+  message?: string;
+  error?: string;
+  [key: string]: unknown;
 }
 
 // ============================================================
@@ -19,29 +40,29 @@ async function fetchAPI<T>(url: string, options?: RequestInit): Promise<T> {
 // ============================================================
 export async function getEntities(search?: string): Promise<Entity[]> {
   const params = search ? `?search=${encodeURIComponent(search)}` : '';
-  const data = await fetchAPI<any>(`/entities${params}`);
-  return data.entities || data;
+  const data = await fetchAPI<unknown>(`/entities${params}`);
+  return unwrap<Entity[]>(data, 'entities');
 }
 
 export async function getEntity(id: string): Promise<Entity> {
-  const data = await fetchAPI<any>(`/entities/${id}`);
-  return data.entity || data;
+  const data = await fetchAPI<unknown>(`/entities/${id}`);
+  return unwrap<Entity>(data, 'entity');
 }
 
 export async function createEntity(data: Partial<Entity>): Promise<Entity> {
-  const result = await fetchAPI<any>('/entities', {
+  const result = await fetchAPI<unknown>('/entities', {
     method: 'POST',
     body: JSON.stringify(data),
   });
-  return result.entity || result;
+  return unwrap<Entity>(result, 'entity');
 }
 
 export async function updateEntity(id: string, data: Partial<Entity>): Promise<Entity> {
-  const result = await fetchAPI<any>(`/entities/${id}`, {
+  const result = await fetchAPI<unknown>(`/entities/${id}`, {
     method: 'PUT',
     body: JSON.stringify(data),
   });
-  return result.entity || result;
+  return unwrap<Entity>(result, 'entity');
 }
 
 // ============================================================
@@ -64,19 +85,19 @@ export interface PackSummary {
 }
 
 export async function getPacks(): Promise<PackSummary[]> {
-  const data = await fetchAPI<any>('/packs');
-  return data.packs || data;
+  const data = await fetchAPI<unknown>('/packs');
+  return unwrap<PackSummary[]>(data, 'packs');
 }
 
-export async function loadPack(packId: string, reset: boolean = true): Promise<any> {
-  return fetchAPI('/packs', {
+export async function loadPack(packId: string, reset: boolean = true): Promise<ActionResult> {
+  return fetchAPI<ActionResult>('/packs', {
     method: 'POST',
     body: JSON.stringify({ packId, reset }),
   });
 }
 
-export async function createGroup(name: string, period?: string): Promise<any> {
-  return fetchAPI('/packs', {
+export async function createGroup(name: string, period?: string): Promise<ActionResult> {
+  return fetchAPI<ActionResult>('/packs', {
     method: 'POST',
     body: JSON.stringify({ newGroup: { name, ...(period ? { period } : {}) } }),
   });
@@ -92,22 +113,43 @@ export interface ConsolidationRequest {
 }
 
 export async function runConsolidation(request: ConsolidationRequest): Promise<ConsolidatedResult> {
-  const data = await fetchAPI<any>('/consolidation', {
+  const data = await fetchAPI<unknown>('/consolidation', {
     method: 'POST',
     body: JSON.stringify(request),
   });
-  return data.result || data;
+  return unwrap<ConsolidatedResult>(data, 'result');
 }
 
-export async function getConsolidationRuns() {
-  const data = await fetchAPI<any>('/consolidation');
-  return data.runs || data;
+// Raw audit-trail row as persisted by the consolidation engine (see prisma
+// ConsolidationRun). The dashboard/consolidation views map this into their own
+// display shape.
+export interface ConsolidationRunRecord {
+  id: string;
+  period: string;
+  entityCodes: string;
+  scenarioType: string;
+  status: string;
+  eliminationsApplied: number;
+  totalRevenue: number | null;
+  totalEBITDA: number | null;
+  totalNetIncome: number | null;
+  totalAssets: number | null;
+  netDebt: number | null;
+  ebitdaMargin: number | null;
+  leverage: number | null;
+  processingTimeMs: number | null;
+  createdAt: string;
+}
+
+export async function getConsolidationRuns(): Promise<ConsolidationRunRecord[]> {
+  const data = await fetchAPI<unknown>('/consolidation');
+  return unwrap<ConsolidationRunRecord[]>(data, 'runs');
 }
 
 // ============================================================
 // KPIs
 // ============================================================
-export async function getKPIs(period: string, scenarioType: string = 'base'): Promise<{ kpis: KPIs; entityBreakdown: any[] }> {
+export async function getKPIs(period: string, scenarioType: string = 'base'): Promise<{ kpis: KPIs; entityBreakdown: unknown[] }> {
   return fetchAPI(`/kpis?period=${period}&scenarioType=${scenarioType}`);
 }
 
@@ -115,20 +157,20 @@ export async function getKPIs(period: string, scenarioType: string = 'base'): Pr
 // SCENARIOS
 // ============================================================
 export async function getScenarios(): Promise<Scenario[]> {
-  const data = await fetchAPI<any>('/scenarios');
-  return data.scenarios || data;
+  const data = await fetchAPI<unknown>('/scenarios');
+  return unwrap<Scenario[]>(data, 'scenarios');
 }
 
 export async function createScenario(data: Partial<Scenario>): Promise<Scenario> {
-  const result = await fetchAPI<any>('/scenarios', {
+  const result = await fetchAPI<unknown>('/scenarios', {
     method: 'POST',
     body: JSON.stringify(data),
   });
-  return result.scenario || result;
+  return unwrap<Scenario>(result, 'scenario');
 }
 
-export async function runScenario(scenarioId: string, basePeriod: string, entityCodes: string[]): Promise<any> {
-  return fetchAPI('/scenarios/run', {
+export async function runScenario(scenarioId: string, basePeriod: string, entityCodes: string[]): Promise<ActionResult> {
+  return fetchAPI<ActionResult>('/scenarios/run', {
     method: 'POST',
     body: JSON.stringify({ scenarioId, basePeriod, entityCodes }),
   });
@@ -138,8 +180,8 @@ export async function runScenario(scenarioId: string, basePeriod: string, entity
 // VARIANCE
 // ============================================================
 export async function getVariance(period: string): Promise<VarianceData[]> {
-  const data = await fetchAPI<any>(`/variance?period=${period}`);
-  return data.varianceData || data;
+  const data = await fetchAPI<unknown>(`/variance?period=${period}`);
+  return unwrap<VarianceData[]>(data, 'varianceData');
 }
 
 // ============================================================
@@ -150,61 +192,60 @@ export async function getExchangeRates(currency?: string, rateType?: string): Pr
   if (currency) params.set('currency', currency);
   if (rateType) params.set('rateType', rateType);
   const qs = params.toString();
-  const data = await fetchAPI<any>(`/exchange-rates${qs ? `?${qs}` : ''}`);
-  return data.rates || data;
+  const data = await fetchAPI<unknown>(`/exchange-rates${qs ? `?${qs}` : ''}`);
+  return unwrap<ExchangeRateInfo[]>(data, 'rates');
 }
 
 export async function createExchangeRate(data: Partial<ExchangeRateInfo>): Promise<ExchangeRateInfo> {
-  const result = await fetchAPI<any>('/exchange-rates', {
+  const result = await fetchAPI<unknown>('/exchange-rates', {
     method: 'POST',
     body: JSON.stringify(data),
   });
-  return result.rate || result;
+  return unwrap<ExchangeRateInfo>(result, 'rate');
 }
 
 // ============================================================
 // CHART OF ACCOUNTS
 // ============================================================
 export async function getCOA(): Promise<COAAccount[]> {
-  const data = await fetchAPI<any>('/coa?limit=100');
-  return data.accounts || data;
+  const data = await fetchAPI<unknown>('/coa?limit=100');
+  return unwrap<COAAccount[]>(data, 'accounts');
 }
 
 export async function getCOAMappings(entityCode?: string): Promise<COAMapping[]> {
   const params = entityCode ? `?entityCode=${encodeURIComponent(entityCode)}` : '';
-  const data = await fetchAPI<any>(`/coa/mappings${params}`);
-  return data.mappings || data;
+  const data = await fetchAPI<unknown>(`/coa/mappings${params}`);
+  return unwrap<COAMapping[]>(data, 'mappings');
 }
 
 export async function createCOAAccount(data: Partial<COAAccount>): Promise<COAAccount> {
-  const result = await fetchAPI<any>('/coa', {
+  const result = await fetchAPI<unknown>('/coa', {
     method: 'POST',
     body: JSON.stringify(data),
   });
-  return result.account || result;
+  return unwrap<COAAccount>(result, 'account');
 }
 
 // ============================================================
 // SEED
 // ============================================================
-export async function seedDatabase(): Promise<any> {
-  return fetchAPI('/seed', { method: 'POST' });
+export async function seedDatabase(): Promise<ActionResult> {
+  return fetchAPI<ActionResult>('/seed', { method: 'POST' });
 }
 
 // ============================================================
 // DATA IMPORT
 // ============================================================
 export async function importTrialBalance(records: ImportRecord[]): Promise<{ imported: number; errors: string[] }> {
-  const data = await fetchAPI<any>('/import', {
+  return fetchAPI<{ imported: number; errors: string[] }>('/import', {
     method: 'POST',
     body: JSON.stringify({ records }),
   });
-  return data;
 }
 
 export async function getImportHistory(): Promise<ImportHistoryEntry[]> {
-  const data = await fetchAPI<any>('/import');
-  return data.history || data;
+  const data = await fetchAPI<unknown>('/import');
+  return unwrap<ImportHistoryEntry[]>(data, 'history');
 }
 
 // ============================================================
@@ -216,8 +257,8 @@ export async function getAuditTrail(filters?: { actionType?: string; dateFrom?: 
   if (filters?.dateFrom) params.set('dateFrom', filters.dateFrom);
   if (filters?.dateTo) params.set('dateTo', filters.dateTo);
   const qs = params.toString();
-  const data = await fetchAPI<any>(`/audit${qs ? `?${qs}` : ''}`);
-  return data.entries || data;
+  const data = await fetchAPI<unknown>(`/audit${qs ? `?${qs}` : ''}`);
+  return unwrap<AuditEntry[]>(data, 'entries');
 }
 
 // ============================================================
@@ -230,60 +271,56 @@ export async function getICTransactions(filters?: { entity?: string; type?: stri
   if (filters?.status) params.set('status', filters.status);
   if (filters?.period) params.set('period', filters.period);
   const qs = params.toString();
-  const data = await fetchAPI<any>(`/ic-transactions${qs ? `?${qs}` : ''}`);
-  return data.transactions || data;
+  const data = await fetchAPI<unknown>(`/ic-transactions${qs ? `?${qs}` : ''}`);
+  return unwrap<ICTransaction[]>(data, 'transactions');
 }
 
 export async function runEliminations(period: string, entityCodes?: string[]): Promise<{ eliminated: number; errors: string[] }> {
-  const data = await fetchAPI<any>('/ic-transactions/eliminate', {
+  return fetchAPI<{ eliminated: number; errors: string[] }>('/ic-transactions/eliminate', {
     method: 'POST',
     body: JSON.stringify({ period, entityCodes }),
   });
-  return data;
 }
 
 // ============================================================
 // REPORTS
 // ============================================================
 export async function getReports(): Promise<GeneratedReport[]> {
-  const data = await fetchAPI<any>('/reports');
-  return data.reports || data;
+  const data = await fetchAPI<unknown>('/reports');
+  return unwrap<GeneratedReport[]>(data, 'reports');
 }
 
 export async function generateReport(params: { reportType: string; period: string; scenarioType?: string; entityCodes?: string[] }): Promise<GeneratedReport> {
-  const data = await fetchAPI<any>('/reports', {
+  const data = await fetchAPI<unknown>('/reports', {
     method: 'POST',
     body: JSON.stringify(params),
   });
-  return data.report || data;
+  return unwrap<GeneratedReport>(data, 'report');
 }
 
 // ============================================================
 // BUDGET VS ACTUAL
 // ============================================================
-export async function getBudgetVsActual(params?: { period?: string; entityCode?: string }): Promise<{ summary: BudgetVsActualSummary; budget: any[]; actuals: any[] }> {
+export async function getBudgetVsActual(params?: { period?: string; entityCode?: string }): Promise<{ summary: BudgetVsActualSummary; budget: unknown[]; actuals: unknown[] }> {
   const query = new URLSearchParams();
   if (params?.period) query.set('period', params.period);
   if (params?.entityCode) query.set('entityCode', params.entityCode);
-  const data = await fetchAPI<any>(`/budget?${query.toString()}`);
-  return data;
+  return fetchAPI(`/budget?${query.toString()}`);
 }
 
 export async function getBudgetVariance(params?: { period?: string; entityCode?: string }): Promise<{ varianceData: BudgetVarianceDetail[] }> {
   const query = new URLSearchParams();
   if (params?.period) query.set('period', params.period);
   if (params?.entityCode) query.set('entityCode', params.entityCode);
-  const data = await fetchAPI<any>(`/budget/variance?${query.toString()}`);
-  return data;
+  return fetchAPI(`/budget/variance?${query.toString()}`);
 }
 
-export async function saveBudgetEntry(entry: { entityCode: string; period: string; entries: Array<{ groupCOACode: string; budgetAmount: number }> }) {
-  const data = await fetchAPI<any>('/budget', {
+export async function saveBudgetEntry(entry: { entityCode: string; period: string; entries: Array<{ groupCOACode: string; budgetAmount: number }> }): Promise<ActionResult> {
+  return fetchAPI<ActionResult>('/budget', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(entry),
   });
-  return data;
 }
 
 // ============================================================
@@ -294,24 +331,22 @@ export async function getTrendAnalysis(params?: { metric?: string; periods?: str
   if (params?.metric) query.set('metric', params.metric);
   if (params?.periods) query.set('periods', params.periods);
   if (params?.entityCode) query.set('entityCode', params.entityCode);
-  const data = await fetchAPI<any>(`/trends?${query.toString()}`);
-  return data;
+  return fetchAPI<TrendData>(`/trends?${query.toString()}`);
 }
 
 // ============================================================
 // SETTINGS
 // ============================================================
 export async function getSettings(): Promise<SystemSettings> {
-  const data = await fetchAPI<any>('/settings');
-  return data.settings || data;
+  const data = await fetchAPI<unknown>('/settings');
+  return unwrap<SystemSettings>(data, 'settings');
 }
 
-export async function updateSettings(category: string, settings: Record<string, any>): Promise<{ success: boolean; message: string }> {
-  const data = await fetchAPI<any>('/settings', {
+export async function updateSettings(category: string, settings: Record<string, unknown>): Promise<{ success: boolean; message: string }> {
+  return fetchAPI<{ success: boolean; message: string }>('/settings', {
     method: 'POST',
     body: JSON.stringify({ category, settings }),
   });
-  return data;
 }
 
 // ============================================================
@@ -321,8 +356,7 @@ export async function getForecast(params?: { period?: string; scenario?: string 
   const query = new URLSearchParams();
   if (params?.period) query.set('period', params.period);
   if (params?.scenario) query.set('scenario', params.scenario);
-  const data = await fetchAPI<any>(`/forecast?${query.toString()}`);
-  return data;
+  return fetchAPI<CashFlowForecast>(`/forecast?${query.toString()}`);
 }
 
 export async function saveForecastAssumptions(assumptions: {
@@ -331,27 +365,24 @@ export async function saveForecastAssumptions(assumptions: {
   workingCapitalDays: number;
   debtRepaymentSchedule: number;
 }): Promise<{ success: boolean; message: string; data: CashFlowForecast }> {
-  const data = await fetchAPI<any>('/forecast', {
+  return fetchAPI<{ success: boolean; message: string; data: CashFlowForecast }>('/forecast', {
     method: 'POST',
     body: JSON.stringify(assumptions),
   });
-  return data;
 }
 
 // ============================================================
 // NOTIFICATIONS
 // ============================================================
 export async function getNotifications(): Promise<{ notifications: AppNotification[]; unreadCount: number; total: number }> {
-  const data = await fetchAPI<any>('/notifications');
-  return data;
+  return fetchAPI<{ notifications: AppNotification[]; unreadCount: number; total: number }>('/notifications');
 }
 
 export async function markNotificationsRead(notificationIds: string[]): Promise<{ success: boolean; markedRead: number; unreadCount: number }> {
-  const data = await fetchAPI<any>('/notifications', {
+  return fetchAPI<{ success: boolean; markedRead: number; unreadCount: number }>('/notifications', {
     method: 'POST',
     body: JSON.stringify({ notificationIds }),
   });
-  return data;
 }
 
 // ============================================================
@@ -362,11 +393,10 @@ export async function sendAIChatMessage(
   sessionId?: string,
   context?: { period?: string; scenarioType?: string; entityCodes?: string[] }
 ): Promise<{ response: string; sessionId: string; timestamp: string }> {
-  const data = await fetchAPI<any>('/ai-chat', {
+  return fetchAPI<{ response: string; sessionId: string; timestamp: string }>('/ai-chat', {
     method: 'POST',
     body: JSON.stringify({ message, sessionId, context }),
   });
-  return data;
 }
 
 // ============================================================
@@ -429,16 +459,16 @@ export async function getCompliance(params?: { period?: string }): Promise<Compl
 export async function getJournalEntries(params?: { period?: string }): Promise<JournalEntry[]> {
   const query = new URLSearchParams();
   if (params?.period) query.set('period', params.period);
-  const data = await fetchAPI<any>(`/journal-entries${query.toString() ? `?${query.toString()}` : ''}`);
-  return data.entries || data;
+  const data = await fetchAPI<unknown>(`/journal-entries${query.toString() ? `?${query.toString()}` : ''}`);
+  return unwrap<JournalEntry[]>(data, 'entries');
 }
 
 export async function createJournalEntry(request: JournalEntryCreateRequest): Promise<JournalEntry> {
-  const data = await fetchAPI<any>('/journal-entries', {
+  const data = await fetchAPI<unknown>('/journal-entries', {
     method: 'POST',
     body: JSON.stringify(request),
   });
-  return data.entry || data;
+  return unwrap<JournalEntry>(data, 'entry');
 }
 
 // ============================================================
@@ -447,6 +477,6 @@ export async function createJournalEntry(request: JournalEntryCreateRequest): Pr
 export async function getWorkflow(params?: { period?: string }): Promise<WorkflowData> {
   const query = new URLSearchParams();
   if (params?.period) query.set('period', params.period);
-  const data = await fetchAPI<any>(`/workflow${query.toString() ? `?${query.toString()}` : ''}`);
-  return data.workflow || data;
+  const data = await fetchAPI<unknown>(`/workflow${query.toString() ? `?${query.toString()}` : ''}`);
+  return unwrap<WorkflowData>(data, 'workflow');
 }
