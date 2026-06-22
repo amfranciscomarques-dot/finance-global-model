@@ -233,11 +233,8 @@ centralise where identity is established.
 ## Known limitations & follow-ups
 
 The full backlog (quick wins, deferred polish) lives in [`PLAN.md`](PLAN.md).
-Completed work is in [`CHANGELOG.md`](CHANGELOG.md). The three remaining items:
+Completed work is in [`CHANGELOG.md`](CHANGELOG.md). The two remaining items:
 
-- **Operations → forecast link.** Forecast COGS currently uses a flat gross-margin
-  driver; wiring it to the operational catalog's BOM-derived margin would make the
-  projection catalog-derived end-to-end.
 - **FX deferred polish.** Per-tranche historical equity rates (v1 uses
   acquisition-date or closing); CTA recycling to P&L on disposal (IAS 21 §48, out
   of scope until disposals are modelled); period-weighted average rates when monthly

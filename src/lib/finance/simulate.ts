@@ -161,8 +161,25 @@ export function simulateProjection(
 ): SimulationSummary {
   const { draws } = options;
   const pts = options.percentiles ?? [5, 50, 95];
-  const rng = makeRng(options.seed ?? DEFAULT_SEED);
   const metricNames = Object.keys(metrics);
+
+  if (draws < 1) {
+    return {
+      draws,
+      percentilePoints: [...pts].sort((a, b) => a - b),
+      periods: Array.from({ length: periods }, () => {
+        const summary: Record<string, MetricSummary> = {};
+        for (const m of metricNames) {
+          const percentiles: Record<string, number> = {};
+          for (const p of pts) percentiles[`p${p}`] = 0;
+          summary[m] = { mean: 0, min: 0, max: 0, percentiles };
+        }
+        return summary;
+      }),
+    };
+  }
+
+  const rng = makeRng(options.seed ?? DEFAULT_SEED);
 
   // samples[periodIndex][metricIndex] = number[draws]
   const samples: number[][][] = Array.from({ length: periods }, () =>

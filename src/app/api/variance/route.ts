@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { parsePeriodParam } from '@/lib/period';
 import { buildStatements, resolveMetric, type CoaAmount, type StatementMetric } from '@/lib/finance';
 
 // Variance analysis: group actual vs budget vs forecast per metric, for the
@@ -30,8 +31,11 @@ const toAmounts = (rows: Array<{ groupCOACode: string; amountEUR: number }>): Co
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const period = searchParams.get('period') || '2024-12';
-    const periodDate = new Date(period + '-01');
+    const parsedPeriod = parsePeriodParam(searchParams.get('period'));
+    if (!parsedPeriod.ok) {
+      return NextResponse.json({ error: parsedPeriod.error }, { status: 400 });
+    }
+    const { period, periodDate } = parsedPeriod;
 
     const entities = await db.entity.findMany({ where: { isActive: true } });
     const entityIds = entities.map((e) => e.id);

@@ -13,6 +13,23 @@ because they grew over time.
 
 ---
 
+## 2026-06-22 — P1 Audit Backlog Completed
+
+Resolved all eight P1 items from the code-audit backlog in `PLAN.md`.
+
+- **BUG-06 — IC payable sign:** Removed `Math.abs` when netting the IC payable during elimination, allowing the delta to correctly balance against the IC receivable instead of inflating the liability.
+- **BUG-04 — `minCash` null bug:** Initialised `minCash` to `yearEndCash` instead of `Infinity` in the forecast kernel, preventing `Math.round(Infinity)` from serialising to `null` and breaking the JSON contract when `forecastPeriods` is empty.
+- **BUG-01 — Zero-amount entries:** Replaced the `!amountEUR` truthy check with `== null` so valid clearing entries with exactly €0.00 are correctly picked up and don't double-convert on fallback logic.
+- **S2-08 — Debt path floor:** Added `Math.max(0, ...)` bounds to the simple debt-path projection. A `netDebtChange` exceeding outstanding principal now stops at a zero balance instead of turning the entity into a net creditor.
+- **BUG-09 — Period param validation:** Added strict Zod `/^\d{4}-\d{2}$/` validation inside a shared `parsePeriodParam` utility and wired it to the `/api/kpis`, `/api/variance`, and `/api/budget` routes, turning silent Prisma `Invalid Date` zero-row failures into proper 400 Bad Request responses.
+- **BUG-08 — `draws=0` Monte-Carlo NaN cascade:** Added a fast-path escape in `simulateProjection` when `draws < 1`. It now returns a cleanly initialised zero-summary instead of propagating `NaN` bands through the percentile logic and yielding `null` JSON.
+- **BUG-10 — Unsafe component cast:** Replaced the unsafe `EMPTY_RESULT` double-cast in `consolidation-view.tsx` with a standard `null` initial state and wired proper optional-chaining and null-guards into the render path, preventing client-side throws before data loads.
+- **S2-05 — Credit-note margin collapse:** Modified the default-assumptions initialiser to guard `grossMarginRate = revenue > 0 ? (revenue + cogs) / revenue : 0`. Negative-revenue (net credit note) periods no longer produce a positive margin rate that collapses COGS to a positive value in subsequent forecast periods.
+
+Verified: `npm test` = 277 passed.
+
+---
+
 ## 2026-06-22 — Operations → forecast link
 
 Forecast COGS is now catalog-derived (BOM + labor + overhead) instead of a flat

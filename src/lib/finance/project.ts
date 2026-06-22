@@ -105,7 +105,7 @@ export function deriveDefaultAssumptions(opening: FinancialStatements): Projecti
   return {
     revenueGrowthRate: 0,
     opexGrowthRate: 0,
-    grossMarginRate: revenue !== 0 ? (is.revenue + is.cogs) / revenue : 0, // cogs negative
+    grossMarginRate: revenue > 0 ? (is.revenue + is.cogs) / revenue : 0, // cogs negative
     depreciationRate: safeDiv(Math.abs(is.depreciation), bs.ppe),
     interestRate: safeDiv(Math.abs(is.interestExpense), debt),
     effectiveTaxRate: is.ebt > 0 ? safeDiv(Math.abs(is.taxExpense), is.ebt) : 0,
@@ -198,9 +198,17 @@ export function projectPeriod(
     // Simple roll-forward: interest on the OPENING balance; net change → long-term.
     interestMag = a.interestRate * openingDebt;
     bs.shortTermDebt = o.balanceSheet.shortTermDebt;
-    bs.longTermDebt = o.balanceSheet.longTermDebt + a.netDebtChange;
-    debtIssuance = a.netDebtChange > 0 ? a.netDebtChange : 0;
-    debtRepayment = a.netDebtChange < 0 ? -a.netDebtChange : 0;
+    // Floor closing debt at 0: a netDebtChange more negative than the outstanding
+    // long-term principal would otherwise drive the entity into a net-creditor
+    // position. The sweep path already caps repayment at openingDebt (S2-08).
+    bs.longTermDebt = Math.max(0, o.balanceSheet.longTermDebt + a.netDebtChange);
+    // Derive the financing cash flows from the ACTUAL change in debt, not the
+    // raw netDebtChange. When the floor above caps a large repayment, the cash
+    // outflow must shrink to match — otherwise the cash plug over-decreases and
+    // the sheet no longer balances. Uncapped, actualDelta === netDebtChange.
+    const actualDelta = bs.longTermDebt - o.balanceSheet.longTermDebt;
+    debtIssuance = actualDelta > 0 ? actualDelta : 0;
+    debtRepayment = actualDelta < 0 ? -actualDelta : 0;
   }
 
   // --- Finalise the income statement with the resolved interest ---

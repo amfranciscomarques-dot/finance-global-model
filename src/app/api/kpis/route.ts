@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { parsePeriodParam } from '@/lib/period';
 import {
   addEntry,
   aggregateFinancials,
@@ -21,10 +22,12 @@ import {
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const period = searchParams.get('period') || '2024-12';
+    const parsedPeriod = parsePeriodParam(searchParams.get('period'));
+    if (!parsedPeriod.ok) {
+      return NextResponse.json({ error: parsedPeriod.error }, { status: 400 });
+    }
+    const { period, periodDate } = parsedPeriod;
     const scenarioType = searchParams.get('scenarioType') || 'base';
-
-    const periodDate = new Date(period + '-01');
 
     const entities = await db.entity.findMany({ where: { isActive: true } });
     const entityCodes = entities.map((e) => e.code);

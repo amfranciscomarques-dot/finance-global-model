@@ -25,22 +25,7 @@ import {
 // Colour palette assigned to entity columns by position (company-agnostic).
 const ENTITY_PALETTE = ['#10b981', '#0d9488', '#f59e0b', '#64748b', '#f97316', '#6366f1', '#ec4899'];
 
-// Zeroed result used until the first real consolidation run returns. Keeping the
-// balance sheet at 0 = 0 means the view opens "Balanced", never flashing stale
-// demo figures.
-const EMPTY_RESULT = {
-  period: '',
-  entities: [],
-  scenario: 'base',
-  status: 'idle',
-  balanceCheck: 0,
-  incomeStatement: { minorityInterest: 0 },
-  balanceSheet: { totalAssets: 0, totalLiabilities: 0, totalEquity: 0, minorityEquity: 0 },
-  cashFlow: {},
-  kpis: { totalRevenue: 0 },
-  eliminationsApplied: 0,
-  entityBreakdown: [],
-} as unknown as ConsolidatedResult;
+
 
 interface ConsolidationRun {
   id: string;
@@ -184,7 +169,7 @@ export function ConsolidationView() {
   const loc = useLocale() as Locale;
   const [activeTab, setActiveTab] = useState('income');
   const [entities, setEntities] = useState<Entity[]>([]);
-  const [result, setResult] = useState<ConsolidatedResult>(EMPTY_RESULT);
+  const [result, setResult] = useState<ConsolidatedResult | null>(null);
   const [individualIS, setIndividualIS] = useState<Record<string, IncomeStatement>>({});
   const [individualBS, setIndividualBS] = useState<Record<string, BalanceSheet>>({});
   const [individualCF, setIndividualCF] = useState<Record<string, CashFlowStatement>>({});
@@ -306,7 +291,7 @@ export function ConsolidationView() {
   // where equity already includes minority interest (see deriveBalanceSheet).
   // Never recompute it client-side: the old recompute subtracted minorityEquity
   // a second time (totalEquity already contains it), inventing a phantom break.
-  const bsBalance = result.balanceCheck ?? 0;
+  const bsBalance = result?.balanceCheck ?? 0;
   // The card mirrors the engine's verdict: a 'failed' run is, by construction, a
   // sheet that did not reconcile within tolerance, so it must never read green.
   const bsIsBalanced = consolidationStatus !== 'failed' && Math.abs(bsBalance) < 1;
@@ -451,7 +436,7 @@ export function ConsolidationView() {
               <CardDescription>{t('subtitle', { period: periodLabel, scenario: scenarioLabel })}</CardDescription>
             </div>
             <div className="flex items-center gap-3">
-              <Button variant="outline" size="sm" onClick={() => exportConsolidationCSV(result, entityCodes, `consolidation-${selectedPeriod}.csv`)}>
+              <Button variant="outline" size="sm" onClick={() => result && exportConsolidationCSV(result, entityCodes, `consolidation-${selectedPeriod}.csv`)} disabled={!result}>
                 <Download className="w-4 h-4 mr-1" /> CSV
               </Button>
               <Button variant="outline" size="sm" onClick={async () => {
@@ -467,7 +452,7 @@ export function ConsolidationView() {
                   // Fallback: export as tab-separated with BOM
                   const BOM = '\uFEFF';
                   const headers = ['Line Item', ...entityCodes, 'IC Elim.', 'Consolidated'].join('\t');
-                  const rows = [['Revenue', ...entityCodes.map(() => ''), '', result.incomeStatement.revenue.toString()], ['EBITDA', ...entityCodes.map(() => ''), '', result.incomeStatement.ebitda.toString()], ['Net Income', ...entityCodes.map(() => ''), '', result.incomeStatement.netIncome.toString()]].map(r => r.join('\t')).join('\n');
+                  const rows = [['Revenue', ...entityCodes.map(() => ''), '', result?.incomeStatement?.revenue?.toString() || '0'], ['EBITDA', ...entityCodes.map(() => ''), '', result?.incomeStatement?.ebitda?.toString() || '0'], ['Net Income', ...entityCodes.map(() => ''), '', result?.incomeStatement?.netIncome?.toString() || '0']].map(r => r.join('\t')).join('\n');
                   const content = BOM + [headers, rows].join('\n');
                   const blob = new Blob([content], { type: 'application/vnd.ms-excel;charset=utf-8;' });
                   const url = URL.createObjectURL(blob);
@@ -515,15 +500,15 @@ export function ConsolidationView() {
             </TabsList>
 
             <TabsContent value="income" className="mt-4">
-              {renderFinancialTable(incomeStatementRows, (code) => individualIS[code] as unknown as FinancialData, result.incomeStatement as unknown as FinancialData)}
+              {renderFinancialTable(incomeStatementRows, (code) => individualIS[code] as unknown as FinancialData, (result?.incomeStatement || {}) as unknown as FinancialData)}
             </TabsContent>
 
             <TabsContent value="balance" className="mt-4">
-              {renderFinancialTable(balanceSheetRows, (code) => individualBS[code] as unknown as FinancialData, result.balanceSheet as unknown as FinancialData)}
+              {renderFinancialTable(balanceSheetRows, (code) => individualBS[code] as unknown as FinancialData, (result?.balanceSheet || {}) as unknown as FinancialData)}
             </TabsContent>
 
             <TabsContent value="cashflow" className="mt-4">
-              {renderFinancialTable(cashFlowRows, (code) => individualCF[code] as unknown as FinancialData, result.cashFlow as unknown as FinancialData)}
+              {renderFinancialTable(cashFlowRows, (code) => individualCF[code] as unknown as FinancialData, (result?.cashFlow || {}) as unknown as FinancialData)}
             </TabsContent>
           </Tabs>
         </CardContent>
@@ -536,7 +521,7 @@ export function ConsolidationView() {
             <CardContent className="p-4">
               <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">{t('cards.consolidatedRevenue')}</p>
               <div className="flex items-center gap-2">
-                <p className="text-2xl font-bold count-animate"><AnimatedCounter value={result.kpis.totalRevenue / 1_000_000} prefix="€" suffix="M" decimals={1} duration={1} /></p>
+                <p className="text-2xl font-bold count-animate"><AnimatedCounter value={(result?.kpis?.totalRevenue || 0) / 1_000_000} prefix="€" suffix="M" decimals={1} duration={1} /></p>
                 <TrendingUp className="w-4 h-4 text-emerald-500" />
               </div>
               <div className="flex items-center gap-1.5 mt-1">
@@ -566,7 +551,7 @@ export function ConsolidationView() {
             <CardContent className="p-4">
               <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">{t('cards.minorityInterest')}</p>
               <div className="flex items-center gap-2">
-                <p className="text-2xl font-bold text-amber-600 dark:text-amber-400 count-animate"><AnimatedCounter value={Math.abs(result.incomeStatement.minorityInterest / 1_000_000)} prefix="€" suffix="M" decimals={1} duration={1} /></p>
+                <p className="text-2xl font-bold text-amber-600 dark:text-amber-400 count-animate"><AnimatedCounter value={Math.abs((result?.incomeStatement?.minorityInterest || 0) / 1_000_000)} prefix="€" suffix="M" decimals={1} duration={1} /></p>
                 <TrendingUp className="w-4 h-4 text-amber-400" />
               </div>
               <div className="flex items-center gap-1.5 mt-1">

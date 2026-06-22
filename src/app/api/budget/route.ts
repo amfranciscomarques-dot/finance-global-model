@@ -3,6 +3,7 @@ import { db } from '@/lib/db';
 import type { BudgetEntry } from '@prisma/client';
 import { z } from 'zod';
 import { categorizeCoaCode } from '@/lib/coa-data';
+import { parsePeriodParam } from '@/lib/period';
 
 const budgetEntrySchema = z.object({
   entityCode: z.string().min(1),
@@ -16,9 +17,12 @@ const budgetEntrySchema = z.object({
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const period = searchParams.get('period') || '2024-12';
+    const parsedPeriod = parsePeriodParam(searchParams.get('period'));
+    if (!parsedPeriod.ok) {
+      return NextResponse.json({ error: parsedPeriod.error }, { status: 400 });
+    }
+    const { period, periodDate } = parsedPeriod;
     const entityCode = searchParams.get('entityCode');
-    const periodDate = new Date(period + '-01');
 
     // Build entity filter
     const entityFilter: Record<string, unknown> = { isActive: true };

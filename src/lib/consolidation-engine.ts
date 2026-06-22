@@ -124,7 +124,10 @@ async function buildEntityFinancials(
   let storedDeferredTaxAsset = 0;
   for (const entry of entries) {
     let amountEUR = entry.amountEUR;
-    if (!amountEUR && entry.amountLocal) {
+    // Only convert from local when amountEUR is genuinely absent. A falsy check
+    // (`!amountEUR`) treats a valid zero EUR amount as missing and would
+    // re-derive it from a non-zero amountLocal, corrupting clearing entries (BUG-01).
+    if (amountEUR == null && entry.amountLocal != null) {
       amountEUR = convertToEUR(entry.amountLocal, entry.exchangeRateUsed || rate);
     }
     addEntry(stmts, entry.groupCOACode, amountEUR);
@@ -300,11 +303,15 @@ async function runICEliminations(
   // the IntercompanyTransaction table and bilaterally-matched IC trial-balance
   // rows. Nothing in the schema links the two, so the same internal sale present
   // in both would be netted twice. We key each eliminated flow on its unordered
-  // entity pair + rounded EUR amount; the transaction path registers its keys
-  // first, and the trial-balance path skips any flow already seen.
+  // entity pair + EUR amount rounded to integer CENTS; the transaction path
+  // registers its keys first, and the trial-balance path skips any flow already
+  // seen. Cent granularity matters: a whole-euro round collapses €X.49 and €X.50
+  // to different keys, so the same FX-translated flow appearing at a half-integer
+  // amount in both sources would fail to dedup and be eliminated twice (TOP.3),
+  // understating consolidated revenue.
   const eliminatedKeys = new Set<string>();
   const pairAmountKey = (a: string, b: string, amount: number): string =>
-    [a, b].sort().join('~') + '|' + Math.round(Math.abs(amount));
+    [a, b].sort().join('~') + '|' + Math.round(Math.abs(amount) * 100);
 
   // Reset derived elimination state for this scope so the run is repeatable
   await db.intercompanyTransaction.updateMany({
@@ -477,7 +484,11 @@ async function runICEliminations(
       seller: codeOf(recv.entityId),
       buyer: codeOf(recv.icPartnerEntityId),
       revenue: 0,
-      openBalance: { receivable: recv.amountEUR, payable: Math.abs(payable.amountEUR) },
+      // Pass the raw SIGNED payable. addEntry preserves the LIA-006 sign into
+      // bs.icPayable, so the elimination delta (-pay) nets the consolidated line
+      // to zero only if `pay` matches that signed value. Math.abs() here flipped
+      // the sign and drove the payable further from zero (BUG-06).
+      openBalance: { receivable: recv.amountEUR, payable: payable.amountEUR },
     });
     const group = `EG-${recv.id.substring(0, 8)}`;
     balanceWrites.push(

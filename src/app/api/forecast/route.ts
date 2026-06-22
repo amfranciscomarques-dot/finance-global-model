@@ -283,8 +283,11 @@ function buildForecast(
     runwayMonths++;
   }
 
-  // Min cash position across the forecast horizon (base case).
-  let minCash = Infinity;
+  // Min cash position across the forecast horizon (base case). Seed with
+  // yearEndCash so an empty forecastPeriods leaves minCash a finite number —
+  // Math.round(Infinity) serialises to JSON null and breaks the number contract
+  // for CashFlowForecast.minCashPosition (BUG-04).
+  let minCash = yearEndCash;
   let minCashMonth = '';
   for (const p of forecastPeriods) {
     if (p.cumulativeCash < minCash) {

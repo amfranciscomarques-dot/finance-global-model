@@ -51,7 +51,11 @@ export async function POST(request: NextRequest) {
     // per-jurisdiction modelling via src/lib/tax would need per-entity, currency-
     // aware EBT, which the consolidated what-if doesn't currently carry — the tax
     // module is not yet wired into the engine.)
-    const baseEffectiveTaxRate = baseIS.ebt !== 0 ? baseIS.taxExpense / baseIS.ebt : 0;
+    // Only meaningful when the base is profitable: in a loss year taxExpense is a
+    // benefit (or zero) and EBT is negative, so taxExpense/ebt yields a spurious
+    // POSITIVE rate. We guard on ebt > 0 and take the magnitude, then re-apply the
+    // sign explicitly below, so the rate is always a clean positive burden.
+    const baseEffectiveTaxRate = baseIS.ebt > 0 ? Math.abs(baseIS.taxExpense) / baseIS.ebt : 0;
 
     // --- Scenario income statement -------------------------------------------
     const adjustedIS = { ...baseIS };
@@ -64,7 +68,9 @@ export async function POST(request: NextRequest) {
     // flat multiplier on a blended number). Interest is carried from the base.
     adjustedIS.interestExpense = baseIS.interestExpense;
     deriveIncomeStatement(adjustedIS);                              // grossProfit→ebt chain
-    adjustedIS.taxExpense = adjustedIS.ebt * baseEffectiveTaxRate;  // preserve effective rate (signed)
+    // Tax is stored negative (engine convention) and is never levied on a loss:
+    // apply the positive base rate to the profitable part of EBT only, then negate.
+    adjustedIS.taxExpense = -(baseEffectiveTaxRate * Math.max(0, adjustedIS.ebt));
     deriveIncomeStatement(adjustedIS);                             // re-derive netIncome from the new tax (single source)
     adjustedIS.minorityInterest = baseIS.minorityInterest;         // ownership structure unchanged
 
