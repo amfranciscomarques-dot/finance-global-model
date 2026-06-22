@@ -6,6 +6,7 @@ export * from './eliminations';
 export * from './transfer-pricing';
 export * from './debt';
 export * from './project';
+export * from './simulate';
 export * from './translation';
 export * from './fx';
 export * from './kpis';

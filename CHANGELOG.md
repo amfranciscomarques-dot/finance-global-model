@@ -13,6 +13,63 @@ because they grew over time.
 
 ---
 
+## 2026-06-22 — Remove N+1 / per-row `await` in the engine (LOW.2)
+
+Collapses the per-row database round trips in the consolidation engine and the IC
+elimination loops into batched / pre-fetched / concurrent queries. Pure performance —
+no behaviour change: all 249 tests (including the IC idempotency, TOP.3 dedup and
+MEDIUM.3 receivable-elimination golden cases) stay green, proving the in-memory
+matching reproduces the old live-query semantics exactly.
+
+- **Per-entity build runs concurrently.** `computeConsolidation` built each entity's
+  statements one `await` at a time; the builds are independent reads, so they now run
+  under `Promise.all` (order preserved, so the tax / carryforward index alignment is
+  unchanged).
+- **IC transaction marking in one write.** The matched IC transactions were flipped to
+  `isEliminated` with an update per row; now a single `updateMany` over their ids.
+- **In-memory counterparty matching (the real N+1).** `runICEliminations` issued a
+  `findFirst` per IC trial-balance row to locate its partner leg, then two updates per
+  match. The partner leg is itself in the already-fetched pending set, so it is now
+  indexed by `(entityId|groupCOACode)` and matched in memory — with a local status map
+  mirroring the original live `eliminationStatus: 'pending'` filter (a leg consumed as
+  a match is no longer eligible). Row writes are accumulated once per row and flushed
+  concurrently.
+- **IC balance pairing pre-fetched.** The AST-009 receivable ↔ LIA-006 payable pass did
+  a `findFirst` payable per receivable; both legs are now pulled in two queries and
+  paired through a map, with the eliminations written concurrently.
+- **Carryforward upserts concurrent.** `runConsolidation` upserted each entity's closing
+  pool sequentially; the keys are distinct, so they now upsert under `Promise.all`.
+
+## 2026-06-22 — Monte-Carlo simulation through the kernel & real forecast bands (LOW.1, LOW.6)
+
+Fans the MEDIUM.10 projection kernel out for in-memory Monte-Carlo and replaces the
+forecast's hardcoded uncertainty fan with bands derived from the model's own driver
+dispersion. Pure and additive — no schema change, no new persistence; the demo's
+golden consolidation/projection numbers are untouched (the simulation is a separate,
+read-only path).
+
+- **Pure simulation kernel (`src/lib/finance/simulate.ts`, LOW.1).**
+  `simulateProjection(opening, periods, baseAssumptionsFor, distributions, metrics,
+  options)` chains `projectPeriod` over `draws` paths with **no DB and no I/O**,
+  perturbing each period's drivers around its base and reducing the per-period metric
+  distributions to percentile bands. A seeded mulberry32 PRNG makes the bands
+  reproducible (the tests pin exact percentiles). Ships `DriverNoise`/
+  `DriverDistributions` (absolute + relative sigma with optional clamps), a linear-
+  interpolated `percentile` (R-7), `CASH_FLOW_METRICS`, and a
+  `DEFAULT_FORECAST_DISPERSION` driver set. 10 new tests
+  (`simulate.test.ts`): ordered bands, reproducibility, dispersion-widens-the-band,
+  collapse-to-deterministic at zero dispersion, and bounded-driver clamping.
+- **Consolidated fan-out (`simulateConsolidation`, LOW.1).** Anchors **once** on the
+  IC-eliminated, FX-translated closing state from `computeConsolidation`, then draws
+  entirely in memory — no per-iteration DB round trips and no `ConsolidationRun`
+  persistence. Returns the deterministic base path alongside the simulated bands.
+- **Real forecast uncertainty bands (`/api/forecast`, LOW.6).** Replaces the hardcoded
+  ±5/8/3%-per-month fan and the flat ±5pp scenario re-run with the year+1 percentile
+  dispersion read off the simulation. The monthly cash-flow fan now widens by the
+  simulated relative dispersion (ramped over the horizon, sign-safe so High ≥ base ≥
+  Low for negative components), and the optimistic/base/pessimistic comparison reports
+  the P95/P50/P5 of the driver dispersion. Fixed seed → stable GET response.
+
 ## 2026-06-22 — Carryforward persistence & live transfer pricing (MEDIUM.8b, legs 2–3)
 
 Completes **MEDIUM.8b**: the two remaining legs both needed a schema migration, so

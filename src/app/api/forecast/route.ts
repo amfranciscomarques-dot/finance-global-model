@@ -10,7 +10,11 @@ import {
   deriveDefaultAssumptions,
   deriveIncomeStatement,
   projectPeriod,
+  simulateProjection,
+  CASH_FLOW_METRICS,
+  DEFAULT_FORECAST_DISPERSION,
   type FinancialStatements,
+  type MetricSummary,
   type ProjectionAssumptions,
 } from '@/lib/finance';
 import type { CashFlowForecast, ForecastPeriod, ForecastProjectionYear } from '@/lib/types';
@@ -35,6 +39,23 @@ const DEFAULT_ASSUMPTIONS: ForecastAssumptions = {
 // Months charted forward (= forecast year + 1) and full annual projection depth.
 const FORECAST_HORIZON = 12;
 const PROJECTION_YEARS = 3;
+
+// Monte-Carlo settings for the uncertainty bands (LOW.1/LOW.6). Fixed seed so the
+// GET response is stable; draws are cheap (pure in-memory kernel, no DB).
+const MC_DRAWS = 1000;
+const MC_SEED = 0x5eed;
+
+// Relative up/down dispersion of a metric around its median, read off the
+// simulated band. Used to widen the monthly cash-flow fan by the model's own
+// driver dispersion instead of a hardcoded ±%/month.
+function relBands(summary: MetricSummary): { up: number; down: number } {
+  const p50 = summary.percentiles.p50;
+  const denom = Math.max(Math.abs(p50), 1e-9);
+  return {
+    up: Math.max(0, (summary.percentiles.p95 - p50) / denom),
+    down: Math.max(0, (p50 - summary.percentiles.p5) / denom),
+  };
+}
 
 // ============================================================
 // REAL DATA — aggregate the year's actual trial balances into one derived,
@@ -91,12 +112,6 @@ function kernelAssumptions(
   };
 }
 
-// Project one fiscal year and report its net change in cash — used for the
-// optimistic/base/pessimistic comparison without fabricating ±% on a total.
-function projectedNetChange(opening: FinancialStatements, ui: ForecastAssumptions): number {
-  return projectPeriod(opening, kernelAssumptions(opening, ui)).cashFlow.netChangeInCash;
-}
-
 // ============================================================
 // FORECAST CONSTRUCTION
 //   Anchor : the real year as ONE actual period (true annual figures).
@@ -104,6 +119,10 @@ function projectedNetChange(opening: FinancialStatements, ui: ForecastAssumption
 //            balanced IS/BS/CF), then spread year+1's cash flow across 12 months
 //            for the chart. Year-end cumulative cash ties to the projected
 //            balance sheet's cash by construction.
+//   Bands  : Monte-Carlo the driver draws (LOW.1) and read the year+1 percentile
+//            dispersion off the simulation, so the monthly fan and the
+//            optimistic/pessimistic comparison come from the model's own driver
+//            uncertainty rather than a hardcoded ±%/month (LOW.6).
 // ============================================================
 function buildForecast(
   opening: FinancialStatements,
@@ -127,6 +146,23 @@ function buildForecast(
     });
   }
   const y1 = projYears[0].cashFlow;
+
+  // --- Monte-Carlo dispersion (LOW.1/LOW.6) ---
+  // Fan the kernel out over driver draws around the SAME per-period assumptions,
+  // then read year+1's relative cash-flow dispersion off the simulation. Pure and
+  // in-memory — no DB, nothing persisted.
+  const sim = simulateProjection(
+    opening,
+    PROJECTION_YEARS,
+    (_i, state) => kernelAssumptions(state, assumptions),
+    DEFAULT_FORECAST_DISPERSION,
+    CASH_FLOW_METRICS,
+    { draws: MC_DRAWS, seed: MC_SEED },
+  );
+  const y1band = sim.periods[0];
+  const opBand = relBands(y1band.operatingCashFlow);
+  const invBand = relBands(y1band.investingCashFlow);
+  const finBand = relBands(y1band.financingCashFlow);
 
   // Monthly baselines: spread year+1's driver-based cash flow evenly. The growth
   // already lives in the annual kernel step, so the within-year line is flat and
@@ -177,13 +213,18 @@ function buildForecast(
     const net = op + inv + fin;
     runningCash += net;
 
-    // Uncertainty fan widens with the forecast horizon.
-    const opHigh = op * (1 + 0.05 * m);
-    const opLow = op * (1 - 0.05 * m);
-    const invHigh = inv * (1 + 0.08 * m);
-    const invLow = inv * (1 - 0.08 * m);
-    const finHigh = fin * (1 + 0.03 * m);
-    const finLow = fin * (1 - 0.03 * m);
+    // Uncertainty fan: widen the monthly line by the simulated relative
+    // dispersion (LOW.6), ramped linearly with the horizon so the band opens up
+    // over the year and reaches the full year+1 dispersion at month 12. Using
+    // |component| with an explicit ± keeps High ≥ base ≥ Low regardless of the
+    // component's sign (investing CF is negative).
+    const ramp = m / FORECAST_HORIZON;
+    const opHigh = op + Math.abs(op) * opBand.up * ramp;
+    const opLow = op - Math.abs(op) * opBand.down * ramp;
+    const invHigh = inv + Math.abs(inv) * invBand.up * ramp;
+    const invLow = inv - Math.abs(inv) * invBand.down * ramp;
+    const finHigh = fin + Math.abs(fin) * finBand.up * ramp;
+    const finLow = fin - Math.abs(fin) * finBand.down * ramp;
     const netHigh = opHigh + invHigh + finHigh;
     const netLow = opLow + invLow + finLow;
     runningCashHigh += netHigh;
@@ -243,11 +284,13 @@ function buildForecast(
 
   const sixMonthCash = forecastPeriods[Math.min(5, forecastPeriods.length - 1)]?.cumulativeCash ?? yearEndCash;
 
-  // Scenario comparison: re-run the kernel at ±5pp revenue growth (real
-  // projections, not a flat ±% on the base total).
-  const baseNet = projectedNetChange(opening, assumptions);
-  const optimisticNet = projectedNetChange(opening, { ...assumptions, revenueGrowthRate: assumptions.revenueGrowthRate + 5 });
-  const pessimisticNet = projectedNetChange(opening, { ...assumptions, revenueGrowthRate: assumptions.revenueGrowthRate - 5 });
+  // Scenario comparison: read year+1's net-change distribution straight off the
+  // Monte-Carlo simulation (LOW.6) — the P5/P50/P95 of the driver dispersion,
+  // rather than a flat ±5pp re-run on the mean.
+  const netBand = y1band.netChangeInCash.percentiles;
+  const baseNet = netBand.p50;
+  const optimisticNet = netBand.p95;
+  const pessimisticNet = netBand.p5;
 
   return {
     periods,
@@ -270,9 +313,9 @@ function buildForecast(
       minCashMonth,
     },
     scenarioComparison: {
-      optimistic: { totalNetChange: Math.round(optimisticNet), label: 'Optimistic (+5pp)' },
-      base: { totalNetChange: Math.round(baseNet), label: 'Base Case' },
-      pessimistic: { totalNetChange: Math.round(pessimisticNet), label: 'Pessimistic (-5pp)' },
+      optimistic: { totalNetChange: Math.round(optimisticNet), label: 'Optimistic (P95)' },
+      base: { totalNetChange: Math.round(baseNet), label: 'Base (P50)' },
+      pessimistic: { totalNetChange: Math.round(pessimisticNet), label: 'Pessimistic (P5)' },
     },
     projection: {
       drivers: {

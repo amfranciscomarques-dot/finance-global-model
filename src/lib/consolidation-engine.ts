@@ -23,11 +23,18 @@ import {
   getExchangeRate,
   IS_ACCOUNTS,
   projectMultiPeriod,
+  simulateProjection,
   translateForeignEntity,
+  CASH_FLOW_METRICS,
+  DEFAULT_FORECAST_DISPERSION,
+  type DriverDistributions,
   type EliminationEntry,
   type FinancialStatements,
   type ICSaleFlow,
+  type MetricSelector,
   type ProjectionAssumptions,
+  type SimulationOptions,
+  type SimulationSummary,
   type TransferPricingPolicy,
 } from '@/lib/finance';
 import { aggregateDeferredTax, computeDeferredTax, getTaxProvider, reconcileGroupTax } from '@/lib/tax';
@@ -319,12 +326,16 @@ async function runICEliminations(
     },
   });
 
-  // Mark matched pairs as eliminated
-  for (const tx of icTransactions) {
-    await db.intercompanyTransaction.update({
-      where: { id: tx.id },
+  // Mark every matched pair eliminated in ONE write (they were all fetched with
+  // isEliminated:false and all flip to true) instead of a per-row update (LOW.2).
+  if (icTransactions.length > 0) {
+    await db.intercompanyTransaction.updateMany({
+      where: { id: { in: icTransactions.map((tx) => tx.id) } },
       data: { isEliminated: true },
     });
+  }
+
+  for (const tx of icTransactions) {
     if (PL_TRANSACTION_TYPES.has(tx.transactionType)) {
       totalElimination += tx.amountEUR;
       // An internal sale: the seller's revenue and the buyer's cost both gross up
@@ -365,76 +376,97 @@ async function runICEliminations(
     },
   });
 
+  // LOW.2 — resolve every counterparty match in memory instead of a findFirst per
+  // row (N+1). The partner leg is itself a pending, in-scope, non-AST/LIA IC row,
+  // so it is already present in `icTrialBalances`; index that set by
+  // (entityId|groupCOACode) and track each row's evolving status locally to mirror
+  // the original live `eliminationStatus: 'pending'` filter (a leg already consumed
+  // as a match is no longer eligible). DB writes are accumulated per row and
+  // flushed once, concurrently, at the end.
+  const tbStatus = new Map<string, 'pending' | 'matched' | 'eliminated'>(
+    icTrialBalances.map((r) => [r.id, 'pending' as const]),
+  );
+  const tbWrites = new Map<string, { eliminationStatus: string; eliminationGroup?: string }>();
+  const setTbWrite = (id: string, data: { eliminationStatus: string; eliminationGroup?: string }) =>
+    tbWrites.set(id, { ...tbWrites.get(id), ...data });
+  const byEntityCode = new Map<string, typeof icTrialBalances>();
+  for (const r of icTrialBalances) {
+    const k = `${r.entityId}|${r.groupCOACode}`;
+    const list = byEntityCode.get(k);
+    if (list) list.push(r);
+    else byEntityCode.set(k, [r]);
+  }
+
   for (const tb of icTrialBalances) {
-    if (tb.icPartnerEntityId) {
-      const matching = await db.trialBalance.findFirst({
-        where: {
-          period: periodDate,
-          entityId: tb.icPartnerEntityId,
-          groupCOACode: tb.groupCOACode,
-          isIntercompany: true,
-          eliminationStatus: 'pending',
-        },
-      });
+    if (!tb.icPartnerEntityId) continue;
+    const candidates = byEntityCode.get(`${tb.icPartnerEntityId}|${tb.groupCOACode}`);
+    const matching = candidates?.find((r) => tbStatus.get(r.id) === 'pending');
 
-      if (matching) {
-        // Mark both legs eliminated regardless of dedup, so the audit trail is
-        // consistent (the flow IS eliminated — the only question is which source
-        // already netted it).
-        await db.trialBalance.update({
-          where: { id: tb.id },
-          data: { eliminationStatus: 'eliminated', eliminationGroup: `EG-${tb.id.substring(0, 8)}` },
-        });
-        await db.trialBalance.update({
-          where: { id: matching.id },
-          data: { eliminationStatus: 'eliminated', eliminationGroup: `EG-${tb.id.substring(0, 8)}` },
-        });
+    if (matching) {
+      // Mark both legs eliminated regardless of dedup, so the audit trail is
+      // consistent (the flow IS eliminated — the only question is which source
+      // already netted it).
+      const group = `EG-${tb.id.substring(0, 8)}`;
+      tbStatus.set(tb.id, 'eliminated');
+      tbStatus.set(matching.id, 'eliminated');
+      setTbWrite(tb.id, { eliminationStatus: 'eliminated', eliminationGroup: group });
+      setTbWrite(matching.id, { eliminationStatus: 'eliminated', eliminationGroup: group });
 
-        const key = pairAmountKey(tb.entityId, tb.icPartnerEntityId, tb.amountEUR);
-        if (eliminatedKeys.has(key)) {
-          // Same flow already netted via the IntercompanyTransaction path — do
-          // NOT net or count it again (TOP.3). The rows are still flagged above.
-          dedupedCount++;
-          details.push(
-            `Skipped (already eliminated via IC transaction): ${tb.groupCOACode} €${Math.abs(tb.amountEUR).toFixed(0)}`,
-          );
-        } else {
-          eliminatedKeys.add(key);
-          // Only P&L codes are netted against revenue/COGS; matched BS balances
-          // (IC receivable/payable) must not distort the income statement.
-          if (IS_ACCOUNTS[tb.groupCOACode]) {
-            totalElimination += Math.abs(tb.amountEUR);
-            flows.push({ seller: codeOf(tb.entityId), buyer: codeOf(tb.icPartnerEntityId), revenue: Math.abs(tb.amountEUR) });
-          }
-          count++;
-        }
+      const key = pairAmountKey(tb.entityId, tb.icPartnerEntityId, tb.amountEUR);
+      if (eliminatedKeys.has(key)) {
+        // Same flow already netted via the IntercompanyTransaction path — do
+        // NOT net or count it again (TOP.3). The rows are still flagged above.
+        dedupedCount++;
+        details.push(
+          `Skipped (already eliminated via IC transaction): ${tb.groupCOACode} €${Math.abs(tb.amountEUR).toFixed(0)}`,
+        );
       } else {
-        await db.trialBalance.update({
-          where: { id: tb.id },
-          data: { eliminationStatus: 'matched' },
-        });
+        eliminatedKeys.add(key);
+        // Only P&L codes are netted against revenue/COGS; matched BS balances
+        // (IC receivable/payable) must not distort the income statement.
+        if (IS_ACCOUNTS[tb.groupCOACode]) {
+          totalElimination += Math.abs(tb.amountEUR);
+          flows.push({ seller: codeOf(tb.entityId), buyer: codeOf(tb.icPartnerEntityId), revenue: Math.abs(tb.amountEUR) });
+        }
+        count++;
       }
+    } else {
+      tbStatus.set(tb.id, 'matched');
+      setTbWrite(tb.id, { eliminationStatus: 'matched' });
     }
   }
+
+  // Flush the accumulated per-row status changes (each row written once).
+  await Promise.all(
+    [...tbWrites].map(([id, data]) => db.trialBalance.update({ where: { id }, data })),
+  );
 
   // MEDIUM.3 — balance-sheet IC elimination. Match each IC receivable (AST-009)
   // against the matching IC payable (LIA-006) on its counterparty and net both
   // off the consolidated sheet. The legs may sit at different FX rates for a
   // cross-border pair; the pure module routes that residual to the CTA.
-  const icReceivables = await db.trialBalance.findMany({
-    where: { period: periodDate, entityId: { in: entityIds }, groupCOACode: 'AST-009', isIntercompany: true },
-  });
+  // LOW.2 — pre-fetch both legs in two queries and pair them in memory, rather
+  // than a findFirst payable per receivable (N+1). Payables are indexed by
+  // (entityId|icPartnerEntityId); the receivable matches the mirrored pair.
+  const [icReceivables, icPayables] = await Promise.all([
+    db.trialBalance.findMany({
+      where: { period: periodDate, entityId: { in: entityIds }, groupCOACode: 'AST-009', isIntercompany: true },
+    }),
+    db.trialBalance.findMany({
+      where: { period: periodDate, entityId: { in: entityIds }, groupCOACode: 'LIA-006', isIntercompany: true },
+    }),
+  ]);
+  const payableByPair = new Map<string, (typeof icPayables)[number]>();
+  for (const p of icPayables) {
+    if (!p.icPartnerEntityId) continue;
+    const k = `${p.entityId}|${p.icPartnerEntityId}`;
+    if (!payableByPair.has(k)) payableByPair.set(k, p); // first match wins (mirrors findFirst)
+  }
+
+  const balanceWrites: Array<ReturnType<typeof db.trialBalance.update>> = [];
   for (const recv of icReceivables) {
     if (!recv.icPartnerEntityId) continue;
-    const payable = await db.trialBalance.findFirst({
-      where: {
-        period: periodDate,
-        entityId: recv.icPartnerEntityId,
-        icPartnerEntityId: recv.entityId,
-        groupCOACode: 'LIA-006',
-        isIntercompany: true,
-      },
-    });
+    const payable = payableByPair.get(`${recv.icPartnerEntityId}|${recv.entityId}`);
     if (!payable) continue;
 
     const key = 'BAL|' + pairAmountKey(recv.entityId, recv.icPartnerEntityId, recv.amountEUR);
@@ -447,17 +479,15 @@ async function runICEliminations(
       revenue: 0,
       openBalance: { receivable: recv.amountEUR, payable: Math.abs(payable.amountEUR) },
     });
-    await db.trialBalance.update({
-      where: { id: recv.id },
-      data: { eliminationStatus: 'eliminated', eliminationGroup: `EG-${recv.id.substring(0, 8)}` },
-    });
-    await db.trialBalance.update({
-      where: { id: payable.id },
-      data: { eliminationStatus: 'eliminated', eliminationGroup: `EG-${recv.id.substring(0, 8)}` },
-    });
+    const group = `EG-${recv.id.substring(0, 8)}`;
+    balanceWrites.push(
+      db.trialBalance.update({ where: { id: recv.id }, data: { eliminationStatus: 'eliminated', eliminationGroup: group } }),
+      db.trialBalance.update({ where: { id: payable.id }, data: { eliminationStatus: 'eliminated', eliminationGroup: group } }),
+    );
     count++;
     details.push(`Eliminated IC balance: ${codeOf(recv.entityId)}↔${codeOf(recv.icPartnerEntityId)} €${recv.amountEUR.toFixed(0)}`);
   }
+  await Promise.all(balanceWrites);
 
   const entries = buildEliminationEntries(period, flows);
   return { entries, eliminationAmount: -totalElimination, eliminationCount: count, dedupedCount, details };
@@ -488,16 +518,17 @@ export async function computeConsolidation(input: ConsolidationInput) {
 
   const year = parseInt(input.period.slice(0, 4), 10);
 
-  // Build financials for each entity (with currency conversion)
-  const entityFinancials: EntityFinancials[] = [];
-  for (const entity of entities) {
-    const financials = await buildEntityFinancials(entity, periodDate, input.scenarioType);
-    // B4: forecast/budget tax can be modelled from the jurisdiction provider
-    // (opt-in). Actuals keep their authoritative booked IRC.
-    if (input.computeTaxForProjections && input.scenarioType !== 'base') {
-      applyModelledTax(financials, year);
-    }
-    entityFinancials.push(financials);
+  // Build financials for each entity (with currency conversion). Each build is an
+  // independent set of reads, so they run concurrently rather than one entity at a
+  // time (LOW.2); Promise.all preserves order, so the index alignment the tax /
+  // carryforward passes below rely on is unchanged.
+  const entityFinancials: EntityFinancials[] = await Promise.all(
+    entities.map((entity) => buildEntityFinancials(entity, periodDate, input.scenarioType)),
+  );
+  // B4: forecast/budget tax can be modelled from the jurisdiction provider
+  // (opt-in). Actuals keep their authoritative booked IRC.
+  if (input.computeTaxForProjections && input.scenarioType !== 'base') {
+    for (const financials of entityFinancials) applyModelledTax(financials, year);
   }
 
   // Run IC eliminations
@@ -698,15 +729,21 @@ export async function runConsolidation(input: ConsolidationInput) {
     select: { id: true, code: true },
   });
   const idByCode = new Map(cfEntities.map((e) => [e.code, e.id]));
-  for (const cf of result.taxCarryforwards) {
-    const entityId = idByCode.get(cf.entityCode);
-    if (!entityId) continue;
-    await db.taxCarryforward.upsert({
-      where: { entityId_year_scenarioType: { entityId, year: cf.year, scenarioType: input.scenarioType } },
-      update: { nolClosing: cf.nolClosing, rfaiClosing: cf.rfaiClosing },
-      create: { entityId, year: cf.year, scenarioType: input.scenarioType, nolClosing: cf.nolClosing, rfaiClosing: cf.rfaiClosing },
-    });
-  }
+  // Each pool keys on a distinct (entity, year, scenario), so the upserts are
+  // independent and run concurrently rather than one per row (LOW.2).
+  await Promise.all(
+    result.taxCarryforwards.flatMap((cf) => {
+      const entityId = idByCode.get(cf.entityCode);
+      if (!entityId) return [];
+      return [
+        db.taxCarryforward.upsert({
+          where: { entityId_year_scenarioType: { entityId, year: cf.year, scenarioType: input.scenarioType } },
+          update: { nolClosing: cf.nolClosing, rfaiClosing: cf.rfaiClosing },
+          create: { entityId, year: cf.year, scenarioType: input.scenarioType, nolClosing: cf.nolClosing, rfaiClosing: cf.rfaiClosing },
+        }),
+      ];
+    }),
+  );
 
   return { ...result, runId: run.id };
 }
@@ -745,4 +782,53 @@ export async function projectConsolidation(input: ConsolidationProjectionInput) 
     ...input.assumptionOverrides,
   }));
   return { base, periods };
+}
+
+interface ConsolidationSimulationInput extends ConsolidationProjectionInput {
+  /** Number of Monte-Carlo paths. */
+  draws: number;
+  /** Driver dispersion. Defaults to the standard forecast dispersion (LOW.6). */
+  distributions?: DriverDistributions;
+  /** RNG seed (reproducible bands). */
+  seed?: number;
+  /** Percentiles to report. Defaults to [5, 50, 95]. */
+  percentiles?: number[];
+  /** Metrics to band. Defaults to the standard cash-flow / earnings set. */
+  metrics?: Record<string, MetricSelector>;
+}
+
+/**
+ * LOW.1 — fan the projection kernel out for in-memory Monte-Carlo at the
+ * CONSOLIDATED level. Anchors ONCE on the IC-eliminated, FX-translated closing
+ * state from {@link computeConsolidation}, then draws `draws` driver paths
+ * entirely in memory via {@link simulateProjection}: no per-iteration DB round
+ * trips and no `ConsolidationRun` persistence. Returns the deterministic base
+ * path alongside the simulated percentile bands.
+ */
+export async function simulateConsolidation(
+  input: ConsolidationSimulationInput,
+): Promise<{ base: Awaited<ReturnType<typeof computeConsolidation>>; bands: SimulationSummary }> {
+  const base = await computeConsolidation(input);
+  const opening: FinancialStatements = {
+    incomeStatement: { ...base.incomeStatement },
+    balanceSheet: { ...base.balanceSheet },
+    cashFlow: { ...base.cashFlow },
+  };
+  const options: SimulationOptions = {
+    draws: input.draws,
+    seed: input.seed,
+    percentiles: input.percentiles,
+  };
+  const bands = simulateProjection(
+    opening,
+    input.years,
+    (_periodIndex, state) => ({
+      ...deriveDefaultAssumptions(state),
+      ...input.assumptionOverrides,
+    }),
+    input.distributions ?? DEFAULT_FORECAST_DISPERSION,
+    input.metrics ?? CASH_FLOW_METRICS,
+    options,
+  );
+  return { base, bands };
 }

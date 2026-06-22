@@ -13,19 +13,14 @@ including all three legs of MEDIUM.8b) and are recorded in the changelog.
 
 ## LOW — simulation, scale & hardening
 
-- **LOW.1 — Simulation through the kernel.** Fan the MEDIUM.10 `projectPeriod`
-  kernel out for scenarios / Monte Carlo in-memory — no per-iteration DB round
-  trips or `ConsolidationRun` persistence.
-- **LOW.2 — Remove N+1 / per-row `await`** in the engine and IC elimination loops.
 - **LOW.3 — Integer-cents / decimal money** to avoid float drift in multi-year runs.
 - **LOW.4 — Per-jurisdiction tax view** in the Compliance UI.
 - **LOW.5 — Auth/authz on API routes.** Single-tenant demo today; middleware gates
   destructive routes (see the README's security posture). Multi-tenant auth is the
   real gap.
-- **LOW.6 — Real forecast uncertainty bands.** Replace the hardcoded ±5/8/3%/mo
-  fan and the flat monthly spread in `/api/forecast` with bands derived from driver
-  dispersion — best folded into LOW.1 (Monte-Carlo the driver draws rather than
-  fanning a fixed % on the mean).
+
+_LOW.1 (simulation through the kernel), LOW.2 (remove N+1 / per-row `await`) and
+LOW.6 (real forecast uncertainty bands) shipped 2026-06-22 — see the changelog._
 
 ---
 
@@ -50,11 +45,12 @@ including all three legs of MEDIUM.8b) and are recorded in the changelog.
 
 ## Recommended next
 
-The whole MEDIUM tier is now shipped — **MEDIUM.8b** is complete: the tax-depth
-modules are wired into the persisted run (deferred tax surfaced on `result.deferredTax`,
-carryforward pools persisted and fed back year-on-year, and transfer pricing firing
-the unrealized-profit elimination on live IC goods sales). Only the **LOW** tier and
-the quick wins remain. The natural next step is **LOW.1** (fan the projection kernel
-out for in-memory scenarios / Monte Carlo), with the **quick wins** — seeding a USD
-demo book into MUSA and surfacing the tax carryforwards/PT caps in the UI — as
-low-risk, high-legibility warm-ups.
+**LOW.1**, **LOW.2** and **LOW.6** shipped 2026-06-22 (Monte-Carlo simulation through
+the kernel, the N+1 / per-row `await` removal, and real forecast bands). Remaining in
+the LOW tier: **LOW.3** (integer-cents money — a sweeping refactor of the finance
+domain), **LOW.4** (per-jurisdiction tax view in the Compliance UI — additive UI) and
+**LOW.5** (auth/authz — outward-facing). LOW.4 is the lowest-risk of the three; LOW.3
+and LOW.5 each carry a design fork (money representation; multi-tenant auth vs. simple
+middleware gating) worth settling before starting. The **quick wins** — seeding a USD
+demo book into MUSA and surfacing the tax carryforwards/PT caps in the UI — remain
+available as low-risk, high-legibility warm-ups.
