@@ -24,8 +24,10 @@
 //   - Group/single-stream level: minority interest is not accrued in projection
 //     (carried at its opening value); share capital and CTA are held flat.
 //   - Net new borrowing is routed to long-term debt; short-term debt is held.
-//   - Interest is charged on the OPENING debt balance (no within-period cash↔
-//     interest circularity; that is MEDIUM.9's debt-schedule iteration).
+//   - Interest defaults to the OPENING debt balance. Opting into `debtSweep`
+//     (MEDIUM.9) instead sweeps surplus cash to principal and charges interest
+//     on the AVERAGE balance, resolving the cash↔interest circularity by
+//     iteration (see solveDebtSchedule in debt.ts).
 // ============================================================
 
 import {
@@ -39,6 +41,7 @@ import {
   deriveIncomeStatement,
   type FinancialStatements,
 } from './statements';
+import { solveDebtSchedule } from './debt';
 
 /** Driver assumptions for a single projected period. All rates are fractions. */
 export interface ProjectionAssumptions {
@@ -66,6 +69,21 @@ export interface ProjectionAssumptions {
   netDebtChange: number;
   /** Dividend payout as a fraction of positive net income. */
   dividendPayoutRate: number;
+  /**
+   * Optional cash-sweep debt schedule (MEDIUM.9). When present, debt repayment
+   * is solved endogenously — surplus cash above `minCashBuffer` sweeps to
+   * principal — and interest is charged on the AVERAGE of the opening and
+   * closing balance (resolving the cash↔interest circularity by iteration).
+   * This OVERRIDES `netDebtChange` and the opening-balance interest. When
+   * omitted, the kernel keeps its simple behaviour (interest on opening debt,
+   * `netDebtChange` applied as-is).
+   */
+  debtSweep?: {
+    /** Cash retained and never swept (liquidity floor). */
+    minCashBuffer: number;
+    /** Contractual amortization due regardless of the sweep. Default 0. */
+    mandatoryRepayment?: number;
+  };
 }
 
 const safeDiv = (a: number, b: number): number => (b !== 0 ? a / b : 0);
@@ -115,16 +133,14 @@ export function projectPeriod(
   const bs = createEmptyBS();
   const cf = createEmptyCF();
 
-  // --- Income statement (driver-based) ---
+  // --- Income statement down to EBIT (interest-independent) ---
   is.revenue = o.incomeStatement.revenue * (1 + a.revenueGrowthRate);
   is.cogs = -(1 - a.grossMarginRate) * is.revenue;            // stored negative
   is.opex = o.incomeStatement.opex * (1 + a.opexGrowthRate);  // stored negative
   is.depreciation = -a.depreciationRate * o.balanceSheet.ppe; // stored negative
+  const ebit = is.revenue + is.cogs + is.opex + is.depreciation; // grossProfit + opex + dep
+  const depMag = Math.abs(is.depreciation);
   const openingDebt = o.balanceSheet.shortTermDebt + o.balanceSheet.longTermDebt;
-  is.interestExpense = -a.interestRate * openingDebt;          // stored negative
-  deriveIncomeStatement(is);                                   // grossProfit → ebt (tax still 0)
-  is.taxExpense = -a.effectiveTaxRate * Math.max(0, is.ebt);   // stored negative; loss years untaxed
-  is.netIncome = is.ebt + is.taxExpense;
 
   // --- Working-capital drivers (closing balances from days) ---
   const cogsMag = Math.abs(is.cogs);
@@ -137,22 +153,68 @@ export function projectPeriod(
     (bs.accountsPayable - o.balanceSheet.accountsPayable); // ↑ net WC consumes cash
 
   // --- PPE roll-forward: opening + capex − depreciation ---
-  const depMag = Math.abs(is.depreciation);
   bs.ppe = o.balanceSheet.ppe + a.capex - depMag;
 
-  // --- Debt roll-forward (net change → long-term; short-term held) ---
-  bs.shortTermDebt = o.balanceSheet.shortTermDebt;
-  bs.longTermDebt = o.balanceSheet.longTermDebt + a.netDebtChange;
+  // Cash available to service debt at a given interest charge: the full period's
+  // cash from operations + investing, less dividends, before repaying principal.
+  // Used by the cash-sweep solver to resolve the cash↔interest circularity.
+  const cashForDebtService = (interestMag: number): number => {
+    const ebt = ebit - interestMag;
+    const tax = a.effectiveTaxRate * Math.max(0, ebt);
+    const netIncome = ebt - tax;
+    const dividends = a.dividendPayoutRate * Math.max(0, netIncome);
+    const operating = netIncome + depMag - deltaWC;
+    const investing = -a.capex;
+    return o.balanceSheet.cash + operating + investing - dividends;
+  };
+
+  // --- Debt & interest ---
+  let interestMag: number;
+  let debtIssuance = 0;
+  let debtRepayment = 0;
+  if (a.debtSweep) {
+    // MEDIUM.9: sweep surplus cash to principal; interest on the AVERAGE balance.
+    const sched = solveDebtSchedule(
+      {
+        openingDebt,
+        interestRate: a.interestRate,
+        minCashBuffer: a.debtSweep.minCashBuffer,
+        mandatoryRepayment: a.debtSweep.mandatoryRepayment,
+      },
+      cashForDebtService,
+    );
+    interestMag = sched.interest;
+    debtRepayment = sched.repayment;
+    // Repay long-term first, then short-term (repayment ≤ openingDebt by construction).
+    const payLong = Math.min(sched.repayment, o.balanceSheet.longTermDebt);
+    bs.longTermDebt = o.balanceSheet.longTermDebt - payLong;
+    bs.shortTermDebt = o.balanceSheet.shortTermDebt - (sched.repayment - payLong);
+  } else {
+    // Simple roll-forward: interest on the OPENING balance; net change → long-term.
+    interestMag = a.interestRate * openingDebt;
+    bs.shortTermDebt = o.balanceSheet.shortTermDebt;
+    bs.longTermDebt = o.balanceSheet.longTermDebt + a.netDebtChange;
+    debtIssuance = a.netDebtChange > 0 ? a.netDebtChange : 0;
+    debtRepayment = a.netDebtChange < 0 ? -a.netDebtChange : 0;
+  }
+
+  // --- Finalise the income statement with the resolved interest ---
+  is.interestExpense = -interestMag;                          // stored negative
+  deriveIncomeStatement(is);                                  // grossProfit → ebt (tax still 0)
+  is.taxExpense = -a.effectiveTaxRate * Math.max(0, is.ebt);  // stored negative; loss years untaxed
+  is.netIncome = is.ebt + is.taxExpense;
 
   // --- Dividends from positive net income ---
   const dividends = a.dividendPayoutRate * Math.max(0, is.netIncome);
 
   // --- Lines carried forward unchanged ---
   bs.otherCurrentAssets = o.balanceSheet.otherCurrentAssets;
+  bs.icReceivable = o.balanceSheet.icReceivable;
   bs.intangibleAssets = o.balanceSheet.intangibleAssets;
   bs.goodwill = o.balanceSheet.goodwill;
   bs.otherNonCurrentAssets = o.balanceSheet.otherNonCurrentAssets;
   bs.otherCurrentLiabilities = o.balanceSheet.otherCurrentLiabilities;
+  bs.icPayable = o.balanceSheet.icPayable;
   bs.otherNonCurrentLiabilities = o.balanceSheet.otherNonCurrentLiabilities;
   bs.shareCapital = o.balanceSheet.shareCapital;
   bs.historicalMinorityEquity = o.balanceSheet.historicalMinorityEquity;
@@ -166,8 +228,8 @@ export function projectPeriod(
   // --- Cash-flow statement (indirect) ---
   cf.changesInWorkingCapital = -deltaWC;
   cf.capex = -a.capex;                                         // investing outflow
-  cf.debtIssuance = a.netDebtChange > 0 ? a.netDebtChange : 0;
-  cf.debtRepayment = a.netDebtChange < 0 ? -a.netDebtChange : 0;
+  cf.debtIssuance = debtIssuance;
+  cf.debtRepayment = debtRepayment;
   cf.dividendsPaid = dividends;
   cf.beginningCash = o.balanceSheet.cash;
   deriveCashFlow(cf, is); // links NI/dep, rolls operating/investing/financing → netChange, endingCash

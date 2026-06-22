@@ -5,6 +5,7 @@ import { getCompanyPack, seedCompanyPack } from '@/lib/company-packs';
 import { GET as auditGET } from './audit/route';
 import { GET as coaGET } from './coa/route';
 import { GET as complianceGET } from './compliance/route';
+import { GET as consolidationProjectionGET } from './consolidation/projection/route';
 import { GET as exchangeRatesGET } from './exchange-rates/route';
 import { GET as forecastGET } from './forecast/route';
 import { GET as journalEntriesGET } from './journal-entries/route';
@@ -24,6 +25,7 @@ const routes: Array<[string, () => Promise<Response>]> = [
   ['GET /api/audit', () => auditGET(req('/audit'))],
   ['GET /api/coa', () => coaGET(req('/coa'))],
   ['GET /api/compliance', () => complianceGET(req('/compliance?period=2024-12'))],
+  ['GET /api/consolidation/projection', () => consolidationProjectionGET(req('/consolidation/projection?period=2024-12&entities=MERID,MSUB&years=3'))],
   ['GET /api/exchange-rates', () => exchangeRatesGET(req('/exchange-rates'))],
   ['GET /api/forecast', () => forecastGET(req('/forecast?period=2024-12'))],
   ['GET /api/journal-entries', () => journalEntriesGET(req('/journal-entries'))],

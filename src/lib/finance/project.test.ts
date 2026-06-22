@@ -139,6 +139,43 @@ describe('deriveDefaultAssumptions', () => {
   });
 });
 
+describe('projectPeriod — cash-sweep debt schedule (MEDIUM.9)', () => {
+  it('sweeps surplus cash to debt, charges interest on the average balance, stays balanced', () => {
+    const a = deriveDefaultAssumptions(opening);
+    const buffer = 50;
+    const openingDebt = opening.balanceSheet.shortTermDebt + opening.balanceSheet.longTermDebt; // 260
+    const closing = projectPeriod(opening, { ...a, debtSweep: { minCashBuffer: buffer } });
+
+    // Surplus cash was swept, so debt fell…
+    const closingDebt = closing.balanceSheet.shortTermDebt + closing.balanceSheet.longTermDebt;
+    expect(closingDebt).toBeLessThan(openingDebt);
+    // …leaving cash at the buffer (a partial sweep, not debt-exhausting)…
+    expect(closing.balanceSheet.cash).toBeCloseTo(buffer, 4);
+    // …interest is on the AVERAGE balance, hence below interest on the opening balance…
+    expect(Math.abs(closing.incomeStatement.interestExpense)).toBeLessThan(a.interestRate * openingDebt);
+    expect(Math.abs(closing.incomeStatement.interestExpense)).toBeGreaterThan(a.interestRate * closingDebt);
+    // …and the sheet still reconciles by construction.
+    expect(Math.abs(closing.balanceSheet.balanceCheck)).toBeLessThan(1e-6);
+  });
+
+  it('overrides netDebtChange when a sweep is configured', () => {
+    const a = deriveDefaultAssumptions(opening);
+    // A large issuance would normally raise debt; the sweep ignores it.
+    const swept = projectPeriod(opening, { ...a, netDebtChange: 5000, debtSweep: { minCashBuffer: 50 } });
+    const sweptDebt = swept.balanceSheet.shortTermDebt + swept.balanceSheet.longTermDebt;
+    expect(sweptDebt).toBeLessThan(opening.balanceSheet.shortTermDebt + opening.balanceSheet.longTermDebt);
+    expect(swept.cashFlow.debtIssuance).toBe(0);
+  });
+
+  it('matches the simple path exactly when no sweep is configured (regression)', () => {
+    const a = deriveDefaultAssumptions(opening);
+    const grow = { ...a, revenueGrowthRate: 0.08 };
+    const base = projectPeriod(opening, grow);
+    // Interest is on the opening balance and netDebtChange is applied verbatim.
+    expect(base.incomeStatement.interestExpense).toBeCloseTo(-a.interestRate * 260, 6);
+  });
+});
+
 describe('projectMultiPeriod — chained roll-forward', () => {
   it('projects a multi-year path where every period balances and revenue compounds', () => {
     const a = deriveDefaultAssumptions(opening);

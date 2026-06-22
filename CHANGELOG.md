@@ -13,6 +13,178 @@ because they grew over time.
 
 ---
 
+## 2026-06-22 — Tax depth & cross-border rules (MEDIUM.8)
+
+Adds the four pieces of tax/cross-border depth. The loss-year and capped-credit
+behaviour that previously vanished via `Math.max(0, …)` now carries forward; a
+new deferred-tax model derives AST-010 from first principles; and a transfer-
+pricing policy lets the shipped unrealized-profit elimination fire on live flows.
+All four are pure, fully-tested additions to `@/lib/tax` and `@/lib/finance`.
+
+- **NOL carryforward (`src/lib/tax`).** `TaxInput.nolOpening` and
+  `TaxResult.nolUsed`/`nolClosing` thread a loss pool through the providers: a loss
+  year adds to the pool instead of disappearing, a profit year consumes it before
+  assessment. Portugal applies the statutory **70% cap** on the deduction
+  (art.º 52.º CIRC, configurable via `nolDeductionCapPct`) and correctly splits the
+  base — IRC coleta on the post-NOL *matéria coletável* while the derramas stay on
+  the pre-NOL *lucro tributável*; the flat-rate stubs offset in full. Backward
+  compatible: with no pool the two bases coincide, so every existing golden value is
+  unchanged.
+- **RFAI credit carryforward (`src/lib/tax`).** `TaxInput.rfaiOpening` and
+  `TaxResult.rfaiUsed`/`rfaiClosing`. RFAI is capped at 50% of the coleta each year
+  (`rfaiLimitPctColeta`); the excess the cap or the available coleta cannot absorb
+  is **no longer silently lost** — it carries forward (art.º 23.º CFI). The
+  flat-rate stubs carry forward any credit the gross tax cannot absorb too. Both
+  pools are surfaced on `TaxReconciliation` so multi-year reconciliation can chain
+  them as the next year's opening.
+- **Deferred tax — IAS 12 (`src/lib/tax/deferred-tax.ts`).** `computeDeferredTax`
+  turns book-vs-tax temporary differences (asset/liability aware) into a DTA/DTL,
+  measured at the enacted rate, and computes the period's deferred-tax expense as
+  the movement in the net DTA. A tax-loss carryforward is a DTA at the rate; an
+  unused tax-credit carryforward is a DTA at face value. `deferredTaxFromTaxResult`
+  bridges directly from a provider's `nolClosing`/`rfaiClosing` to the AST-010
+  balance, so the loss/credit relief is recognised the year it arises.
+- **Transfer pricing (`src/lib/finance/transfer-pricing.ts`).** A
+  `TransferPricingPolicy` holds a directional cost-plus markup per IC relationship
+  (OECD / art.º 63.º CIRC). `priceFromCost`/`marginFromMarkup` price the sale and
+  derive the embedded margin (a 30% markup on cost = a 30/130 margin on price), and
+  `applyTransferPricing` populates a live `ICSaleFlow`'s `margin` (and ending-
+  inventory fraction) from the policy — so the `unrealized_inventory_profit`
+  elimination shipped with MEDIUM.4 fires on policy-driven flows, not only in
+  hand-built tests. Observed values on a flow are never overwritten.
+- **Tests.** New `nol.test.ts` (7), `rfai.test.ts` (7), `deferred-tax.test.ts` (12)
+  and `transfer-pricing.test.ts` (12), including the PLAN.md cross-border stress
+  scenario (PT Year-1 loss → Year-2 smaller profit + capped RFAI: loss partially
+  consumed, RFAI excess carried forward, NOL/DTA tracked). **231 tests pass; `npx
+  tsc --noEmit` clean.**
+- **Not yet wired (follow-up in PLAN.md).** The deferred-tax balance and the
+  transfer-pricing margins are additive/pure today (like `reconcile.ts`); feeding
+  them into the persisted consolidation run needs IC-schema fields (per-sale cost,
+  margin, closing-inventory fraction) and is tracked as a PLAN follow-up.
+
+## 2026-06-22 — Minority interest on the balance sheet (MEDIUM.6)
+
+Fixes how non-controlling interest (NCI) is stated when a subsidiary is less than
+wholly owned. Closes PLAN.md MEDIUM.6.
+
+- **`reclassifyMinorityEquity` in `src/lib/finance/statements.ts`.** A pure,
+  one-shot reclassification that derives NCI from **ownership × the subsidiary's
+  full equity** (share capital + historical reserves + CTA), rather than trusting a
+  stored `EQY-003`. It scales the parent-attributable equity lines down to the owned
+  fraction and books the remainder as the minority's historical equity. Paired with
+  the existing `computeMinorityInterest` (which carves out the current year's NCI
+  share of net income), the consolidated minority equity comes to exactly
+  `(1 − ownership) × subsidiary total equity`. The function is **equity-total
+  neutral** — it moves value between equity components without changing the total —
+  so the balance check is preserved and the CTA raised on a translated foreign sheet
+  is split proportionally rather than disturbed.
+- **Equity data-model split.** `BalanceSheetData` now separates *opening* stored
+  balances (`historicalRetainedEarnings`, `historicalMinorityEquity`) from the
+  *derived* closing figures (`retainedEarnings`, `minorityEquity`).
+  `deriveBalanceSheet` recomputes the closing figures from the opening lines plus
+  net income and the NCI carve-out, so re-deriving (e.g. after a modelled-tax
+  override) stays consistent.
+- **Engine wiring.** `reclassifyMinorityEquity` is called once per subsidiary in
+  both `buildEntityFinancials` (EUR) and `buildForeignEntityFinancials` (foreign),
+  before `deriveBalanceSheet`. A no-op for wholly-owned and non-`full` entities, so
+  every demo golden value — all entities are 100% owned — is unchanged.
+- **Tests.** A consolidation-engine golden test adds an 80%-owned subsidiary with no
+  stored `EQY-003` and asserts the IS carves out 20% of its net income while the
+  consolidated sheet books minority equity of `(1 − 0.8) × total equity` and still
+  reconciles. **201 tests pass.**
+
+## 2026-06-22 — Debt schedule + cash sweep (MEDIUM.9)
+
+Removes the projection kernel's last big financing simplification. Closes
+PLAN.md MEDIUM.9.
+
+- **`solveDebtSchedule` in `src/lib/finance/debt.ts`.** A pure fixed-point solver
+  for a revolving cash sweep: interest is charged on the **average** of the
+  opening and closing balance, surplus cash above a `minCashBuffer` sweeps to
+  principal, and the resulting lower balance feeds back into interest. Iterates to
+  a tolerance on Δinterest (cap 20 passes); the caller supplies
+  `cashForDebtService(interest)` so the solver also resolves the tax-shield
+  circularity (cash that itself depends on the interest charge). Handles no-debt,
+  buffer-limited, mandatory-amortization and sweep-capped cases.
+- **Opt-in kernel integration.** `ProjectionAssumptions.debtSweep` switches
+  `projectPeriod` from "interest on opening debt + `netDebtChange` as input" to the
+  swept schedule (interest on average, endogenous repayment, `debtSweep` overrides
+  `netDebtChange`). Cash remains the plug, so the sheet still balances by
+  construction. Omitting `debtSweep` keeps the exact prior behaviour — every
+  existing kernel golden value is unchanged.
+- **Tests.** `src/lib/finance/debt.test.ts` (6) covering the solver cases incl.
+  the cash↔interest fixed point; `project.test.ts` gains 3 — a swept period leaves
+  cash at the buffer with interest on the average balance and a balanced sheet,
+  the sweep overrides `netDebtChange`, and the no-sweep path matches the simple
+  formula exactly. **200 tests pass.**
+
+## 2026-06-22 — Multi-period consolidated roll-forward (MEDIUM.7)
+
+Produces a multi-period **consolidated** balance sheet by chaining the projection
+kernel off the consolidated closing state. Closes PLAN.md MEDIUM.7.
+
+- **`projectConsolidation(input)` in the consolidation engine.** Anchors on the
+  consolidated (IC-eliminated, FX-translated) result of `computeConsolidation`,
+  then chains `projectMultiPeriod` forward `years` periods with per-period
+  steady-state drivers plus optional overrides. Each period's opening retained
+  earnings links to the prior period's closing (closing → next opening, via the
+  kernel), and every projected sheet balances by construction. Unlike
+  `/api/forecast` — which projects a raw sum of trial balances and so double-counts
+  IC and mis-states FX — this inherits the eliminations and translation.
+- **Read-only endpoint `GET /api/consolidation/projection`.** `period`,
+  `entities`, `scenarioType`, `years` (1–10), optional `revenueGrowthRate`
+  override; returns the consolidated base plus one balanced IS/BS/CF per projected
+  year. Persists nothing.
+- **Tests.** A consolidation-engine golden test rolls the demo group forward 3
+  years, asserting every period balances, revenue compounds at the override rate,
+  and the **opening RE = prior closing RE − dividends** linkage holds; the new
+  route is covered by the API smoke suite. The kernel's `projectMultiPeriod` was
+  already unit-tested for the chained roll-forward. **191 tests pass.**
+
+## 2026-06-22 — Intercompany elimination family (MEDIUM.3 / .4 / .5)
+
+Reworks consolidation eliminations into an explicit, auditable, single-source
+pass. Closes PLAN.md MEDIUM.3 (balance-sheet IC elimination), MEDIUM.5
+(elimination journal entries), and the calculation half of MEDIUM.4 (unrealized
+intra-group inventory profit). All prior golden values are unchanged.
+
+- **First-class IC balance lines.** `AST-009` (IC receivable) and `LIA-006` (IC
+  payable) are now their own `BalanceSheetData` fields (`icReceivable` /
+  `icPayable`) instead of being folded into "other current assets/liabilities".
+  They roll into `currentAssets`/`currentLiabilities` so gross totals are
+  identical, but the IC portion is now visible and eliminable. Added to the IAS 21
+  `BS_MONETARY_KEYS` (closing rate) and carried forward in the projection kernel.
+- **Pure elimination module — `src/lib/finance/eliminations.ts`.** Turns
+  intercompany flows (`ICSaleFlow`) into explicit `EliminationEntry` journals
+  keyed on `(period, counterpartyPair, account)`:
+  - **ic_sale** — de-grosses internal revenue and COGS by the transfer price
+    (net-zero on EBITDA).
+  - **unrealized_inventory_profit** — removes the seller's margin locked in the
+    buyer's unsold stock (Dr COGS / Cr Inventory), lowering group inventory and
+    net income.
+  - **ic_balance** — nets the IC receivable against the matching payable; for a
+    cross-border pair the FX difference between the two legs is routed to the CTA
+    so the sheet stays balanced (a pragmatic IAS 21 §45 simplification).
+  `applyEliminations` mutates the aggregated statements and re-derives every
+  subtotal; each entry is internally balanced, so the balance check is preserved.
+- **Engine now consumes the module (single source).** `runICEliminations` builds
+  `ICSaleFlow[]` from the IC-transaction and IC-trial-balance paths (preserving
+  the TOP.3 `(pair, amount)` de-dup) and a new cross-code **AST-009 ↔ LIA-006**
+  balance-sheet pass, then `computeConsolidation` applies them via
+  `applyEliminations`. The signed P&L volume (`eliminationsApplied`) and dedup
+  count are unchanged; the structured `eliminationEntries` are exposed on the
+  result for audit.
+- **Tests.** `src/lib/finance/eliminations.test.ts` (10) including the PLAN
+  cross-border **MERID (PT) → MUSA (US)** stress test (30% markup, half on-sold,
+  FX-mismatched IC legs) exercising all three eliminations at once; a new
+  consolidation-engine golden test seeds a matched IC receivable/payable and
+  asserts both net to zero on a still-balanced sheet. **189 tests pass** (was 178).
+- **Deferred (folds into MEDIUM.8).** The unrealized-profit elimination math is
+  shipped and tested, but populating each sale's margin and ending-inventory
+  fraction from a `TransferPricingPolicy` (rather than passing them in) lands with
+  the MEDIUM.8 transfer-pricing work; the demo book's only IC flows are services
+  with no inventory component, so live numbers are unaffected today.
+
 ## 2026-06-22 — Tax reconciliation: workstreams A & B complete (engine wiring B1–B4)
 
 Closes the Tax Divergence / Correctness Report. The standalone `src/lib/tax`

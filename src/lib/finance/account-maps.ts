@@ -29,6 +29,9 @@ export interface BalanceSheetData {
   accountsReceivable: number;
   inventory: number;
   otherCurrentAssets: number;
+  // Intercompany receivable (AST-009): a first-class line so it can be eliminated
+  // against the matching IC payable on consolidation, not buried in "other".
+  icReceivable: number;
   currentAssets: number;
   ppe: number;
   intangibleAssets: number;
@@ -39,6 +42,9 @@ export interface BalanceSheetData {
   accountsPayable: number;
   shortTermDebt: number;
   otherCurrentLiabilities: number;
+  // Intercompany payable (LIA-006): the matching leg of icReceivable; the two are
+  // netted to zero by the elimination pass on consolidation.
+  icPayable: number;
   currentLiabilities: number;
   longTermDebt: number;
   otherNonCurrentLiabilities: number;
@@ -106,9 +112,9 @@ export const IS_ACCOUNTS: Record<string, keyof IncomeStatementData> = {
 // Every level-2 detail code in the group COA must be mapped here, otherwise
 // amounts posted to it silently vanish from the balance sheet.
 export const BS_DETAIL_ACCOUNTS: Record<string, keyof Pick<BalanceSheetData,
-  'cash' | 'accountsReceivable' | 'inventory' | 'otherCurrentAssets' |
+  'cash' | 'accountsReceivable' | 'inventory' | 'otherCurrentAssets' | 'icReceivable' |
   'ppe' | 'intangibleAssets' | 'goodwill' | 'otherNonCurrentAssets' |
-  'accountsPayable' | 'shortTermDebt' | 'otherCurrentLiabilities' |
+  'accountsPayable' | 'shortTermDebt' | 'otherCurrentLiabilities' | 'icPayable' |
   'longTermDebt' | 'otherNonCurrentLiabilities' |
   'shareCapital' | 'retainedEarnings' | 'minorityEquity' |
   'historicalRetainedEarnings' | 'historicalMinorityEquity'
@@ -121,14 +127,14 @@ export const BS_DETAIL_ACCOUNTS: Record<string, keyof Pick<BalanceSheetData,
   'AST-006': 'intangibleAssets',
   'AST-007': 'goodwill',
   'AST-008': 'otherNonCurrentAssets',     // Outros Ativos Não Correntes
-  'AST-009': 'otherCurrentAssets',        // IC Receivable (BS IC elimination not yet automated)
+  'AST-009': 'icReceivable',              // IC Receivable — eliminated against LIA-006 on consolidation
   'AST-010': 'otherNonCurrentAssets',     // Deferred Tax Asset
   'LIA-001': 'accountsPayable',
   'LIA-002': 'shortTermDebt',
   'LIA-003': 'otherCurrentLiabilities',
   'LIA-004': 'longTermDebt',
   'LIA-005': 'otherNonCurrentLiabilities',
-  'LIA-006': 'otherCurrentLiabilities',   // IC Payable (BS IC elimination not yet automated)
+  'LIA-006': 'icPayable',                 // IC Payable — eliminated against AST-009 on consolidation
   'LIA-007': 'accountsPayable',           // Additional payables
   'LIA-008': 'otherCurrentLiabilities',   // Tax Payable
   'LIA-009': 'otherNonCurrentLiabilities',// Pension Obligations
@@ -160,7 +166,7 @@ export function createEmptyIS(): IncomeStatementData {
 }
 
 export function createEmptyBS(): BalanceSheetData {
-  return { cash: 0, accountsReceivable: 0, inventory: 0, otherCurrentAssets: 0, currentAssets: 0, ppe: 0, intangibleAssets: 0, goodwill: 0, otherNonCurrentAssets: 0, nonCurrentAssets: 0, totalAssets: 0, accountsPayable: 0, shortTermDebt: 0, otherCurrentLiabilities: 0, currentLiabilities: 0, longTermDebt: 0, otherNonCurrentLiabilities: 0, nonCurrentLiabilities: 0, totalLiabilities: 0, shareCapital: 0, historicalRetainedEarnings: 0, retainedEarnings: 0, historicalMinorityEquity: 0, minorityEquity: 0, cta: 0, totalEquity: 0, balanceCheck: 0 };
+  return { cash: 0, accountsReceivable: 0, inventory: 0, otherCurrentAssets: 0, icReceivable: 0, currentAssets: 0, ppe: 0, intangibleAssets: 0, goodwill: 0, otherNonCurrentAssets: 0, nonCurrentAssets: 0, totalAssets: 0, accountsPayable: 0, shortTermDebt: 0, otherCurrentLiabilities: 0, icPayable: 0, currentLiabilities: 0, longTermDebt: 0, otherNonCurrentLiabilities: 0, nonCurrentLiabilities: 0, totalLiabilities: 0, shareCapital: 0, historicalRetainedEarnings: 0, retainedEarnings: 0, historicalMinorityEquity: 0, minorityEquity: 0, cta: 0, totalEquity: 0, balanceCheck: 0 };
 }
 
 export function createEmptyCF(): CashFlowData {

@@ -18,9 +18,27 @@ export function createFlatRateProvider(
     name,
     computeTax(input: TaxInput): TaxResult {
       const taxable = Math.max(0, input.taxableIncome - (input.deductions ?? 0));
-      const grossTax = taxable * rate;
-      const credits = (input.iceCredit ?? 0) + (input.sifideCredit ?? 0) + (input.rfaiCredit ?? 0);
-      const totalTax = Math.max(0, grossTax - credits);
+      const newLoss = Math.max(0, (input.deductions ?? 0) - input.taxableIncome);
+
+      // Carried-forward losses fully offset the profit (no jurisdiction cap
+      // modelled in this stub); a loss year adds to the pool instead of vanishing.
+      const nolOpening = input.nolOpening ?? 0;
+      const nolUsed = Math.min(nolOpening, taxable);
+      const taxBase = taxable - nolUsed;
+      const nolClosing = nolOpening - nolUsed + newLoss;
+
+      const grossTax = taxBase * rate;
+
+      // Non-RFAI credits apply first (no carryforward modelled in this stub),
+      // then RFAI from its available pool (this year + carried forward). Any RFAI
+      // the gross tax cannot absorb carries forward rather than being lost.
+      const otherCredits = (input.iceCredit ?? 0) + (input.sifideCredit ?? 0);
+      const taxAfterOther = Math.max(0, grossTax - otherCredits);
+      const rfaiAvailable = (input.rfaiCredit ?? 0) + (input.rfaiOpening ?? 0);
+      const rfaiUsed = Math.min(rfaiAvailable, taxAfterOther);
+      const rfaiClosing = rfaiAvailable - rfaiUsed;
+      const credits = Math.min(otherCredits, grossTax) + rfaiUsed;
+      const totalTax = taxAfterOther - rfaiUsed;
       return {
         jurisdiction: countryCode,
         year: input.year,
@@ -32,6 +50,10 @@ export function createFlatRateProvider(
         autonomousTax: 0,
         totalTax,
         effectiveRate: taxable > 0 ? totalTax / taxable : 0,
+        nolUsed,
+        nolClosing,
+        rfaiUsed,
+        rfaiClosing,
         breakdown: [
           { label: `Corporate tax (${(rate * 100).toFixed(1)}%)`, amount: grossTax },
           ...(credits ? [{ label: 'Credits', amount: -credits }] : []),

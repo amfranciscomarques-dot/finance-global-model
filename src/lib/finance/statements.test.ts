@@ -42,10 +42,11 @@ describe('addEntry', () => {
     const s = emptyStatements();
     addEntry(s, 'AST-004', 100); // Outros Ativos Correntes
     addEntry(s, 'AST-008', 200); // Outros Ativos Não Correntes
-    addEntry(s, 'AST-009', 50);  // IC Receivable
+    addEntry(s, 'AST-009', 50);  // IC Receivable (first-class line)
     addEntry(s, 'AST-010', 30);  // Deferred Tax Asset
     addEntry(s, 'LIA-003', 40);  // Other Current Liabilities
     addEntry(s, 'LIA-005', 60);  // Other Non-Current Liabilities
+    addEntry(s, 'LIA-006', 20);  // IC Payable (first-class line)
     addEntry(s, 'LIA-008', 25);  // Tax Payable
     addEntry(s, 'LIA-009', 35);  // Pension Obligations
     addEntry(s, 'LIA-010', 15);  // Deferred Revenue
@@ -53,18 +54,20 @@ describe('addEntry', () => {
     addEntry(s, 'EQY-005', 95);  // Current Year Earnings
 
     const bs = s.balanceSheet;
-    expect(bs.otherCurrentAssets).toBe(150);     // AST-004 + AST-009
+    expect(bs.otherCurrentAssets).toBe(100);     // AST-004 only — AST-009 is now icReceivable
+    expect(bs.icReceivable).toBe(50);            // AST-009
     expect(bs.otherNonCurrentAssets).toBe(230);  // AST-008 + AST-010
     expect(bs.otherCurrentLiabilities).toBe(80); // LIA-003 + LIA-008 + LIA-010
+    expect(bs.icPayable).toBe(20);               // LIA-006
     expect(bs.otherNonCurrentLiabilities).toBe(95); // LIA-005 + LIA-009
     expect(bs.historicalRetainedEarnings).toBe(165);       // EQY-004 + EQY-005
 
     deriveBalanceSheet(bs);
     expect(bs.retainedEarnings).toBe(165);
-    expect(bs.currentAssets).toBe(150);
+    expect(bs.currentAssets).toBe(150);          // 100 other + 50 icReceivable
     expect(bs.nonCurrentAssets).toBe(230);
     expect(bs.totalAssets).toBe(380);
-    expect(bs.totalLiabilities).toBe(175);
+    expect(bs.totalLiabilities).toBe(195);       // 175 + 20 icPayable
     expect(bs.totalEquity).toBe(165);
   });
 });

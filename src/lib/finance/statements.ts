@@ -104,12 +104,41 @@ export function computeMinorityInterest(
   return 0;
 }
 
+/**
+ * MEDIUM.6 — reclassify the non-controlling interest in a subsidiary's OPENING
+ * equity. Under full consolidation 100% of the subsidiary is brought in, so the
+ * minority's share of its equity must be carved out. This derives that share from
+ * `ownership × subsidiary equity` — share capital + pre-existing retained earnings
+ * + CTA — rather than trusting a stored `EQY-003`: it scales the parent-attributable
+ * equity lines down to the owned fraction and books the remainder as the minority's
+ * historical equity. The current year's NCI share of net income is handled
+ * separately by {@link computeMinorityInterest}; together they give a balance-sheet
+ * minority equity of exactly `(1 − ownership) × subsidiary total equity`.
+ *
+ * One-shot: mutates `bs` and must be called once per subsidiary, BEFORE
+ * `deriveBalanceSheet`. A no-op for wholly-owned or non-full entities, so 100%
+ * books (and every golden value) are unchanged.
+ */
+export function reclassifyMinorityEquity(
+  bs: BalanceSheetData,
+  consolidationMethod: string,
+  ownershipPercentage: number,
+): void {
+  if (consolidationMethod !== 'full' || ownershipPercentage >= 1.0) return;
+  const o = ownershipPercentage;
+  const openingSubEquity = bs.shareCapital + bs.historicalRetainedEarnings + bs.cta;
+  bs.historicalMinorityEquity = (1 - o) * openingSubEquity;
+  bs.shareCapital *= o;
+  bs.historicalRetainedEarnings *= o;
+  bs.cta *= o;
+}
+
 /** Recompute all balance-sheet subtotals (and the balance check) from details. */
 export function deriveBalanceSheet(bs: BalanceSheetData, is?: IncomeStatementData): void {
-  bs.currentAssets = bs.cash + bs.accountsReceivable + bs.inventory + bs.otherCurrentAssets;
+  bs.currentAssets = bs.cash + bs.accountsReceivable + bs.inventory + bs.otherCurrentAssets + bs.icReceivable;
   bs.nonCurrentAssets = bs.ppe + bs.intangibleAssets + bs.goodwill + bs.otherNonCurrentAssets;
   bs.totalAssets = bs.currentAssets + bs.nonCurrentAssets;
-  bs.currentLiabilities = bs.accountsPayable + bs.shortTermDebt + bs.otherCurrentLiabilities;
+  bs.currentLiabilities = bs.accountsPayable + bs.shortTermDebt + bs.otherCurrentLiabilities + bs.icPayable;
   bs.nonCurrentLiabilities = bs.longTermDebt + bs.otherNonCurrentLiabilities;
   bs.totalLiabilities = bs.currentLiabilities + bs.nonCurrentLiabilities;
 

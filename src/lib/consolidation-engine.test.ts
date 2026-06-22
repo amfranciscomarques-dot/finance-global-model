@@ -1,7 +1,7 @@
 import { beforeAll, afterAll, describe, expect, it } from 'vitest';
 import { db } from '@/lib/db';
 import { getCompanyPack, seedCompanyPack } from '@/lib/company-packs';
-import { runConsolidation } from '@/lib/consolidation-engine';
+import { projectConsolidation, runConsolidation } from '@/lib/consolidation-engine';
 
 // ============================================================
 // GOLDEN-VALUE TESTS — lock the consolidation numbers so any refactor of the
@@ -181,6 +181,43 @@ describe('runConsolidation — Meridian group, 2024-12 base', () => {
     await seed(); // restore the clean book for later tests
   });
 
+  it('eliminates a matched IC receivable/payable off the consolidated sheet (MEDIUM.3)', async () => {
+    await seed();
+    const merid = await db.entity.findFirst({ where: { code: 'MERID' } });
+    const msub = await db.entity.findFirst({ where: { code: 'MSUB' } });
+    const periodDate = new Date('2024-12-01');
+    const IC = 1_000_000;
+
+    // MERID is owed €1,000,000 by MSUB (AST-009), balanced by extra reserves;
+    // MSUB owes it (LIA-006), balanced by extra cash. The group is balanced
+    // before elimination, and the two IC legs must net to zero after.
+    await db.trialBalance.createMany({
+      data: [
+        { entityId: merid!.id, period: periodDate, periodType: 'actual', groupCOACode: 'AST-009', amountLocal: IC, amountEUR: IC, currency: 'EUR', isIntercompany: true, icPartnerEntityId: msub!.id },
+        { entityId: merid!.id, period: periodDate, periodType: 'actual', groupCOACode: 'EQY-002', amountLocal: IC, amountEUR: IC, currency: 'EUR' },
+        { entityId: msub!.id, period: periodDate, periodType: 'actual', groupCOACode: 'LIA-006', amountLocal: IC, amountEUR: IC, currency: 'EUR', isIntercompany: true, icPartnerEntityId: merid!.id },
+        { entityId: msub!.id, period: periodDate, periodType: 'actual', groupCOACode: 'AST-001', amountLocal: IC, amountEUR: IC, currency: 'EUR' },
+      ],
+    });
+
+    const result = await runConsolidation({
+      period: '2024-12',
+      entityCodes: ['MERID', 'MSUB'],
+      scenarioType: 'base',
+    });
+
+    // Both IC legs netted to zero on the consolidated balance sheet…
+    expect(result.balanceSheet.icReceivable).toBeCloseTo(0, 2);
+    expect(result.balanceSheet.icPayable).toBeCloseTo(0, 2);
+    // …via an explicit, auditable elimination entry…
+    expect(result.eliminationEntries.some((e) => e.kind === 'ic_balance')).toBe(true);
+    // …and the sheet still reconciles (a completed, not failed, run).
+    expect(result.status).toBe('completed');
+    expect(Math.abs(result.balanceCheck)).toBeLessThan(EUR);
+
+    await seed(); // restore the clean book for later tests
+  });
+
   it('is idempotent — re-running the same period yields identical numbers (regression)', async () => {
     // Elimination flags used to be flipped permanently, so a second run found
     // zero pending IC transactions and reported overstated revenue.
@@ -195,6 +232,92 @@ describe('runConsolidation — Meridian group, 2024-12 base', () => {
     expect(second.incomeStatement.revenue).toBeCloseTo(first.incomeStatement.revenue, 2);
     expect(second.incomeStatement.ebitda).toBeCloseTo(5_600_000, 2);
     expect(second.incomeStatement.netIncome).toBeCloseTo(1_750_000, 2);
+  });
+});
+
+describe('projectConsolidation — multi-period roll-forward (MEDIUM.7)', () => {
+  it('rolls the consolidated state forward, each period balanced and RE linked', async () => {
+    await seed();
+    const { base, periods } = await projectConsolidation({
+      period: '2024-12',
+      entityCodes: ['MERID', 'MSUB'],
+      scenarioType: 'base',
+      years: 3,
+      assumptionOverrides: { revenueGrowthRate: 0.05 },
+    });
+
+    expect(periods).toHaveLength(3);
+
+    // Every projected consolidated balance sheet reconciles by construction.
+    for (const p of periods) expect(Math.abs(p.balanceSheet.balanceCheck)).toBeLessThan(EUR);
+
+    // Roll-forward linkage: each period's opening (historical) retained earnings
+    // equals the PRIOR period's closing retained earnings, net of dividends paid.
+    expect(periods[0].balanceSheet.historicalRetainedEarnings).toBeCloseTo(
+      base.balanceSheet.retainedEarnings - periods[0].cashFlow.dividendsPaid,
+      2,
+    );
+    expect(periods[1].balanceSheet.historicalRetainedEarnings).toBeCloseTo(
+      periods[0].balanceSheet.retainedEarnings - periods[1].cashFlow.dividendsPaid,
+      2,
+    );
+
+    // Revenue compounds at the override growth rate off the consolidated base.
+    expect(periods[0].incomeStatement.revenue).toBeCloseTo(base.incomeStatement.revenue * 1.05, 2);
+    expect(periods[1].incomeStatement.revenue).toBeCloseTo(periods[0].incomeStatement.revenue * 1.05, 2);
+  });
+});
+
+describe('runConsolidation — minority interest on the balance sheet (MEDIUM.6)', () => {
+  it('books NCI as (1 − ownership) × the subsidiary total equity, not just stored EQY-003', async () => {
+    await seed();
+
+    // An 80%-owned, fully consolidated subsidiary with NO stored EQY-003. Its
+    // equity is share capital 1,000,000 + historical reserves 500,000 = 1,500,000
+    // opening, plus 400,000 of current-year profit (REV 1,000,000 − COGS 600,000),
+    // funded by 1,900,000 of cash so the standalone book reconciles.
+    const nci = await db.entity.create({
+      data: {
+        code: 'MNCI', legalName: 'Meridian Partial S.A.', countryCode: 'PT',
+        localCurrency: 'EUR', consolidationMethod: 'full', ownershipPercentage: 0.8, sector: 'Manufacturing',
+      },
+    });
+    const rows: Array<[string, number]> = [
+      ['EQY-001', 1_000_000],   // share capital
+      ['EQY-002', 500_000],     // historical reserves
+      ['REV-001', 1_000_000],   // revenue
+      ['COGS-001', -600_000],   // cost of sales → net income 400,000
+      ['AST-001', 1_900_000],   // cash = opening equity 1,500,000 + profit 400,000
+    ];
+    for (const [code, amt] of rows) {
+      await db.trialBalance.create({
+        data: {
+          entityId: nci.id, period: new Date('2024-12-01'), periodType: 'actual',
+          groupCOACode: code, amountLocal: amt, amountEUR: amt, currency: 'EUR',
+        },
+      });
+    }
+
+    const result = await runConsolidation({
+      period: '2024-12',
+      entityCodes: ['MERID', 'MSUB', 'MNCI'],
+      scenarioType: 'base',
+    });
+
+    // Minority's share of NET INCOME is carved out on the IS: 20% × 400,000.
+    // (MERID/MSUB are wholly owned, so they contribute nothing here.)
+    expect(result.incomeStatement.minorityInterest).toBeCloseTo(-80_000, 2);
+
+    // Minority equity on the consolidated sheet is the FULL non-controlling share
+    // of the subsidiary's equity — opening 1,500,000 + profit 400,000 = 1,900,000,
+    // so 20% × 1,900,000 = 380,000. A stored-EQY-003-only reading would have shown 0.
+    expect(result.balanceSheet.minorityEquity).toBeCloseTo(380_000, 2);
+
+    // Reclassification is equity-total-neutral, so the group still reconciles.
+    expect(result.status).toBe('completed');
+    expect(Math.abs(result.balanceCheck)).toBeLessThan(EUR);
+
+    await seed(); // restore the clean book for later tests
   });
 });
 
@@ -265,5 +388,65 @@ describe('runConsolidation — tax reconciliation (B1/B2/B4)', () => {
     const proj = await runConsolidation({ period: '2024-12', entityCodes: ['MERID', 'MSUB'], scenarioType: 'optimistic' });
     // No forecast rows → falls back to actuals; booked tax retained → same drift.
     expect(proj.taxReconciliation.drift).toBeCloseTo(56_250, 0);
+  });
+});
+
+describe('runConsolidation — deferred tax (IAS 12, MEDIUM.8b)', () => {
+  it('attaches a deferred-tax reconciliation without changing actual net income', async () => {
+    await seed();
+    const result = await runConsolidation({
+      period: '2024-12',
+      entityCodes: ['MERID', 'MSUB'],
+      scenarioType: 'base',
+    });
+
+    // Actuals are untouched (golden value holds) — surfacing is additive.
+    expect(result.incomeStatement.netIncome).toBeCloseTo(1_750_000, 2);
+
+    // The demo books no AST-010 and a single actual period generates no
+    // carryforwards, so both the booked and computed DTA are 0 — but the IAS 12
+    // block is present and comparable, ready to go dynamic once openings are fed.
+    expect(result.deferredTax.comparable).toBe(true);
+    expect(result.deferredTax.storedDTA).toBeCloseTo(0, 2);
+    expect(result.deferredTax.computedDTA).toBeCloseTo(0, 2);
+    expect(result.deferredTax.drift).toBeCloseTo(0, 2);
+    expect(result.deferredTax.perEntity).toHaveLength(2);
+  });
+
+  it('captures a booked AST-010 and surfaces it as drift against the modelled DTA', async () => {
+    await seed();
+    const merid = await db.entity.findFirst({ where: { code: 'MERID' } });
+    const periodDate = new Date('2024-12-01');
+    const DTA = 200_000;
+
+    // Book a deferred tax asset (AST-010), balanced by extra reserves so the
+    // standalone sheet still reconciles. AST-010 rolls into otherNonCurrentAssets
+    // on the sheet, but the engine captures it separately for the IAS 12 reconciliation.
+    await db.trialBalance.createMany({
+      data: [
+        { entityId: merid!.id, period: periodDate, periodType: 'actual', groupCOACode: 'AST-010', amountLocal: DTA, amountEUR: DTA, currency: 'EUR' },
+        { entityId: merid!.id, period: periodDate, periodType: 'actual', groupCOACode: 'EQY-002', amountLocal: DTA, amountEUR: DTA, currency: 'EUR' },
+      ],
+    });
+
+    const result = await runConsolidation({
+      period: '2024-12',
+      entityCodes: ['MERID', 'MSUB'],
+      scenarioType: 'base',
+    });
+
+    // Booked DTA is captured; the modelled DTA (no carryforwards) is 0, so the
+    // whole booked balance shows as the unsubstantiated drift.
+    expect(result.deferredTax.storedDTA).toBeCloseTo(DTA, 2);
+    expect(result.deferredTax.computedDTA).toBeCloseTo(0, 2);
+    expect(result.deferredTax.drift).toBeCloseTo(DTA, 2);
+    const meridDt = result.deferredTax.perEntity.find((e) => e.entityCode === 'MERID');
+    expect(meridDt!.storedDTA).toBeCloseTo(DTA, 2);
+
+    // The booked DTA is an asset balanced by equity, so the group still reconciles.
+    expect(result.status).toBe('completed');
+    expect(Math.abs(result.balanceCheck)).toBeLessThan(EUR);
+
+    await seed(); // restore the clean book for later tests
   });
 });

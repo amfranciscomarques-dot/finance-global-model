@@ -72,6 +72,7 @@ const BS_MONETARY_KEYS: ReadonlyArray<keyof BalanceSheetData> = [
   'accountsReceivable',
   'inventory',
   'otherCurrentAssets',
+  'icReceivable',
   'ppe',
   'intangibleAssets',
   'goodwill',
@@ -79,6 +80,7 @@ const BS_MONETARY_KEYS: ReadonlyArray<keyof BalanceSheetData> = [
   'accountsPayable',
   'shortTermDebt',
   'otherCurrentLiabilities',
+  'icPayable',
   'longTermDebt',
   'otherNonCurrentLiabilities',
 ];

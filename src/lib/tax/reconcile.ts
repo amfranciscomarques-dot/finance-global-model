@@ -47,10 +47,16 @@ export interface TaxReconciliation {
   drift: number;
   /** drift / modelledTax (0 when modelled tax is 0). */
   driftPct: number;
+  /** Headline statutory rate the provider applied — used to measure deferred tax. */
+  baseRate: number;
   /** |drift| within tolerance. */
   withinTolerance: boolean;
   /** False for the unmodelled 0% fallback provider — drift is not meaningful then. */
   comparable: boolean;
+  /** Loss pool carried forward by the provider — feed as next year's nolOpening. */
+  nolClosing: number;
+  /** Unused RFAI credit carried forward — feed as next year's rfaiOpening. */
+  rfaiClosing: number;
 }
 
 const DEFAULT_TOLERANCE_EUR = 1;
@@ -99,8 +105,11 @@ export function reconcileEntityTax(
     modelledTax,
     drift,
     driftPct: modelledTax !== 0 ? drift / modelledTax : 0,
+    baseRate: result.baseRate,
     withinTolerance: Math.abs(drift) <= tolerance,
     comparable,
+    nolClosing: result.nolClosing,
+    rfaiClosing: result.rfaiClosing,
   };
 }
 

@@ -2,8 +2,10 @@ import { db } from '@/lib/db';
 import {
   addEntry,
   aggregateFinancials,
+  applyEliminations,
   applyOwnership,
   assertBalanced,
+  buildEliminationEntries,
   calculateKPIs,
   computeMinorityInterest,
   DEFAULT_BALANCE_TOLERANCE_EUR,
@@ -13,13 +15,19 @@ import {
   createEmptyIS,
   deriveBalanceSheet,
   deriveCashFlow,
+  deriveDefaultAssumptions,
   deriveIncomeStatement,
+  reclassifyMinorityEquity,
   getExchangeRate,
   IS_ACCOUNTS,
+  projectMultiPeriod,
   translateForeignEntity,
+  type EliminationEntry,
   type FinancialStatements,
+  type ICSaleFlow,
+  type ProjectionAssumptions,
 } from '@/lib/finance';
-import { getTaxProvider, reconcileGroupTax } from '@/lib/tax';
+import { aggregateDeferredTax, computeDeferredTax, getTaxProvider, reconcileGroupTax } from '@/lib/tax';
 
 // ============================================================
 // CONSOLIDATION ENGINE
@@ -54,6 +62,10 @@ interface EntityFinancials extends FinancialStatements {
   countryCode: string;
   ownershipPercentage: number;
   consolidationMethod: string;
+  // Booked deferred tax asset (AST-010), captured separately from the trial
+  // balance so it can be reconciled against the IAS 12 computed position
+  // (MEDIUM.8b). AST-010 otherwise rolls into otherNonCurrentAssets on the sheet.
+  storedDeferredTaxAsset: number;
 }
 
 /**
@@ -99,17 +111,26 @@ async function buildEntityFinancials(
   const rate = await getExchangeRate(entity.localCurrency, periodDate, 'closing');
 
   // Aggregate trial balance entries into financial statement line items
+  let storedDeferredTaxAsset = 0;
   for (const entry of entries) {
     let amountEUR = entry.amountEUR;
     if (!amountEUR && entry.amountLocal) {
       amountEUR = convertToEUR(entry.amountLocal, entry.exchangeRateUsed || rate);
     }
     addEntry(stmts, entry.groupCOACode, amountEUR);
+    // Capture the booked DTA (AST-010) before it rolls into otherNonCurrentAssets,
+    // so the IAS 12 reconciliation can see it (MEDIUM.8b).
+    if (entry.groupCOACode === 'AST-010') storedDeferredTaxAsset += amountEUR;
   }
 
   // Calculate derived IS fields + minority interest
   deriveIncomeStatement(is);
   is.minorityInterest = computeMinorityInterest(is, entity.consolidationMethod, entity.ownershipPercentage);
+
+  // MEDIUM.6 — carve the minority's share of the subsidiary's OPENING equity out
+  // to minority equity (one-shot, before deriveBalanceSheet). No-op for wholly
+  // owned / non-full entities, so every EUR golden value is unchanged.
+  reclassifyMinorityEquity(bs, entity.consolidationMethod, entity.ownershipPercentage);
 
   // Calculate derived BS + CF fields
   deriveBalanceSheet(bs, is);
@@ -125,6 +146,7 @@ async function buildEntityFinancials(
     incomeStatement: is,
     balanceSheet: bs,
     cashFlow: cf,
+    storedDeferredTaxAsset,
   };
 }
 
@@ -158,6 +180,12 @@ async function buildForeignEntityFinancials(
     getExchangeRate(entity.localCurrency, periodDate, 'historical'),
   ]);
 
+  // Booked DTA (AST-010) is a non-current asset → translated at the closing rate,
+  // captured in EUR for the IAS 12 reconciliation (MEDIUM.8b).
+  const storedDeferredTaxAsset = entries
+    .filter((e) => e.groupCOACode === 'AST-010')
+    .reduce((s, e) => s + e.amountLocal, 0) * closing;
+
   const { statements } = translateForeignEntity(stmts, { closing, average, historical });
   const { incomeStatement: is, balanceSheet: bs, cashFlow: cf } = statements;
 
@@ -165,6 +193,12 @@ async function buildForeignEntityFinancials(
   // sheet. It is equity-neutral (shifts retained earnings ↔ minority equity), so
   // it leaves the CTA — already recognised by translateForeignEntity — intact.
   is.minorityInterest = computeMinorityInterest(is, entity.consolidationMethod, entity.ownershipPercentage);
+  // MEDIUM.6 — carve the minority's share of opening equity out of the TRANSLATED
+  // sheet. reclassifyMinorityEquity is equity-total-neutral (it scales share
+  // capital, historical RE and the CTA down to the owned fraction and books the
+  // remainder as minority equity), so the CTA raised by translateForeignEntity is
+  // split proportionally rather than disturbed.
+  reclassifyMinorityEquity(bs, entity.consolidationMethod, entity.ownershipPercentage);
   deriveBalanceSheet(bs, is);
   deriveCashFlow(cf, is);
 
@@ -178,6 +212,7 @@ async function buildForeignEntityFinancials(
     incomeStatement: is,
     balanceSheet: bs,
     cashFlow: cf,
+    storedDeferredTaxAsset,
   };
 }
 
@@ -222,13 +257,20 @@ const PL_TRANSACTION_TYPES = new Set(['sale', 'purchase', 'service']);
  * pending transactions, skipped the netting, and overstated revenue.)
  */
 async function runICEliminations(
+  period: string,
   periodDate: Date,
-  entityIds: string[]
-): Promise<{ eliminationAmount: number; eliminationCount: number; dedupedCount: number; details: string[] }> {
+  entityIds: string[],
+  idToCode: Map<string, string>,
+): Promise<{ entries: EliminationEntry[]; eliminationAmount: number; eliminationCount: number; dedupedCount: number; details: string[] }> {
   const details: string[] = [];
-  let totalElimination = 0;
+  // Intercompany flows captured from the DB, then handed to the pure elimination
+  // module (src/lib/finance/eliminations.ts) which turns them into explicit,
+  // auditable journal entries keyed on (period, counterpartyPair, account).
+  const flows: ICSaleFlow[] = [];
+  let totalElimination = 0; // P&L internal volume (positive); reported as -ve
   let count = 0;
   let dedupedCount = 0;
+  const codeOf = (id: string): string => idToCode.get(id) ?? id;
 
   // De-duplication key (TOP.3). IC flows can arrive from TWO independent sources:
   // the IntercompanyTransaction table and bilaterally-matched IC trial-balance
@@ -268,6 +310,9 @@ async function runICEliminations(
     });
     if (PL_TRANSACTION_TYPES.has(tx.transactionType)) {
       totalElimination += tx.amountEUR;
+      // An internal sale: the seller's revenue and the buyer's cost both gross up
+      // the group P&L. The pure module de-grosses both (net-zero on EBITDA).
+      flows.push({ seller: codeOf(tx.fromEntityId), buyer: codeOf(tx.toEntityId), revenue: tx.amountEUR });
     }
     // Register the flow so the trial-balance path below cannot re-net it. We
     // register EVERY transaction type (not just P&L) so a loan/dividend captured
@@ -277,13 +322,16 @@ async function runICEliminations(
     details.push(`Eliminated: ${tx.transactionId} (${tx.transactionType}) €${tx.amountEUR.toFixed(0)}`);
   }
 
-  // Also process IC trial balance entries
+  // Process IC trial-balance entries that match on the SAME account code (the
+  // P&L revenue/cost legs). Balance-sheet IC codes (AST-009 receivable / LIA-006
+  // payable) match cross-code and are handled in the dedicated pass below.
   const icTrialBalances = await db.trialBalance.findMany({
     where: {
       period: periodDate,
       entityId: { in: entityIds },
       isIntercompany: true,
       eliminationStatus: 'pending',
+      groupCOACode: { notIn: ['AST-009', 'LIA-006'] },
     },
   });
 
@@ -326,6 +374,7 @@ async function runICEliminations(
           // (IC receivable/payable) must not distort the income statement.
           if (IS_ACCOUNTS[tb.groupCOACode]) {
             totalElimination += Math.abs(tb.amountEUR);
+            flows.push({ seller: codeOf(tb.entityId), buyer: codeOf(tb.icPartnerEntityId), revenue: Math.abs(tb.amountEUR) });
           }
           count++;
         }
@@ -338,7 +387,50 @@ async function runICEliminations(
     }
   }
 
-  return { eliminationAmount: -totalElimination, eliminationCount: count, dedupedCount, details };
+  // MEDIUM.3 — balance-sheet IC elimination. Match each IC receivable (AST-009)
+  // against the matching IC payable (LIA-006) on its counterparty and net both
+  // off the consolidated sheet. The legs may sit at different FX rates for a
+  // cross-border pair; the pure module routes that residual to the CTA.
+  const icReceivables = await db.trialBalance.findMany({
+    where: { period: periodDate, entityId: { in: entityIds }, groupCOACode: 'AST-009', isIntercompany: true },
+  });
+  for (const recv of icReceivables) {
+    if (!recv.icPartnerEntityId) continue;
+    const payable = await db.trialBalance.findFirst({
+      where: {
+        period: periodDate,
+        entityId: recv.icPartnerEntityId,
+        icPartnerEntityId: recv.entityId,
+        groupCOACode: 'LIA-006',
+        isIntercompany: true,
+      },
+    });
+    if (!payable) continue;
+
+    const key = 'BAL|' + pairAmountKey(recv.entityId, recv.icPartnerEntityId, recv.amountEUR);
+    if (eliminatedKeys.has(key)) { dedupedCount++; continue; }
+    eliminatedKeys.add(key);
+
+    flows.push({
+      seller: codeOf(recv.entityId),
+      buyer: codeOf(recv.icPartnerEntityId),
+      revenue: 0,
+      openBalance: { receivable: recv.amountEUR, payable: Math.abs(payable.amountEUR) },
+    });
+    await db.trialBalance.update({
+      where: { id: recv.id },
+      data: { eliminationStatus: 'eliminated', eliminationGroup: `EG-${recv.id.substring(0, 8)}` },
+    });
+    await db.trialBalance.update({
+      where: { id: payable.id },
+      data: { eliminationStatus: 'eliminated', eliminationGroup: `EG-${recv.id.substring(0, 8)}` },
+    });
+    count++;
+    details.push(`Eliminated IC balance: ${codeOf(recv.entityId)}↔${codeOf(recv.icPartnerEntityId)} €${recv.amountEUR.toFixed(0)}`);
+  }
+
+  const entries = buildEliminationEntries(period, flows);
+  return { entries, eliminationAmount: -totalElimination, eliminationCount: count, dedupedCount, details };
 }
 
 /**
@@ -380,34 +472,26 @@ export async function computeConsolidation(input: ConsolidationInput) {
 
   // Run IC eliminations
   const entityIds = entities.map((e) => e.id);
-  const eliminations = await runICEliminations(periodDate, entityIds);
+  const idToCode = new Map(entities.map((e) => [e.id, e.code]));
+  const eliminations = await runICEliminations(input.period, periodDate, entityIds, idToCode);
 
   // Aggregate all entity financials
   const aggregated = aggregateFinancials(entityFinancials);
 
-  // Apply elimination adjustments
-  // IC eliminations reduce both sides (revenue/expense and receivable/payable) equally
-  const consolidatedIS = { ...aggregated.incomeStatement };
-  const consolidatedBS = { ...aggregated.balanceSheet };
-  const consolidatedCF = { ...aggregated.cashFlow };
-
-  // Apply IC elimination. For sale/service/purchase the internal sale must be
-  // removed from group revenue AND the matching internal cost removed from group
-  // expenses — a net-zero EBITDA impact. (The previous 50/50 split reduced
-  // revenue and *increased* cost, double-penalising EBITDA.)
-  // eliminations.eliminationAmount is negative (= -internal volume).
-  if (eliminations.eliminationAmount !== 0) {
-    const internalVolume = -eliminations.eliminationAmount; // positive
-    consolidatedIS.revenue -= internalVolume;
-    consolidatedIS.cogs += internalVolume; // COGS stored negative → reduces internal cost
-    // No balance-sheet adjustment here: these are P&L flows already settled in
-    // cash. IC loans/balances would be eliminated via matched IC trial-balance
-    // entries (eliminationStatus) instead.
-  }
-
-  // Recalculate all derived fields after eliminations
-  deriveIncomeStatement(consolidatedIS);
-  deriveBalanceSheet(consolidatedBS, consolidatedIS);
+  // Apply the elimination journal entries to the aggregated statements. The pure
+  // module nets internal revenue/COGS (net-zero on EBITDA), removes unrealized
+  // intra-group inventory profit, and nets IC receivable/payable off the sheet —
+  // then re-derives every subtotal. Each entry is internally balanced, so the
+  // balance check is preserved.
+  const consolidated: FinancialStatements = {
+    incomeStatement: { ...aggregated.incomeStatement },
+    balanceSheet: { ...aggregated.balanceSheet },
+    cashFlow: { ...aggregated.cashFlow },
+  };
+  applyEliminations(consolidated, eliminations.entries);
+  const consolidatedIS = consolidated.incomeStatement;
+  const consolidatedBS = consolidated.balanceSheet;
+  const consolidatedCF = consolidated.cashFlow;
 
   // Balance-sheet integrity gate (IFRS: assets must equal liabilities + equity).
   // If the consolidated sheet does not reconcile within tolerance the run is
@@ -434,6 +518,51 @@ export async function computeConsolidation(input: ConsolidationInput) {
     })),
   );
 
+  // MEDIUM.8b — deferred tax (IAS 12), surfaced additively alongside the tax
+  // reconciliation (it never mutates booked actuals — same stance as B1/B4).
+  // Each entity's loss/credit carryforwards are bridged to the deferred-tax asset
+  // they represent (loss → DTA at the statutory rate; RFAI → DTA at face value),
+  // measured at the reconciliation's baseRate, with the booked AST-010 taken as
+  // the opening balance so the period movement (deferredTaxExpense) is exactly the
+  // true-up that would bring the booked DTA onto the modelled basis. perEntity is
+  // index-aligned with entityFinancials (reconcileGroupTax preserves order).
+  //
+  // On a single-period actual run no carryforwards are generated yet (that needs
+  // opening pools fed back per year — PLAN MEDIUM.8b "carryforward persistence"),
+  // so the computed DTA is 0 and `drift` simply exposes the unsubstantiated booked
+  // AST-010. The computation goes dynamic automatically once openings are fed —
+  // see deferred-tax.test.ts for the carryforward-driven cases.
+  const deferredTaxPerEntity = entityFinancials.map((ef, i) => {
+    const r = taxReconciliation.perEntity[i];
+    const computed = computeDeferredTax({
+      rate: r.baseRate,
+      lossCarryforward: r.nolClosing,
+      creditCarryforward: r.rfaiClosing,
+      openingNetDTA: ef.storedDeferredTaxAsset,
+    });
+    return {
+      entityCode: ef.entityCode,
+      jurisdiction: r.jurisdiction,
+      storedDTA: ef.storedDeferredTaxAsset,
+      computed,
+      drift: ef.storedDeferredTaxAsset - computed.netDeferredTaxAsset,
+    };
+  });
+  const groupDeferredTax = aggregateDeferredTax(deferredTaxPerEntity.map((e) => e.computed));
+  const storedDeferredTaxAsset = deferredTaxPerEntity.reduce((s, e) => s + e.storedDTA, 0);
+  const deferredTax = {
+    perEntity: deferredTaxPerEntity,
+    group: groupDeferredTax,
+    /** Booked DTA summed from the AST-010 trial-balance lines (EUR). */
+    storedDTA: storedDeferredTaxAsset,
+    /** IAS 12 net DTA computed from carryforwards + timing differences (EUR). */
+    computedDTA: groupDeferredTax.netDeferredTaxAsset,
+    /** Booked − computed: the deferred-tax position not yet substantiated by the model. */
+    drift: storedDeferredTaxAsset - groupDeferredTax.netDeferredTaxAsset,
+    /** False when any entity hit an unmodelled-jurisdiction provider (rate is 0 then). */
+    comparable: taxReconciliation.comparable,
+  };
+
   const processingTimeMs = Date.now() - startTime;
 
   return {
@@ -449,7 +578,9 @@ export async function computeConsolidation(input: ConsolidationInput) {
     eliminationsApplied: eliminations.eliminationAmount, // signed internal volume removed
     eliminationsCount: eliminations.eliminationCount,    // number of IC flows eliminated
     eliminationsDeduped: eliminations.dedupedCount,      // IC flows skipped as already eliminated (TOP.3)
+    eliminationEntries: eliminations.entries,            // explicit, auditable elimination journal entries (MEDIUM.5)
     taxReconciliation,                                   // engine stored IRC vs modelled (B1/B2)
+    deferredTax,                                         // IAS 12 booked AST-010 vs computed DTA (MEDIUM.8b)
     entityBreakdown: entityFinancials.map((ef) => ({
       entityCode: ef.entityCode,
       legalName: ef.legalName,
@@ -497,4 +628,40 @@ export async function runConsolidation(input: ConsolidationInput) {
   });
 
   return { ...result, runId: run.id };
+}
+
+interface ConsolidationProjectionInput extends ConsolidationInput {
+  /** Number of future periods (years) to roll the consolidated state forward. */
+  years: number;
+  /**
+   * Optional per-period driver overrides layered on top of the steady-state set
+   * derived from each period's opening (e.g. `{ revenueGrowthRate: 0.05 }`).
+   */
+  assumptionOverrides?: Partial<ProjectionAssumptions>;
+}
+
+/**
+ * MEDIUM.7 — multi-period CONSOLIDATED roll-forward. Anchors on the consolidated
+ * (IC-eliminated, FX-translated) closing state from {@link computeConsolidation},
+ * then chains the pure projection kernel forward `years` periods. Each period's
+ * opening retained earnings is linked to the prior period's closing by the kernel
+ * (closing → next opening), and every projected sheet balances by construction.
+ *
+ * This differs from /api/forecast, which projects a raw sum of trial balances:
+ * here the projected path inherits the eliminations and currency translation, so
+ * the multi-period consolidated balance sheet is internally consistent. Read-only
+ * — persists nothing.
+ */
+export async function projectConsolidation(input: ConsolidationProjectionInput) {
+  const base = await computeConsolidation(input);
+  const opening: FinancialStatements = {
+    incomeStatement: { ...base.incomeStatement },
+    balanceSheet: { ...base.balanceSheet },
+    cashFlow: { ...base.cashFlow },
+  };
+  const periods = projectMultiPeriod(opening, input.years, (_periodIndex, state) => ({
+    ...deriveDefaultAssumptions(state),
+    ...input.assumptionOverrides,
+  }));
+  return { base, periods };
 }

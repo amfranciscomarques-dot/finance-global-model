@@ -22,6 +22,19 @@ export interface TaxInput {
   autonomousTaxBase?: number;
   /** Extra deductions to taxable income. */
   deductions?: number;
+  /**
+   * Net operating loss (prejuízo fiscal) carried FORWARD from prior years, as a
+   * positive pool. A profit year consumes it (subject to the jurisdiction cap)
+   * before tax is assessed; a loss year adds to it. Omit/0 for the first year.
+   */
+  nolOpening?: number;
+  /**
+   * RFAI investment credit carried FORWARD from prior years (positive pool). PT
+   * caps the RFAI deduction at a fraction of the coleta each year; the excess is
+   * not lost but carries forward (up to 10 years under art.º 23.º CFI). Added to
+   * this year's `rfaiCredit` to form the available pool. Omit/0 for the first year.
+   */
+  rfaiOpening?: number;
 }
 
 export interface TaxBreakdownLine {
@@ -47,6 +60,26 @@ export interface TaxResult {
   totalTax: number;
   /** totalTax / taxableIncome. */
   effectiveRate: number;
+  /**
+   * Prior-year losses actually deducted this year (positive; ≤ nolOpening and
+   * ≤ the jurisdiction's deductible cap). 0 in loss years or with no pool.
+   */
+  nolUsed: number;
+  /**
+   * Loss pool carried FORWARD to next year: nolOpening − nolUsed + (this year's
+   * new loss, if any). Feed back as the next year's nolOpening to chain years.
+   */
+  nolClosing: number;
+  /**
+   * RFAI credit actually deducted this year (positive; ≤ the available pool and
+   * ≤ the jurisdiction cap on coleta). Included in `credits`.
+   */
+  rfaiUsed: number;
+  /**
+   * RFAI credit carried FORWARD to next year: (rfaiOpening + this year's
+   * rfaiCredit) − rfaiUsed. Feed back as the next year's rfaiOpening to chain.
+   */
+  rfaiClosing: number;
   breakdown: TaxBreakdownLine[];
 }
 
