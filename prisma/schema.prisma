@@ -32,6 +32,7 @@ model Entity {
   intercompanyTo        IntercompanyTransaction[] @relation("ToEntity")
   budgetEntries         BudgetEntry[]
   forecastEntries       ForecastEntry[]
+  taxCarryforwards      TaxCarryforward[]
 }
 
 // ==========================================
@@ -137,6 +138,11 @@ model IntercompanyTransaction {
   period                DateTime
   isEliminated          Boolean   @default(false)
   eliminationGroup      String?
+  // Transfer-pricing metadata for intra-group GOODS sales (sale/purchase). Drives
+  // the unrealized-inventory-profit elimination (MEDIUM.8b). Both nullable; when
+  // absent the engine falls back to the group's default TransferPricingPolicy.
+  markup                Float?                               // cost-plus markup on the transfer price (e.g. 0.30)
+  closingInventoryFraction Float?                            // fraction of the goods still in the buyer's closing inventory (0..1)
   createdAt             DateTime  @default(now())
 }
 
@@ -204,6 +210,32 @@ model ConsolidationRun {
   leverage              Float?
   processingTimeMs      Float?
   createdAt             DateTime  @default(now())
+}
+
+// ==========================================
+// TAX CARRYFORWARDS (per-entity loss & credit pools, persisted year-on-year)
+//
+// The tax module computes each entity's closing NOL pool (prejuízo fiscal,
+// art.º 52.º CIRC) and unused RFAI credit (art.º 23.º CFI) for a year. Storing
+// them lets the NEXT year's consolidation feed them back as the opening pools
+// (nolOpening / rfaiOpening), which is what makes the IAS 12 deferred tax
+// (MEDIUM.8b) dynamic across a multi-year run. Keyed per (entity, year,
+// scenario) so base actuals and forecast scenarios keep independent pools.
+// ==========================================
+
+model TaxCarryforward {
+  id                    String    @id @default(cuid())
+  entityId              String
+  entity                Entity    @relation(fields: [entityId], references: [id])
+  year                  Int                                  // fiscal year these closing pools belong to
+  scenarioType          String    @default("base")           // base, optimistic, pessimistic
+  nolClosing            Float     @default(0)                // loss pool carried forward (art.º 52.º CIRC)
+  rfaiClosing           Float     @default(0)                // unused RFAI credit carried forward (art.º 23.º CFI)
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@unique([entityId, year, scenarioType])
+  @@index([entityId, year])
 }
 
 // ==========================================

@@ -45,6 +45,9 @@ export async function seedCompanyPack(
     await db.budgetEntry.deleteMany();
     await db.forecastEntry.deleteMany();
     await db.consolidationRun.deleteMany();
+    // TaxCarryforward references Entity (onDelete RESTRICT), so it must be cleared
+    // before entities are deleted (runConsolidation persists a row per entity/year).
+    await db.taxCarryforward.deleteMany();
     await db.project.deleteMany();
     await db.entity.deleteMany();
   }

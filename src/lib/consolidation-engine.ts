@@ -4,6 +4,7 @@ import {
   aggregateFinancials,
   applyEliminations,
   applyOwnership,
+  applyTransferPricing,
   assertBalanced,
   buildEliminationEntries,
   calculateKPIs,
@@ -17,6 +18,7 @@ import {
   deriveCashFlow,
   deriveDefaultAssumptions,
   deriveIncomeStatement,
+  marginFromMarkup,
   reclassifyMinorityEquity,
   getExchangeRate,
   IS_ACCOUNTS,
@@ -26,6 +28,7 @@ import {
   type FinancialStatements,
   type ICSaleFlow,
   type ProjectionAssumptions,
+  type TransferPricingPolicy,
 } from '@/lib/finance';
 import { aggregateDeferredTax, computeDeferredTax, getTaxProvider, reconcileGroupTax } from '@/lib/tax';
 
@@ -248,6 +251,20 @@ function applyModelledTax(ef: EntityFinancials, year: number): void {
 // revenue (the previous behaviour netted everything, corrupting the IS).
 const PL_TRANSACTION_TYPES = new Set(['sale', 'purchase', 'service']);
 
+// IC transaction types that move GOODS (and so can leave unrealized profit in the
+// buyer's closing inventory). Services have no inventory, so they only net
+// revenue/COGS — never trigger the inventory-profit elimination (MEDIUM.8b).
+const GOODS_TRANSACTION_TYPES = new Set(['sale', 'purchase']);
+
+// Group default transfer-pricing policy (MEDIUM.8b). Per-sale markup /
+// closing-inventory fraction stored on an IntercompanyTransaction always win;
+// this only supplies the fallback cost-plus markup used to SIZE the unrealized
+// inventory profit when a goods sale carries no explicit margin. The default
+// holding fraction is intentionally left unset, so a sale with no observed
+// closing-inventory fraction generates NO unrealized profit — we never invent
+// inventory the data does not show, keeping the demo golden numbers unchanged.
+const DEFAULT_TRANSFER_PRICING_POLICY: TransferPricingPolicy = { defaultMarkup: 0.30 };
+
 /**
  * Run intercompany eliminations.
  *
@@ -312,7 +329,20 @@ async function runICEliminations(
       totalElimination += tx.amountEUR;
       // An internal sale: the seller's revenue and the buyer's cost both gross up
       // the group P&L. The pure module de-grosses both (net-zero on EBITDA).
-      flows.push({ seller: codeOf(tx.fromEntityId), buyer: codeOf(tx.toEntityId), revenue: tx.amountEUR });
+      const flow: ICSaleFlow = { seller: codeOf(tx.fromEntityId), buyer: codeOf(tx.toEntityId), revenue: tx.amountEUR };
+      // For GOODS sales, also size the unrealized profit locked in the buyer's
+      // closing inventory from the per-sale transfer-pricing metadata (MEDIUM.8b),
+      // falling back to the group default policy for the margin. Services carry no
+      // inventory, so they skip this. `totalElimination` is a REPORTING figure only
+      // (the statements are adjusted solely via the elimination entries built from
+      // `flows`), so adding the inventory overlay here cannot double-net revenue.
+      if (GOODS_TRANSACTION_TYPES.has(tx.transactionType)) {
+        if (tx.markup != null) flow.margin = marginFromMarkup(tx.markup);
+        if (tx.closingInventoryFraction != null) flow.fractionInEndingInventory = tx.closingInventoryFraction;
+        flows.push(applyTransferPricing(flow, DEFAULT_TRANSFER_PRICING_POLICY));
+      } else {
+        flows.push(flow);
+      }
     }
     // Register the flow so the trial-balance path below cannot re-net it. We
     // register EVERY transaction type (not just P&L) so a loan/dividend captured
@@ -505,17 +535,38 @@ export async function computeConsolidation(input: ConsolidationInput) {
   // Calculate KPIs
   const kpis = calculateKPIs(consolidatedIS, consolidatedBS, consolidatedCF);
 
+  // MEDIUM.8b — feed each entity's PRIOR-year closing loss / RFAI pools back as
+  // this year's opening pools, so the tax chain (and the IAS 12 deferred tax
+  // below) compounds across a multi-year run. Keyed per (entity, year-1,
+  // scenario); absent for a first/standalone year, in which case the openings are
+  // 0 and the result is identical to the pre-persistence behaviour (the demo has
+  // no 2023 pools, so every golden value is unchanged).
+  const priorCarryforwards = await db.taxCarryforward.findMany({
+    where: { entityId: { in: entityIds }, year: year - 1, scenarioType: input.scenarioType },
+  });
+  const priorCfByEntityId = new Map(priorCarryforwards.map((c) => [c.entityId, c]));
+
   // B1/B2 — tax reconciliation: compare each entity's booked IRC against what its
   // jurisdiction provider models, summed per-entity (the correct basis for the
   // progressive derrama estadual). Informational: it does NOT change net income
   // on actuals, so every golden test stays green. `comparable` is false when any
   // entity hits an unmodelled-jurisdiction 0% provider (drift is meaningless then).
+  // We pass the raw EBT as the taxable base (not max(0, EBT)) so a LOSS year feeds
+  // the carried-forward NOL pool; for a profitable entity this equals max(0, EBT),
+  // so modelled tax (and the golden drift) is unchanged.
   const taxReconciliation = reconcileGroupTax(
-    entityFinancials.map((ef) => ({
-      is: { ebt: ef.incomeStatement.ebt, taxExpense: ef.incomeStatement.taxExpense },
-      provider: getTaxProvider(ef.countryCode),
-      year,
-    })),
+    entityFinancials.map((ef, i) => {
+      const prior = priorCfByEntityId.get(entities[i].id);
+      return {
+        is: { ebt: ef.incomeStatement.ebt, taxExpense: ef.incomeStatement.taxExpense },
+        provider: getTaxProvider(ef.countryCode),
+        year,
+        taxInput: {
+          taxableIncome: ef.incomeStatement.ebt,
+          ...(prior ? { nolOpening: prior.nolClosing, rfaiOpening: prior.rfaiClosing } : {}),
+        },
+      };
+    }),
   );
 
   // MEDIUM.8b — deferred tax (IAS 12), surfaced additively alongside the tax
@@ -563,6 +614,16 @@ export async function computeConsolidation(input: ConsolidationInput) {
     comparable: taxReconciliation.comparable,
   };
 
+  // MEDIUM.8b — each entity's CLOSING loss / RFAI pools for this year. runConsolidation
+  // persists these (keyed per entity/year/scenario) so the next year's run feeds them
+  // back as opening pools above. Index-aligned with entityFinancials/perEntity.
+  const taxCarryforwards = entityFinancials.map((ef, i) => ({
+    entityCode: ef.entityCode,
+    year,
+    nolClosing: taxReconciliation.perEntity[i].nolClosing,
+    rfaiClosing: taxReconciliation.perEntity[i].rfaiClosing,
+  }));
+
   const processingTimeMs = Date.now() - startTime;
 
   return {
@@ -581,6 +642,7 @@ export async function computeConsolidation(input: ConsolidationInput) {
     eliminationEntries: eliminations.entries,            // explicit, auditable elimination journal entries (MEDIUM.5)
     taxReconciliation,                                   // engine stored IRC vs modelled (B1/B2)
     deferredTax,                                         // IAS 12 booked AST-010 vs computed DTA (MEDIUM.8b)
+    taxCarryforwards,                                    // per-entity closing NOL/RFAI pools, persisted by runConsolidation (MEDIUM.8b)
     entityBreakdown: entityFinancials.map((ef) => ({
       entityCode: ef.entityCode,
       legalName: ef.legalName,
@@ -626,6 +688,25 @@ export async function runConsolidation(input: ConsolidationInput) {
       processingTimeMs: result.processingTimeMs,
     },
   });
+
+  // MEDIUM.8b — persist each entity's closing loss / RFAI pools so the NEXT year's
+  // run feeds them back as opening pools (compounding the tax chain and making the
+  // IAS 12 deferred tax dynamic across a multi-year roll-forward). Upsert per
+  // (entity, year, scenario) so re-running a period overwrites rather than duplicates.
+  const cfEntities = await db.entity.findMany({
+    where: { code: { in: input.entityCodes } },
+    select: { id: true, code: true },
+  });
+  const idByCode = new Map(cfEntities.map((e) => [e.code, e.id]));
+  for (const cf of result.taxCarryforwards) {
+    const entityId = idByCode.get(cf.entityCode);
+    if (!entityId) continue;
+    await db.taxCarryforward.upsert({
+      where: { entityId_year_scenarioType: { entityId, year: cf.year, scenarioType: input.scenarioType } },
+      update: { nolClosing: cf.nolClosing, rfaiClosing: cf.rfaiClosing },
+      create: { entityId, year: cf.year, scenarioType: input.scenarioType, nolClosing: cf.nolClosing, rfaiClosing: cf.rfaiClosing },
+    });
+  }
 
   return { ...result, runId: run.id };
 }

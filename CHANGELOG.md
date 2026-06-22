@@ -13,6 +13,43 @@ because they grew over time.
 
 ---
 
+## 2026-06-22 — Carryforward persistence & live transfer pricing (MEDIUM.8b, legs 2–3)
+
+Completes **MEDIUM.8b**: the two remaining legs both needed a schema migration, so
+they ship together. The deferred tax surfaced in leg 1 now goes **dynamic** across a
+multi-year run, and the shipped unrealized-profit elimination now fires on real
+intercompany goods sales. The demo's golden actuals are unchanged — the new
+behaviour is opt-in on data the demo book does not carry (no 2023 pools, no goods IC).
+
+- **Schema (additive, `db push` + a migration file).** New `TaxCarryforward` model
+  (per `entity`/`year`/`scenario`, holding `nolClosing`/`rfaiClosing`) and two
+  nullable columns on `IntercompanyTransaction` — `markup` and
+  `closingInventoryFraction` — carrying per-sale transfer-pricing metadata.
+- **Carryforward persistence.** `computeConsolidation` reads each entity's prior-year
+  closing pools and feeds them back as this year's `nolOpening`/`rfaiOpening`, and
+  now passes the raw EBT as the taxable base so a **loss year actually feeds the NOL
+  pool** (for a profitable entity this equals `max(0, EBT)`, so the modelled tax and
+  the B1 drift are unchanged). It exposes the per-entity closings as
+  `result.taxCarryforwards`; `runConsolidation` upserts them. The IAS 12 deferred tax
+  from leg 1 therefore goes dynamic: a carried loss surfaces as a DTA (pool × rate)
+  in the following year with no further wiring.
+- **Transfer pricing → live eliminations.** `runICEliminations` now builds priced
+  `ICSaleFlow`s for **goods** IC transactions (`sale`/`purchase`), sizing the
+  unrealized inventory profit from the per-sale `markup`/`closingInventoryFraction`
+  (falling back to a group default `TransferPricingPolicy`) so the
+  `unrealized_inventory_profit` entry fires on real data. Services are excluded (no
+  inventory). `totalElimination` is a reporting figure only — the statements are
+  adjusted solely via the (internally balanced) elimination entries — so the
+  inventory overlay cannot double-net revenue.
+- **Seed reset.** `seedCompanyPack({ reset })` now clears `TaxCarryforward` before
+  deleting entities (the model is `onDelete: RESTRICT` and every run now persists a
+  row per entity/year).
+- **Tests (239 pass, was 236).** A two-year run proves a 2024 loss persists a
+  500,000 NOL pool that feeds 2025's opening and surfaces as a 100,000 DTA
+  (500,000 × 20%); a priced IC goods sale fires a 100,000 unrealized-profit
+  elimination that lowers consolidated inventory and net income while the sheet stays
+  balanced; and the service-only demo never triggers it.
+
 ## 2026-06-22 — Deferred tax surfaced on the consolidation run (MEDIUM.8b, leg 1)
 
 Wires the IAS 12 deferred-tax module (shipped pure in MEDIUM.8) into the persisted

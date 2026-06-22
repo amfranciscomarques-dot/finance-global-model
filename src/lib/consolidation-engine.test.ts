@@ -450,3 +450,128 @@ describe('runConsolidation — deferred tax (IAS 12, MEDIUM.8b)', () => {
     await seed(); // restore the clean book for later tests
   });
 });
+
+describe('runConsolidation — carryforward persistence (MEDIUM.8b)', () => {
+  it('persists a loss year\'s NOL pool and feeds it back as the next year\'s opening, going dynamic on deferred tax', async () => {
+    await seed();
+
+    // A PT entity that books a 2024 loss: EBITDA −500,000 (no D&A/interest/tax),
+    // funded so the standalone sheet still reconciles (share capital 1,000,000,
+    // cash 500,000 = equity 1,000,000 + result −500,000).
+    const loss = await db.entity.create({
+      data: {
+        code: 'MLOSS', legalName: 'Meridian Loss-Maker S.A.', countryCode: 'PT',
+        localCurrency: 'EUR', consolidationMethod: 'full', ownershipPercentage: 1.0, sector: 'Manufacturing',
+      },
+    });
+    const tb = (period: string, rows: Array<[string, number]>) =>
+      db.trialBalance.createMany({
+        data: rows.map(([code, amt]) => ({
+          entityId: loss.id, period: new Date(period), periodType: 'actual',
+          groupCOACode: code, amountLocal: amt, amountEUR: amt, currency: 'EUR',
+        })),
+      });
+
+    await tb('2024-12-01', [
+      ['REV-001', 1_000_000],
+      ['COGS-001', -1_500_000], // → EBT −500,000
+      ['EQY-001', 1_000_000],
+      ['AST-001', 500_000],
+    ]);
+
+    // Year 1 (2024): the loss becomes a 500,000 NOL pool, persisted for 2024.
+    const y2024 = await runConsolidation({ period: '2024-12', entityCodes: ['MLOSS'], scenarioType: 'base' });
+    const cf2024 = y2024.taxCarryforwards.find((c) => c.entityCode === 'MLOSS');
+    expect(cf2024!.nolClosing).toBeCloseTo(500_000, 2);
+    // No prior pool yet, so the deferred tax this year still measures only the
+    // closing loss × rate (2024 IRC 21%): 500,000 × 0.21 = 105,000.
+    expect(y2024.deferredTax.computedDTA).toBeCloseTo(105_000, 2);
+
+    const stored = await db.taxCarryforward.findFirst({
+      where: { entityId: loss.id, year: 2024, scenarioType: 'base' },
+    });
+    expect(stored!.nolClosing).toBeCloseTo(500_000, 2);
+
+    // Year 2 (2025): a break-even book (no P&L). The 2024 pool must feed back as
+    // the 2025 opening, so the deferred tax is driven by the carried loss alone:
+    // 500,000 × 0.20 (2025 IRC) = 100,000. This is the dynamic behaviour the
+    // surfaced deferred tax (leg 1) was waiting on.
+    await tb('2025-12-01', [
+      ['EQY-001', 500_000],
+      ['AST-001', 500_000],
+    ]);
+    const y2025 = await runConsolidation({ period: '2025-12', entityCodes: ['MLOSS'], scenarioType: 'base' });
+    expect(y2025.deferredTax.comparable).toBe(true);
+    expect(y2025.deferredTax.computedDTA).toBeCloseTo(100_000, 2);
+    // The unused pool rolls on, persisted again for 2025.
+    expect(y2025.taxCarryforwards.find((c) => c.entityCode === 'MLOSS')!.nolClosing).toBeCloseTo(500_000, 2);
+
+    await seed(); // restore the clean book (also clears the MLOSS carryforwards)
+  });
+});
+
+describe('runConsolidation — transfer pricing → live eliminations (MEDIUM.8b)', () => {
+  it('fires the unrealized-inventory-profit elimination from a priced IC goods sale, staying balanced', async () => {
+    await seed();
+    const merid = await db.entity.findFirst({ where: { code: 'MERID' } });
+    const msub = await db.entity.findFirst({ where: { code: 'MSUB' } });
+    const periodDate = new Date('2024-12-01');
+
+    // MERID sells goods to MSUB at a 25% cost-plus markup (margin on price =
+    // 0.25/1.25 = 0.20); MSUB still holds half at year end. Unrealized profit
+    // locked in the buyer's inventory = 1,000,000 × 0.5 × 0.20 = 100,000.
+    await db.intercompanyTransaction.create({
+      data: {
+        transactionId: 'IC-MERID-MSUB-GOODS-2024',
+        fromEntityId: merid!.id,
+        toEntityId: msub!.id,
+        amount: 1_000_000,
+        currency: 'EUR',
+        amountEUR: 1_000_000,
+        transactionType: 'sale',
+        markup: 0.25,
+        closingInventoryFraction: 0.5,
+        matchingReference: 'IC-MERID-MSUB-GOODS-2024',
+        period: periodDate,
+        isEliminated: false,
+      },
+    });
+
+    const result = await runConsolidation({
+      period: '2024-12',
+      entityCodes: ['MERID', 'MSUB'],
+      scenarioType: 'base',
+    });
+
+    // The transfer-pricing wiring produced an explicit, auditable inventory-profit
+    // elimination of exactly 100,000…
+    const profit = result.eliminationEntries.find((e) => e.kind === 'unrealized_inventory_profit');
+    expect(profit).toBeDefined();
+    expect(profit!.amount).toBeCloseTo(100_000, 2);
+
+    // …which lowers consolidated inventory (MERID 13,000,000 − 100,000) and group
+    // net income (1,750,000 − 100,000) by the locked-in margin. The internal sale
+    // itself is net-zero on EBITDA, so only the unrealized profit moves net income.
+    expect(result.balanceSheet.inventory).toBeCloseTo(12_900_000, 2);
+    expect(result.incomeStatement.netIncome).toBeCloseTo(1_650_000, 2);
+
+    // Each elimination entry is internally balanced, so the sheet still reconciles.
+    expect(result.status).toBe('completed');
+    expect(Math.abs(result.balanceCheck)).toBeLessThan(EUR);
+
+    await seed(); // restore the clean book for later tests
+  });
+
+  it('does not fire inventory-profit elimination for service IC flows (the demo)', async () => {
+    await seed();
+    const result = await runConsolidation({
+      period: '2024-12',
+      entityCodes: ['MERID', 'MSUB'],
+      scenarioType: 'base',
+    });
+    // The demo's only IC flows are MSUB→MERID services — no goods, no inventory,
+    // so the inventory-profit elimination never fires and net income is unchanged.
+    expect(result.eliminationEntries.some((e) => e.kind === 'unrealized_inventory_profit')).toBe(false);
+    expect(result.incomeStatement.netIncome).toBeCloseTo(1_750_000, 2);
+  });
+});
