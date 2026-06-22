@@ -13,6 +13,39 @@ because they grew over time.
 
 ---
 
+## 2026-06-22 — Deferred tax surfaced on the consolidation run (MEDIUM.8b, leg 1)
+
+Wires the IAS 12 deferred-tax module (shipped pure in MEDIUM.8) into the persisted
+consolidation run as an **additive** layer — it never mutates booked actuals, the
+same stance as the B1/B4 tax reconciliation, so every golden value is unchanged.
+
+- **`computeConsolidation` now surfaces `result.deferredTax`.** For each entity it
+  bridges the carryforwards already produced by the tax reconciliation
+  (`nolClosing` → DTA at the statutory rate; `rfaiClosing` → DTA at face value),
+  measured at the new `TaxReconciliation.baseRate`, taking the booked **AST-010** as
+  the opening balance so the period movement is exactly the true-up onto the
+  modelled basis. The block carries `{ perEntity, group, storedDTA, computedDTA,
+  drift, comparable }` — a deferred-tax reconciliation parallel to the tax-drift one.
+- **Booked AST-010 is now captured.** AST-010 rolls into `otherNonCurrentAssets` on
+  the sheet, so the engine sums it separately (per entity, translated at the closing
+  rate for foreign books) to reconcile the booked DTA against the computed position.
+- **`aggregateDeferredTax` (`src/lib/tax/deferred-tax.ts`).** Gross-sums DTA and DTL
+  across entities (a net asset in one entity does not offset a net liability in
+  another), re-derives the net, and sums the per-entity period movements.
+- **Honest scope.** A single-period *actual* run generates no carryforwards yet (that
+  needs opening pools fed back per year — the *carryforward persistence* leg below),
+  so the computed DTA is 0 and `drift` simply exposes the unsubstantiated booked
+  AST-010. The computation goes dynamic automatically once openings are fed; the
+  carryforward-driven cases are proven in `deferred-tax.test.ts`.
+- **Tests (236 pass, was 231).** `aggregateDeferredTax` group math (3); engine
+  surfacing — the demo carries a comparable 0/0/0 block without touching net income,
+  and a booked AST-010 shows as drift against the modelled DTA while the sheet stays
+  balanced (2).
+
+Still open in MEDIUM.8b: transfer pricing → live eliminations (gated on per-sale IC
+schema fields) and carryforward persistence (per-entity/year `nolClosing`/
+`rfaiClosing` fed back as next year's openings). Both need a schema migration.
+
 ## 2026-06-22 — Tax depth & cross-border rules (MEDIUM.8)
 
 Adds the four pieces of tax/cross-border depth. The loss-year and capped-credit

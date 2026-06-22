@@ -19,18 +19,25 @@ the changelog, which is why this list starts at MEDIUM.8.
 - **MEDIUM.8b — Wire the tax-depth modules into the persisted run.** The MEDIUM.8
   engine pieces shipped pure & additive (see CHANGELOG): NOL + RFAI carryforward,
   IAS 12 deferred tax (`tax/deferred-tax.ts`), and a `TransferPricingPolicy`
-  (`finance/transfer-pricing.ts`). What remains is feeding them into
-  `runConsolidation`:
-  - **Deferred tax → AST-010.** Drive the stored DTA from `computeDeferredTax`
-    (NOL/RFAI carryforwards + book-vs-tax differences) and book the period movement
-    as deferred-tax expense, instead of passing through the imported `AST-010`.
+  (`finance/transfer-pricing.ts`). Progress so far and what remains:
+  - **✅ Deferred tax → surfaced on the run.** `computeConsolidation` now attaches
+    `result.deferredTax` — the booked AST-010 reconciled against the IAS 12 computed
+    DTA (carryforwards × rate / face), additive and never disturbing booked actuals
+    (shipped; see CHANGELOG). It is 0-valued until carryforwards are fed, so it goes
+    dynamic with the persistence leg below. (Deliberately *not* overriding the booked
+    AST-010 balance on actuals — same stance as the B1/B4 tax reconciliation.)
+  - **Carryforward persistence.** Store each entity's `nolClosing`/`rfaiClosing` per
+    year so the next run feeds them back as `nolOpening`/`rfaiOpening` (via
+    `reconcileGroupTax`'s per-entity `taxInput`). This is what makes the surfaced
+    deferred tax dynamic. **Needs a schema migration** (e.g. a `TaxCarryforward`
+    model) and `db push` against `db/custom.db`.
   - **Transfer pricing → live eliminations.** Build IC *sale* flows (not just IC
     balances) in `runICEliminations` and run `applyTransferPricing` over them so the
     `unrealized_inventory_profit` entry fires on real data. **Blocker:** the
     `IntercompanyTransaction` schema carries no per-sale cost, margin or
-    closing-inventory fraction — add those fields (and seed them) first.
-  - **Carryforward persistence.** Store each entity's `nolClosing`/`rfaiClosing` per
-    year so the next run feeds them back as `nolOpening`/`rfaiOpening`.
+    closing-inventory fraction — add those fields (and seed them) first; also note
+    `runICEliminations` nets P&L via a running `totalElimination`, so pushing priced
+    sale flows must avoid double-netting.
 
 ---
 
@@ -74,7 +81,10 @@ the changelog, which is why this list starts at MEDIUM.8.
 ## Recommended next
 
 The MEDIUM.8 tax-depth math has shipped (NOL + RFAI carryforward, IAS 12 deferred
-tax, transfer-pricing policy — all pure & tested). The only structural MEDIUM left
-is **MEDIUM.8b** — wiring those modules into the persisted consolidation run (the
-transfer-pricing leg is gated on adding per-sale fields to the IC schema). After
-that, only the LOW tier and quick wins remain.
+tax, transfer-pricing policy — all pure & tested), and the deferred-tax leg of
+**MEDIUM.8b** is now wired into the consolidation run (surfaced additively as
+`result.deferredTax`). The two remaining MEDIUM.8b legs both need a schema migration:
+**carryforward persistence** (a `TaxCarryforward` model, which also makes the
+surfaced deferred tax go dynamic) and **transfer pricing → live eliminations**
+(per-sale fields on `IntercompanyTransaction`). After those, only the LOW tier and
+quick wins remain.
