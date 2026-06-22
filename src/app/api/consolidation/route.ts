@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { runConsolidation } from '@/lib/consolidation-engine';
+import { FxRateUnavailableError } from '@/lib/finance';
 import { z } from 'zod';
 
 const consolidationRunSchema = z.object({
@@ -49,6 +50,12 @@ export async function POST(request: NextRequest) {
         { error: 'Validation failed', details: error.issues },
         { status: 400 }
       );
+    }
+    // A missing exchange rate is a fixable data gap, not a server fault: return
+    // 422 with the descriptive message (which names the currency/period) instead
+    // of a generic 500, so the caller knows exactly which rate to import.
+    if (error instanceof FxRateUnavailableError) {
+      return NextResponse.json({ error: error.message }, { status: 422 });
     }
     console.error('Error running consolidation:', error);
     return NextResponse.json(

@@ -60,6 +60,7 @@ const BS_LINE_ITEMS = [
   { key: 'shareCapital', label: '  Share Capital', indent: true },
   { key: 'retainedEarnings', label: '  Retained Earnings', indent: true },
   { key: 'minorityEquity', label: '  Minority Interest', indent: true },
+  { key: 'cta', label: '  Translation Reserve (CTA)', indent: true },
   { key: 'totalEquity', label: 'TOTAL EQUITY', isSubtotal: true },
   { key: 'balanceCheck', label: 'Balance Check (Assets − L − E)' },
 ];

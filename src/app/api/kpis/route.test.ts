@@ -35,13 +35,30 @@ describe('GET /api/kpis', () => {
     expect(msub.netIncome).toBe(250_000);
   });
 
-  it('returns naive (pre-elimination) group totals', async () => {
+  it('translates the USD subsidiary (MUSA) into EUR at the stored closing rate', async () => {
     const res = await call('2024-12');
     const body = await res.json();
 
-    // Sum of entities, intercompany NOT eliminated here.
-    expect(body.kpis.totalRevenue).toBe(49_000_000);
-    expect(body.kpis.totalEBITDA).toBe(5_600_000);
-    expect(body.kpis.netIncome).toBe(1_750_000);
+    // The /api/kpis route reads the stored amountEUR (filled at the single
+    // closing rate, 1.082, by the seeder). This is intentionally simpler than the
+    // consolidation engine, which re-translates MUSA at three rates (IAS 21) and
+    // raises a CTA — see fx-translation.engine.test.ts. Here MUSA's USD book
+    // (revenue 10,000,000; EBITDA 1,300,000; net 450,000) scales uniformly.
+    const musa = body.entityBreakdown.find((e: { entityCode: string }) => e.entityCode === 'MUSA');
+    expect(musa.localCurrency).toBe('USD');
+    expect(musa.revenue).toBe(Math.round(10_000_000 / 1.082));
+    expect(musa.ebitda).toBe(Math.round(1_300_000 / 1.082));
+    expect(musa.netIncome).toBe(Math.round(450_000 / 1.082));
+  });
+
+  it('returns naive (pre-elimination) group totals including the USD sub', async () => {
+    const res = await call('2024-12');
+    const body = await res.json();
+
+    // Sum of entities, intercompany NOT eliminated here. EUR entities contribute
+    // 49,000,000 / 5,600,000 / 1,750,000; MUSA adds its closing-rate EUR figures.
+    expect(body.kpis.totalRevenue).toBe(49_000_000 + Math.round(10_000_000 / 1.082));
+    expect(body.kpis.totalEBITDA).toBe(5_600_000 + Math.round(1_300_000 / 1.082));
+    expect(body.kpis.netIncome).toBe(1_750_000 + Math.round(450_000 / 1.082));
   });
 });

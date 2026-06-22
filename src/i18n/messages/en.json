@@ -365,8 +365,9 @@
       "minorityInterestDesc": "Non-controlling interests",
       "bsCheck": "Balance Sheet Check",
       "balanced": "Balanced ✓",
-      "offBy": "Off by €{amount}K",
+      "offBy": "Off by €{amount}",
       "bsEquation": "Assets = Liabilities + Equity",
+      "gateFailed": "Run blocked — book does not reconcile",
       "qualityScore": "Quality Score"
     },
     "quality": {

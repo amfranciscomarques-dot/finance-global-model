@@ -42,7 +42,11 @@ export const PT_TAX_CONFIG: PortugalTaxConfig = {
     '2028': 0.17,
   },
   ircGeneralRate: 0.20,
-  ircReducedRate: 0.20,
+  // SME (PME) reduced rate on the first €50,000 of taxable income — 2024 statutory
+  // rate is 17%. Kept OPT-IN (applyReducedRate: false) because the engine cannot
+  // classify an entity as PME/non-PME; callers that know the entity qualifies pass
+  // applyReducedRate via a custom config (see createPortugalProvider).
+  ircReducedRate: 0.17,
   applyReducedRate: false,
   reducedRateThreshold: 50000,
 
@@ -57,6 +61,20 @@ export const PT_TAX_CONFIG: PortugalTaxConfig = {
   rfaiLimitPctColeta: 0.5,
   autonomousTaxRate: 0.1,
 };
+
+/**
+ * Resolve the statutory IRC rate for a year by clamping FORWARD to the nearest
+ * scheduled year ≤ the requested year. A future year beyond the table (e.g. 2030)
+ * uses the last scheduled rate (2028 → 17%) rather than silently dropping to the
+ * generic fallback; only years BEFORE the table fall back to ircGeneralRate.
+ */
+function ircRateForYear(c: PortugalTaxConfig, year: number): number {
+  const scheduled = Object.keys(c.ircRateByYear)
+    .map(Number)
+    .filter((y) => y <= year)
+    .sort((a, b) => b - a);
+  return scheduled.length > 0 ? c.ircRateByYear[String(scheduled[0])] : c.ircGeneralRate;
+}
 
 /** Progressive Derrama Estadual on taxable income above thresholds. */
 function derramaEstadual(taxableIncome: number, c: PortugalTaxConfig): number {
@@ -87,8 +105,8 @@ export function createPortugalProvider(config: PortugalTaxConfig = PT_TAX_CONFIG
 
       const taxable = Math.max(0, input.taxableIncome - (input.deductions ?? 0));
 
-      // 1) Statutory rate for the year
-      const baseRate = c.ircRateByYear[String(input.year)] ?? c.ircGeneralRate;
+      // 1) Statutory rate for the year (clamped forward to the schedule)
+      const baseRate = ircRateForYear(c, input.year);
 
       // 2) Coleta (gross IRC). Optional reduced rate on first tranche.
       let grossTax: number;

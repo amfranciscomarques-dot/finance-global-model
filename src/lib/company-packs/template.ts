@@ -18,7 +18,8 @@ import type { CompanyPack, PackTbRecord } from './types';
 //   MSUB   — Meridian Subcontracting, S.A.  (PT, EUR) — sells subcontracting +
 //                                            personnel to the parent (eliminated)
 //   MESP   — Meridian España, S.L.          (ES, EUR) — created empty (no 2024 history)
-//   MUSA   — Meridian USA, Inc.             (US, USD) — created empty (FX demo)
+//   MUSA   — Meridian USA, Inc.             (US, USD) — USD subsidiary, the IAS 21
+//                                            FX/CTA demo (translated at three rates)
 //
 // To add your own company, copy this file, swap the numbers, and register the
 // pack in ./index.ts. The app core never changes.
@@ -99,6 +100,54 @@ const MSUB_2024: Array<[string, number, boolean?]> = [
   // Minimal balanced placeholder balance sheet
   ['AST-001', 750_000],          // cash
   ['EQY-001', 500_000],          // share capital
+];
+
+// ------------------------------------------------------------
+// MUSA — Meridian USA, Inc., 2024, functional currency USD.
+//
+// A small, locally-balanced USD distribution subsidiary. Its only reason to
+// exist is to exercise the IAS 21 current-rate translation (MEDIUM.1): the
+// engine assembles MUSA in USD, then translates the income statement at the
+// AVERAGE rate (1.079), assets & liabilities at the CLOSING rate (1.082) and
+// contributed equity at the HISTORICAL rate (1.104). Because the three rates
+// differ, the translated sheet no longer balances by itself — the residual is
+// the Cumulative Translation Adjustment (CTA ≈ €54,095.61), recognised in OCI.
+//
+// USD trial balance (costs negative), assets = liabilities + equity:
+//   EBITDA  1,300,000 · EBT 750,000 · Net 450,000
+//   Assets  8,000,000 = liabilities 4,550,000 + equity 3,450,000
+//                       (equity = 2,000,000 capital + 1,000,000 reserves
+//                                 + 450,000 current-year result)
+// NOTE: amountEUR is stored at the single closing rate by the seeder (so
+// amountEUR-based read routes still see a balanced book); the engine ignores it
+// for foreign entities and re-translates from amountLocal at the three rates.
+// ------------------------------------------------------------
+const MUSA_2024: Array<[string, number]> = [
+  // Income statement
+  ['REV-001', 10_000_000],   // sales
+  ['COGS-001', -6_000_000],  // cost of goods sold
+  ['OPX-004', -1_500_000],   // external supplies & services
+  ['PAY-001', -1_200_000],   // personnel costs
+  ['DEP-002', -400_000],     // depreciation & amortisation
+  ['INT-001', -150_000],     // financing costs
+  ['TAX-001', -300_000],     // corporate income tax
+
+  // Balance sheet
+  ['AST-001', 1_200_000],    // cash
+  ['AST-002', 2_000_000],    // trade receivables
+  ['AST-003', 1_800_000],    // inventories
+  ['AST-005', 3_000_000],    // property, plant & equipment
+  ['LIA-001', 1_500_000],    // trade payables
+  ['LIA-002', 1_050_000],    // current borrowings
+  ['LIA-004', 2_000_000],    // non-current borrowings
+  ['EQY-001', 2_000_000],    // share capital
+  ['EQY-002', 1_000_000],    // reserves + retained earnings (historical, excl. 2024 result)
+
+  // Cash flow (simplified indirect view; not part of the balance check)
+  ['CFA-001', -300_000],     // change in working capital
+  ['CFA-002', -600_000],     // capital expenditure
+  ['CFA-003', 500_000],      // debt issuance
+  ['CFA-004', 400_000],      // debt repayment (magnitude)
 ];
 
 // ------------------------------------------------------------
@@ -251,7 +300,14 @@ function buildTrialBalance(): PackTbRecord[] {
     });
   }
 
-  // MESP (Spain) and MUSA (USA) are created empty — no 2024 history.
+  // MUSA (USA) — functional currency USD; translated to EUR at three rates by
+  // the engine (IAS 21). Stored in USD; amountEUR is filled at the closing rate
+  // by the seeder so amountEUR-based read routes still see a balanced book.
+  for (const [code, amount] of MUSA_2024) {
+    records.push({ entityCode: 'MUSA', groupCOACode: code, amountLocal: round2(amount), currency: 'USD' });
+  }
+
+  // MESP (Spain) is created empty — no 2024 history.
   return records;
 }
 
@@ -312,7 +368,7 @@ export const templatePack: CompanyPack = {
   id: 'template',
   name: 'Meridian Group',
   description:
-    'Meridian Group — fictional demo: Meridian Components (PT) with Meridian Subcontracting (PT), Meridian España (ES, empty) and Meridian USA (US/USD, empty). All data is invented; balance sheets reconcile exactly and group totals tie to the standalone entities.',
+    'Meridian Group — fictional demo: Meridian Components (PT) with Meridian Subcontracting (PT), Meridian España (ES, empty) and Meridian USA (US/USD) — a USD subsidiary that exercises IAS 21 currency translation (CTA). All data is invented; balance sheets reconcile exactly and group totals tie to the standalone entities after FX translation and intercompany elimination.',
   period: TEMPLATE_PERIOD,
   sourceSystem: 'demo',
   entities: ENTITIES,

@@ -1,3 +1,5 @@
+import type { BalanceSheetData, CashFlowData, IncomeStatementData } from './finance/account-maps';
+
 export interface Entity {
   id: string;
   code: string;
@@ -479,6 +481,29 @@ export interface CashFlowForecast {
     base: { totalNetChange: number; label: string };
     pessimistic: { totalNetChange: number; label: string };
   };
+  // Driver-based annual projection from the pure kernel (finance/project.ts):
+  // full, balanced IS/BS/CF for each forecast year. Backward-compatible addition
+  // — older clients ignore it; the cash-flow chart still reads `periods`.
+  projection?: ForecastProjection;
+}
+
+export interface ForecastProjectionYear {
+  year: number;
+  incomeStatement: IncomeStatementData;
+  balanceSheet: BalanceSheetData;
+  cashFlow: CashFlowData;
+}
+
+export interface ForecastProjection {
+  /** Driver assumptions actually applied to the kernel (fractions, not %). */
+  drivers: {
+    revenueGrowthRate: number;
+    grossMarginRate: number;
+    receivableDays: number;
+    capex: number;
+    netDebtChange: number;
+  };
+  years: ForecastProjectionYear[];
 }
 
 // ============================================================

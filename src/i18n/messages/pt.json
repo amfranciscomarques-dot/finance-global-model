@@ -365,8 +365,9 @@
       "minorityInterestDesc": "Interesses que não controlam",
       "bsCheck": "Verificação do Balanço",
       "balanced": "Equilibrado ✓",
-      "offBy": "Desvio de €{amount}K",
+      "offBy": "Desvio de €{amount}",
       "bsEquation": "Ativo = Passivo + Capital Próprio",
+      "gateFailed": "Execução bloqueada — o balanço não fecha",
       "qualityScore": "Pontuação de Qualidade"
     },
     "quality": {

@@ -33,14 +33,17 @@ export function formatCurrency(value: number, decimals = 0): string {
 
 /**
  * Compact, adaptively-scaled euro amount for cards, chart axes and bar labels.
- * Input is full euros: 52_240_382 → "€52.2M", 85_000 → "€85K", 420 → "€420".
+ * Input is full euros. Localized de-DE like the rest of this module: the mantissa
+ * uses a comma decimal (52_240_382 → "€52,2M"), and `decimals` is honored in BOTH
+ * the M and K bands (it was previously ignored in the K band and rendered en-US
+ * dots — see PLAN A3 / finding L1). The base (<1,000) band shows whole euros.
  */
 export function formatCompactEUR(value: number, decimals = 1): string {
   const sign = value < 0 ? '-' : '';
   const abs = Math.abs(value);
-  if (abs >= 1_000_000) return `${sign}€${(abs / 1_000_000).toFixed(decimals)}M`;
-  if (abs >= 1_000) return `${sign}€${(abs / 1_000).toFixed(0)}K`;
-  return `${sign}€${abs.toFixed(0)}`;
+  if (abs >= 1_000_000) return `${sign}€${formatNumber(abs / 1_000_000, decimals)}M`;
+  if (abs >= 1_000) return `${sign}€${formatNumber(abs / 1_000, decimals)}K`;
+  return `${sign}€${formatNumber(abs, 0)}`;
 }
 
 /** Percentage with a trailing %, e.g. 33.94 → "33,9%". Value is already a percent. */

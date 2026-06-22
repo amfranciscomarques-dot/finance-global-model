@@ -114,6 +114,7 @@ const balanceSheetRows = [
   { key: 'shareCapital', label: 'Share Capital', indent: 1 },
   { key: 'retainedEarnings', label: 'Retained Earnings', indent: 1 },
   { key: 'minorityEquity', label: 'Minority Interest', indent: 1 },
+  { key: 'cta', label: 'Translation Reserve (CTA)', indent: 1 },
   { key: 'totalEquity', label: 'TOTAL EQUITY', isSubtotal: true },
 ];
 
@@ -300,9 +301,15 @@ export function ConsolidationView() {
     entityCodes.map((code, i) => [code, ENTITY_PALETTE[i % ENTITY_PALETTE.length]])
   );
 
-  // Balance Sheet Check (assets = liabilities + equity, to the euro).
-  const bsBalance = result.balanceSheet.totalAssets - result.balanceSheet.totalLiabilities - result.balanceSheet.totalEquity - (result.balanceSheet.minorityEquity || 0);
-  const bsIsBalanced = Math.abs(bsBalance) < 1; // book reconciles to the cent
+  // Balance-sheet integrity gate. Surface the SAME signed imbalance the engine
+  // computed and used to gate the run status — assets − (liabilities + equity),
+  // where equity already includes minority interest (see deriveBalanceSheet).
+  // Never recompute it client-side: the old recompute subtracted minorityEquity
+  // a second time (totalEquity already contains it), inventing a phantom break.
+  const bsBalance = result.balanceCheck ?? 0;
+  // The card mirrors the engine's verdict: a 'failed' run is, by construction, a
+  // sheet that did not reconcile within tolerance, so it must never read green.
+  const bsIsBalanced = consolidationStatus !== 'failed' && Math.abs(bsBalance) < 1;
 
   // Quality score derived from the live run rather than hardcoded.
   const hasRun = consolidationStatus === 'completed' || consolidationStatus === 'failed';
@@ -582,9 +589,11 @@ export function ConsolidationView() {
                 <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('cards.bsCheck')}</p>
               </div>
               <p className={`text-2xl font-bold ${bsIsBalanced ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
-                {bsIsBalanced ? t('cards.balanced') : t('cards.offBy', { amount: Math.abs(bsBalance).toFixed(0) })}
+                {bsIsBalanced ? t('cards.balanced') : t('cards.offBy', { amount: fmt(Math.abs(bsBalance)) })}
               </p>
-              <p className="text-xs text-muted-foreground mt-1">{t('cards.bsEquation')}</p>
+              <p className={`text-xs mt-1 ${bsIsBalanced ? 'text-muted-foreground' : 'text-red-600 dark:text-red-400 font-medium'}`}>
+                {bsIsBalanced ? t('cards.bsEquation') : t('cards.gateFailed')}
+              </p>
             </CardContent>
           </Card>
         </motion.div>
@@ -674,10 +683,15 @@ export function ConsolidationView() {
                   transition={{ delay: index * 0.08 }}
                   className="flex gap-4 pb-6 last:pb-0"
                 >
-                  {/* Timeline line */}
+                  {/* Timeline line. The marker reflects the run's gate verdict:
+                      a FAILED run (unbalanced book) shows red, never a green check. */}
                   <div className="flex flex-col items-center">
-                    <div className="flex items-center justify-center w-8 h-8 rounded-full bg-emerald-100 dark:bg-emerald-900/30 shrink-0">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                    <div className={`flex items-center justify-center w-8 h-8 rounded-full shrink-0 ${run.status === 'failed' ? 'bg-red-100 dark:bg-red-900/30' : 'bg-emerald-100 dark:bg-emerald-900/30'}`}>
+                      {run.status === 'failed' ? (
+                        <XCircle className="w-4 h-4 text-red-600 dark:text-red-400" />
+                      ) : (
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                      )}
                     </div>
                     {index < history.length - 1 && (
                       <div className="w-px h-full bg-slate-200 dark:bg-slate-700 mt-1" />
@@ -692,6 +706,12 @@ export function ConsolidationView() {
                         <Badge className={`text-[10px] ${scenarioColor[run.scenarioType] || 'bg-slate-100 text-slate-700'}`}>
                           {tScenario(run.scenarioType)}
                         </Badge>
+                        {run.status === 'failed' && (
+                          <Badge className="text-[10px] bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 border-red-200 dark:border-red-800 flex items-center gap-1">
+                            <XCircle className="w-3 h-3" />
+                            {t('statusFailed')}
+                          </Badge>
+                        )}
                       </div>
                       <div className="flex items-center gap-4 text-xs text-muted-foreground">
                         <span className="flex items-center gap-1">

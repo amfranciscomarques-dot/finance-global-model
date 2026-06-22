@@ -121,8 +121,41 @@ export function deriveBalanceSheet(bs: BalanceSheetData, is?: IncomeStatementDat
     bs.minorityEquity = bs.historicalMinorityEquity;
   }
 
-  bs.totalEquity = bs.shareCapital + bs.retainedEarnings + bs.minorityEquity;
+  // The CTA (IAS 21 translation reserve) is a component of equity. It is 0 for
+  // EUR books, so this term is inert for the demo group and the golden tests; it
+  // only carries weight once a foreign entity has been translated at mixed rates.
+  bs.totalEquity = bs.shareCapital + bs.retainedEarnings + bs.minorityEquity + bs.cta;
   bs.balanceCheck = bs.totalAssets - bs.totalLiabilities - bs.totalEquity;
+}
+
+/**
+ * Default tolerance (EUR) for the balance-sheet integrity gate. The demo book
+ * reconciles to the cent, so anything above a euro is a genuine accounting
+ * break, not floating-point noise.
+ */
+export const DEFAULT_BALANCE_TOLERANCE_EUR = 1.0;
+
+export interface BalanceCheckResult {
+  /** Whether |imbalance| is within tolerance. */
+  balanced: boolean;
+  /** Signed assets − (liabilities + equity); 0 when the sheet reconciles. */
+  imbalance: number;
+  /** Tolerance applied to reach the `balanced` verdict. */
+  tolerance: number;
+}
+
+/**
+ * Double-entry integrity check (IFRS: assets must equal liabilities + equity).
+ * Pure and non-throwing: returns the signed imbalance and a within-tolerance
+ * verdict so callers can both *gate* (mark a run failed) and *record* the break.
+ * Operates on `bs.balanceCheck`, which {@link deriveBalanceSheet} populates.
+ */
+export function assertBalanced(
+  bs: BalanceSheetData,
+  tolerance: number = DEFAULT_BALANCE_TOLERANCE_EUR,
+): BalanceCheckResult {
+  const imbalance = bs.balanceCheck;
+  return { imbalance, tolerance, balanced: Math.abs(imbalance) <= tolerance };
 }
 
 /**

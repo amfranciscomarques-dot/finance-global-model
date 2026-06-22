@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { buildStatements } from '@/lib/finance';
+import { getTaxProvider, reconcileGroupTax } from '@/lib/tax';
 import { categorizeCoaCode } from '@/lib/coa-data';
 
 // Jurisdiction filing requirements
@@ -302,6 +303,60 @@ export async function GET(request: NextRequest) {
     const disclosureStatus: 'pass' | 'warning' | 'fail' = disclosureScore >= 90 ? 'pass' : (disclosureScore >= 60 ? 'warning' : 'fail');
 
     // ============================================================
+    // 10. Tax Reconciliation (engine stored IRC vs modelled tax)
+    //
+    // The BS integrity gate structurally cannot see tax drift (booked tax and its
+    // offsetting payable net to zero — see tax-drift.test.ts), so this is the only
+    // check that surfaces it (finding D2). Drift is summed PER ENTITY (the correct
+    // basis for the progressive derrama estadual); entities in unmodelled
+    // jurisdictions make the group not-comparable rather than fabricating a drift.
+    // ============================================================
+    const taxYear = parseInt(period.slice(0, 4), 10);
+    const taxRows = entities
+      .map((entity) => {
+        const entityTBs = trialBalances.filter(tb => tb.entityId === entity.id);
+        if (entityTBs.length === 0) return null;
+        const { incomeStatement } = buildStatements(
+          entityTBs.map(tb => ({ groupCOACode: tb.groupCOACode, amountEUR: tb.amountEUR })),
+        );
+        return {
+          code: entity.code,
+          is: { ebt: incomeStatement.ebt, taxExpense: incomeStatement.taxExpense },
+          provider: getTaxProvider(entity.countryCode),
+          year: taxYear,
+        };
+      })
+      .filter((r): r is NonNullable<typeof r> => r !== null);
+
+    const taxTolerance = 1000; // EUR — below this, drift is rounding/immaterial
+    const taxRecon = reconcileGroupTax(
+      taxRows.map(({ is, provider, year }) => ({ is, provider, year })),
+      { toleranceEUR: taxTolerance },
+    );
+
+    let taxStatus: 'pass' | 'warning' | 'fail';
+    let taxScore: number;
+    let taxDetails: string;
+    const taxAffected: string[] = [];
+
+    if (taxRows.length === 0) {
+      taxStatus = 'pass'; taxScore = 100;
+      taxDetails = 'No trial-balance data to reconcile.';
+    } else if (!taxRecon.comparable) {
+      taxStatus = 'warning'; taxScore = 75;
+      const unmodelled = taxRows.filter((r) => /unmodelled/i.test(r.provider.name)).map((r) => r.code);
+      taxAffected.push(...unmodelled);
+      taxDetails = `Not comparable — unmodelled jurisdictions: [${unmodelled.join(', ')}]. Booked tax kept as-is.`;
+    } else if (Math.abs(taxRecon.drift) > taxTolerance) {
+      taxStatus = 'warning'; taxScore = 70;
+      taxRecon.perEntity.forEach((r, i) => { if (!r.withinTolerance) taxAffected.push(taxRows[i].code); });
+      taxDetails = `Booked IRC diverges from modelled by €${Math.round(taxRecon.drift)} (stored €${Math.round(taxRecon.storedTotal)} vs modelled €${Math.round(taxRecon.modelledTotal)}).`;
+    } else {
+      taxStatus = 'pass'; taxScore = 100;
+      taxDetails = 'Booked IRC reconciles with modelled tax within tolerance.';
+    }
+
+    // ============================================================
     // Build Checks Array
     // ============================================================
     const checks = [
@@ -410,6 +465,16 @@ export async function GET(request: NextRequest) {
         score: disclosureScore,
         details: `${disclosurePassCount} of ${activeJurisdictions.length} jurisdictions have adequate disclosure data.`,
         affectedEntities: disclosureIssues,
+      },
+      {
+        id: 'tax-reconciliation',
+        name: 'Tax Reconciliation',
+        description: 'Booked IRC reconciles with the per-jurisdiction modelled tax',
+        category: 'financial' as const,
+        status: taxStatus,
+        score: taxScore,
+        details: taxDetails,
+        affectedEntities: taxAffected,
       },
     ];
 

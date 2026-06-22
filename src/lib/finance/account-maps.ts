@@ -49,6 +49,11 @@ export interface BalanceSheetData {
   retainedEarnings: number;
   historicalMinorityEquity: number;
   minorityEquity: number;
+  // Cumulative translation adjustment (IAS 21): the FX residual from translating
+  // a foreign entity's sheet at mixed rates (assets/liabilities at closing,
+  // equity at historical), recognised in OCI as a separate equity component.
+  // 0 for EUR entities and whenever all translation rates are equal.
+  cta: number;
   totalEquity: number;
   balanceCheck: number;
 }
@@ -155,7 +160,7 @@ export function createEmptyIS(): IncomeStatementData {
 }
 
 export function createEmptyBS(): BalanceSheetData {
-  return { cash: 0, accountsReceivable: 0, inventory: 0, otherCurrentAssets: 0, currentAssets: 0, ppe: 0, intangibleAssets: 0, goodwill: 0, otherNonCurrentAssets: 0, nonCurrentAssets: 0, totalAssets: 0, accountsPayable: 0, shortTermDebt: 0, otherCurrentLiabilities: 0, currentLiabilities: 0, longTermDebt: 0, otherNonCurrentLiabilities: 0, nonCurrentLiabilities: 0, totalLiabilities: 0, shareCapital: 0, historicalRetainedEarnings: 0, retainedEarnings: 0, historicalMinorityEquity: 0, minorityEquity: 0, totalEquity: 0, balanceCheck: 0 };
+  return { cash: 0, accountsReceivable: 0, inventory: 0, otherCurrentAssets: 0, currentAssets: 0, ppe: 0, intangibleAssets: 0, goodwill: 0, otherNonCurrentAssets: 0, nonCurrentAssets: 0, totalAssets: 0, accountsPayable: 0, shortTermDebt: 0, otherCurrentLiabilities: 0, currentLiabilities: 0, longTermDebt: 0, otherNonCurrentLiabilities: 0, nonCurrentLiabilities: 0, totalLiabilities: 0, shareCapital: 0, historicalRetainedEarnings: 0, retainedEarnings: 0, historicalMinorityEquity: 0, minorityEquity: 0, cta: 0, totalEquity: 0, balanceCheck: 0 };
 }
 
 export function createEmptyCF(): CashFlowData {

@@ -191,6 +191,9 @@ model ConsolidationRun {
   entityCodes           String                               // JSON array of entity codes
   scenarioType          String    @default("base")           // base, optimistic, pessimistic
   status                String    @default("completed")      // running, completed, failed
+  balanceCheck          Float?                               // signed assets − (liab + equity) imbalance; ~0 when balanced, recorded even on failed runs
+  taxDriftEUR           Float?                               // signed group tax drift (stored − modelled IRC); null when not comparable (B3)
+  taxComparable         Boolean?                             // false if any entity hit an unmodelled-jurisdiction provider
   eliminationsApplied   Int       @default(0)
   totalRevenue          Float?
   totalEBITDA           Float?

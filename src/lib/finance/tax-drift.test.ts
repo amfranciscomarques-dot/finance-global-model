@@ -236,11 +236,16 @@ describe('Portugal IRC chain — edge cases', () => {
     expect(r.totalTax).toBeCloseTo(120_000, 2);
   });
 
-  it('config drift: an unmapped year falls back to 20%, not the 21% 2024 rate', () => {
+  it('clamps the IRC rate forward to the schedule for years beyond the table (A2)', () => {
     expect(portugalProvider.computeTax({ taxableIncome: 1_000_000, year: 2024 }).baseRate).toBe(0.21);
-    // 2030 is not in ircRateByYear → ircGeneralRate (0.20). The mismatch between
-    // the general fallback and the actual 2024 rate is a config-correctness flag.
-    expect(portugalProvider.computeTax({ taxableIncome: 1_000_000, year: 2030 }).baseRate).toBe(0.20);
+    // 2029/2030 are past the table → clamp to the last scheduled year (2028 → 17%),
+    // not the generic fallback. A future projection keeps the legislated trajectory.
+    expect(portugalProvider.computeTax({ taxableIncome: 1_000_000, year: 2029 }).baseRate).toBe(0.17);
+    expect(portugalProvider.computeTax({ taxableIncome: 1_000_000, year: 2030 }).baseRate).toBe(0.17);
+    // A mid-schedule year resolves to its own rate.
+    expect(portugalProvider.computeTax({ taxableIncome: 1_000_000, year: 2026 }).baseRate).toBe(0.19);
+    // Years BEFORE the table fall back to the generic rate (no schedule to clamp to).
+    expect(portugalProvider.computeTax({ taxableIncome: 1_000_000, year: 2020 }).baseRate).toBe(0.20);
   });
 });
 

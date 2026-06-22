@@ -13,6 +13,177 @@ because they grew over time.
 
 ---
 
+## 2026-06-22 — Tax reconciliation: workstreams A & B complete (engine wiring B1–B4)
+
+Closes the Tax Divergence / Correctness Report. The standalone `src/lib/tax`
+module is now **wired into the consolidation engine**, plus the two workstream-A
+bug fixes. The design decision held throughout: **reconcile, don't replace** —
+stored IRC on actuals stays authoritative (it captures SIFIDE/RFAI/ICE credits
+and RAI→lucro-tributável adjustments the EBT-based model can't reproduce), so
+**every golden value is unchanged**.
+
+**Workstream A — bug fixes:**
+
+- **A2 — `PT_TAX_CONFIG` year handling + reduced rate (D7).** New `ircRateForYear`
+  helper clamps **forward** to the nearest scheduled year ≤ the requested year, so
+  a projection past the table (2029/2030) uses the last scheduled rate (2028 → 17%)
+  instead of silently dropping to the generic 20% fallback; only years *before* the
+  table fall back. The dead SME reduced rate was corrected to the statutory **17%**
+  (kept opt-in via `applyReducedRate: false`, since the engine can't classify
+  PME/non-PME). `src/lib/finance/tax-drift.test.ts` (C5) pins 2024→21%, 2026→19%,
+  2029/2030→17%, pre-table→20%.
+- **A3 — `formatCompactEUR` localized (L1).** The compact formatter emitted en-US
+  dots (`€52.2M`) next to de-DE commas everywhere else and ignored its `decimals`
+  arg in the K band. Now built via `formatNumber` so the mantissa is de-DE
+  (`€52,2M`) and `decimals` is honored in both the M and K bands. New
+  `src/lib/format.test.ts` (C4) pins the localized strings, sign, and decimal
+  overrides.
+
+**Workstream B — engine is now tax-aware:**
+
+- **B1 — `reconcileGroupTax` wired into `computeConsolidation`.** `Entity.countryCode`
+  is carried onto `EntityFinancials`; after aggregation the engine builds
+  `GroupTaxEntity[]` (per-entity `{ebt, taxExpense}` + `getTaxProvider(countryCode)`)
+  and attaches an **informational** `taxReconciliation` block to every result. Net
+  income on actuals is untouched. Demo group drift (PT 2024): stored **600,000** vs
+  modelled **543,750** → **+56,250**, `comparable: true`.
+- **B2 — unmodelled-jurisdiction handling (D4).** When any in-scope entity hits the
+  `"<CC> — unmodelled"` 0% provider (DE/FR/UK/IT), the group is reported
+  **`comparable: false`** rather than as a 100% over-book — no fabricated tax.
+- **B3 — persisted + surfaced in Compliance (D2).** New nullable
+  `ConsolidationRun.taxDriftEUR` (+ `taxComparable`) columns (migration
+  `20260622010000_consolidation_run_tax_drift`); `runConsolidation` writes the drift
+  **only when comparable** (else `null`, so a 0 is never read as "no divergence").
+  A 10th compliance check `tax-reconciliation` was added to
+  `src/app/api/compliance/route.ts` (per-entity basis, €1,000 tolerance) — this is
+  the only check that can see tax drift, since the BS integrity gate structurally
+  can't (booked tax and its offsetting payable net to zero).
+- **B4 — opt-in forecast override (D6).** New `computeTaxForProjections?: boolean`
+  on `ConsolidationInput` (default `false`). When set, forecast/budget periods
+  (`scenarioType !== 'base'`) have booked tax replaced by modelled IRC via the new
+  `applyModelledTax`, which accrues the incremental tax as a payable
+  (`otherCurrentLiabilities`) so the entity sheet still reconciles. **Actuals are
+  never touched.**
+
+**Tests (C1 extension + C2).** A `tax reconciliation (B1/B2/B4)` block in
+`src/lib/consolidation-engine.test.ts` asserts: B1 attaches the +56,250 drift
+without changing net income; B2 flags a synthetic DE entity non-comparable; B4
+modelled IRC (543,750 < booked 600,000) lifts net income, collapses the drift to
+~0, and keeps `balanceCheck ≈ 0` / `status: completed`; and the override stays off
+by default.
+
+Verified: `npx tsc --noEmit` clean · `npm test` = **178 passed / 24 files** (was
+152) · `npx eslint` 0 errors on changed files · `npm run build` exit 0.
+
+---
+
+## 2026-06-22 — MEDIUM.1: IAS 21 currency translation + CTA
+
+The headline FX feature. Foreign subsidiaries are now consolidated with the
+**current-rate method** and the translation residual is recognised as a
+**Cumulative Translation Adjustment (CTA)** in equity, so a foreign sheet still
+reconciles after being translated at mixed rates.
+
+- **New pure module `src/lib/finance/translation.ts`** (`translateForeignEntity`).
+  Translates income & expenses at the **average** rate, assets & liabilities at
+  the **closing** rate, and contributed/pre-existing equity at the **historical**
+  rate. The CTA is the residual that balances the sheet (computed by deriving the
+  sheet with `cta = 0`, reading the resulting `balanceCheck`, recognising it as
+  the CTA, and re-deriving → `balanceCheck ≈ 0`). When the three rates are equal
+  it collapses to a uniform scaling with `cta = 0`.
+- **`cta` added to `BalanceSheetData`** (`account-maps.ts`) and folded into
+  `totalEquity` by `deriveBalanceSheet` (`statements.ts`). It defaults to 0, so
+  the all-EUR demo group and every golden test are unaffected.
+- **Engine integration** (`consolidation-engine.ts`): `buildEntityFinancials`
+  now branches on functional currency. EUR entities keep the original per-line
+  EUR path verbatim; non-EUR entities are assembled in functional currency and
+  routed through the new `buildForeignEntityFinancials`, which resolves the three
+  rates independently (each fails loudly via `FxRateUnavailableError` if missing —
+  no single-rate degradation) and translates the whole sheet. Minority interest
+  is applied on the translated IS and is equity-neutral, so it leaves the CTA
+  intact.
+- **Tests (+7):** `src/lib/finance/translation.test.ts` (the README worked
+  example, rates-equal, EUR-identity, invalid-rate) and
+  `src/lib/fx-translation.engine.test.ts` (a USD Meridian-USA book consolidated
+  end-to-end: MUSA translated at three rates, CTA raised, group still reconciles
+  → run reported `completed`; EUR entities unchanged).
+- **README:** new "Currency translation (IAS 21)" section with the rate table and
+  the Meridian-USA worked example (CTA = 35,806.78 → sheet balances).
+
+Verified: `npx tsc --noEmit` clean · `npm test` = **152 passed** (was 145) ·
+eslint 0 errors on changed files.
+
+---
+
+## 2026-06-22 — TOP.2 & TOP.4: trustworthy FX + no phantom minority interest
+
+Two cheap correctness rails that make the upcoming IAS 21 FX/CTA work trustworthy.
+
+- **TOP.2 — FX fails loudly instead of silently assuming 1.0.** `getExchangeRate`
+  no longer falls back to a static rate table and ultimately `1.0` for an unknown
+  currency, and `convertToEUR` no longer returns the amount unconverted on a zero
+  rate (`src/lib/finance/fx.ts`). A missing/unknown rate now throws the new typed
+  `FxRateUnavailableError` (names the currency + period); an invalid rate throws
+  `RangeError`. Returning 1.0 had been silently treating a foreign balance as if
+  already in EUR — letting a broken book still appear to reconcile.
+  - **Root cause this exposed:** ECB rates are dated period-**end** (`2024-12-31`)
+    while periods are passed as month-**start** (`2024-12-01`), so the old
+    `rateDate <= periodStart` lookup never matched a same-month rate — the static
+    fallback was masking a broken lookup (the USD import test only "passed"
+    because the fallback's 1.0820 happened to equal the seeded rate). Fixed by
+    resolving rates against the **end of the period month** (`periodCeiling`).
+  - **Caller handling.** `/api/consolidation` maps `FxRateUnavailableError` to a
+    422 (fixable data gap, names the rate to import) rather than a generic 500;
+    `/api/import` already turns the throw into a clear per-row error and skips the
+    row instead of importing a phantom 1.0 conversion.
+  - **Tests.** New `src/lib/finance/fx.test.ts` (10 cases): `convertToEUR` divides
+    correctly and rejects zero/negative/non-finite rates; `getExchangeRate`
+    returns EUR=1.0 without a DB hit, finds the seeded closing rate, soft-falls to
+    the average rate, and throws for an unknown currency and for a period that
+    predates any rate.
+- **TOP.4 — proportional consolidation already carries no minority interest.**
+  Verified `computeMinorityInterest` returns 0 for the proportional method (only
+  the parent's share is consolidated via `applyOwnership`, so deducting a minority
+  would double-count). No code change needed; coverage already present in
+  `statements.test.ts` (wholly-owned full = 0, partial full = −share, proportional
+  regression = 0).
+
+Verified: `npx tsc --noEmit` clean, `npm test` = 145 passed (was 135), eslint 0
+errors.
+
+---
+
+## 2026-06-22 — TOP.1: enforce & record the balance-sheet integrity check (#5)
+
+The double-entry invariant is now a domain-level helper and is persisted, not just
+computed in passing.
+
+- **`assertBalanced(bs, tolerance)` added to the finance domain**
+  (`src/lib/finance/statements.ts`), alongside `DEFAULT_BALANCE_TOLERANCE_EUR`
+  (1.0). Pure and non-throwing: returns `{ balanced, imbalance, tolerance }` so
+  callers can both gate a run and record the signed break. `consolidation-engine.ts`
+  now derives `status` from it (the local tolerance const sources the finance
+  default) instead of an inline `Math.abs(...)`.
+- **Imbalance persisted.** New nullable `ConsolidationRun.balanceCheck` column
+  (migration `20260622000000_consolidation_run_balance_check`); `runConsolidation`
+  writes the signed imbalance even on `failed` runs so the break is auditable
+  rather than silently lost.
+- **Surfaced in the consolidation UI.** The "Balance Sheet Check" card in
+  `consolidation-view.tsx` now reads the engine's authoritative `result.balanceCheck`
+  instead of recomputing it client-side — the old recompute subtracted
+  `minorityEquity` a second time (`totalEquity` already contains it), inventing a
+  phantom break, and ignored the gate entirely. The card mirrors the run verdict
+  (a `failed` run never reads green) and the consolidation-history timeline now
+  shows failed runs with a red marker + "Failed" badge rather than a green check.
+  Fixed the `offBy` label unit bug (it claimed `€{amount}K` while being handed a
+  raw euro figure) and added a `gateFailed` message in both locales.
+- **Tests.** New `assertBalanced` unit tests in `statements.test.ts` (balanced
+  pass, signed imbalance on a break, tolerance honouring), plus a negative
+  engine test in `consolidation-engine.test.ts`: a deliberately broken trial
+  balance yields `status: 'failed'`, a `balanceCheck` ≈ the injected imbalance,
+  and a persisted `ConsolidationRun` row recording both. Existing golden tests
+  stay green — the demo book still reconciles to the cent and reports `completed`.
+
 ## 2026-06-22 — Tax reconciliation (workstream A, partial) + browser smoke
 
 Remediation of the Tax Divergence / Correctness Report (engine stored IRC vs. the
@@ -36,7 +207,8 @@ open plan is in [`PLAN.md`](PLAN.md). Done so far:
 
 The design decision behind workstream B (*reconcile, don't replace* — stored IRC
 on actuals stays authoritative; forecast override is an opt-in flag, default off)
-is recorded in [`PLAN.md`](PLAN.md); engine wiring (B1–B4) remains open.
+is recorded in [`PLAN.md`](PLAN.md). *(Engine wiring B1–B4 was completed later the
+same day — see the top entry of this file.)*
 
 ### PLAN P3 — browser smoke of all 18 views
 

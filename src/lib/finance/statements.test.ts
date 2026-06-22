@@ -3,7 +3,9 @@ import {
   addEntry,
   aggregateFinancials,
   applyOwnership,
+  assertBalanced,
   computeMinorityInterest,
+  DEFAULT_BALANCE_TOLERANCE_EUR,
   deriveBalanceSheet,
   deriveCashFlow,
   deriveIncomeStatement,
@@ -127,6 +129,36 @@ describe('deriveBalanceSheet', () => {
     expect(bs.totalLiabilities).toBe(400);
     expect(bs.totalEquity).toBe(600);
     expect(bs.balanceCheck).toBe(0);
+  });
+});
+
+describe('assertBalanced', () => {
+  it('passes a reconciling sheet within the default cent-level tolerance', () => {
+    const bs = createEmptyBS();
+    bs.cash = 1000; bs.shareCapital = 1000;
+    deriveBalanceSheet(bs);
+    const r = assertBalanced(bs);
+    expect(r.balanced).toBe(true);
+    expect(r.imbalance).toBe(0);
+    expect(r.tolerance).toBe(DEFAULT_BALANCE_TOLERANCE_EUR);
+  });
+
+  it('fails — and reports the signed imbalance — when assets ≠ liabilities + equity', () => {
+    const bs = createEmptyBS();
+    bs.cash = 1000; bs.shareCapital = 600; // 400 short on the equity/liability side
+    deriveBalanceSheet(bs);
+    const r = assertBalanced(bs);
+    expect(r.balanced).toBe(false);
+    expect(r.imbalance).toBeCloseTo(400, 6); // assets − (liab + equity), recorded not hidden
+  });
+
+  it('treats sub-tolerance float noise as balanced but honours a tighter tolerance', () => {
+    const bs = createEmptyBS();
+    bs.cash = 1000; bs.shareCapital = 1000;
+    deriveBalanceSheet(bs);
+    bs.balanceCheck = 0.4; // within the 1 EUR default, outside a 0.01 tolerance
+    expect(assertBalanced(bs).balanced).toBe(true);
+    expect(assertBalanced(bs, 0.01).balanced).toBe(false);
   });
 });
 

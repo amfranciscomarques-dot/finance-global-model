@@ -90,6 +90,7 @@ export const BS_LINES: ReportLine[] = [
   { label: 'Share Capital', field: 'shareCapital', section: 'Equity' },
   { label: 'Retained Earnings', field: 'retainedEarnings', section: 'Equity' },
   { label: 'Minority Equity', field: 'minorityEquity', section: 'Equity' },
+  { label: 'Translation Reserve (CTA)', field: 'cta', section: 'Equity' },
   { label: 'TOTAL EQUITY', field: 'totalEquity', isTotal: true, section: 'Equity' },
   { label: 'Balance Check (Assets − L − E)', field: 'balanceCheck', section: 'Check' },
 ];

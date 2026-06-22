@@ -3,18 +3,21 @@
 Forward-looking work for the multi-entity consolidation model. Completed
 remediation history is in [`CHANGELOG.md`](CHANGELOG.md).
 
-Phases are ordered by **dependency and risk**, not just value: integrity guard
-rails first, then the structural FX/IC corrections they protect, then forecasting
-and simulation. Severity tags (`#1`–`#8`) reference the
+Items are grouped by **implementation priority** — **TOP** (do first), **MEDIUM**,
+then **LOW** — and numbered within each tier (`TOP.1` = most important, `TOP.2`
+second, and so on). Priority blends value *and* dependency/risk: cheap integrity
+guard rails that protect every later change rank highest, then the structural
+FX/IC corrections they unblock, then forecasting, simulation, and hardening.
+Severity tags (`#1`–`#8`) reference the
 [Architecture review findings](#appendix--architecture--logic-review) at the
 bottom of this file.
 
-> **Status (2026-06-22).** The three review passes are fully remediated (see
-> [`CHANGELOG.md`](CHANGELOG.md)). Active work is the **tax reconciliation**
-> stream below (workstream A partially shipped; B awaiting a go/no-go). The
-> roadmap below is the longer arc; the model is today a *consolidation reporting*
-> engine, not yet a *forecasting* engine, and several phases close exactly that
-> gap.
+> **Status (2026-06-22).** The three review passes are fully remediated, and the
+> **tax reconciliation** stream below is now **complete** — workstreams A (A2/A3)
+> and B (B1–B4 engine wiring, option (a) go/no-go) all shipped and green (see
+> [`CHANGELOG.md`](CHANGELOG.md)). The roadmap below is the longer arc; the model
+> is today a *consolidation reporting* engine, not yet a *forecasting* engine, and
+> several roadmap items close exactly that gap.
 
 Legend: `[ ]` planned · `[~]` in progress · `[x]` done
 
@@ -22,117 +25,132 @@ Legend: `[ ]` planned · `[~]` in progress · `[x]` done
 
 ## Roadmap
 
-### Phase 0 — Integrity guard rails (do first, small & high-confidence)
+### TOP — do first (integrity rails, correctness bugs, in-flight work)
 
-Cheap, covered by the existing Vitest golden tests, and they protect every later
-phase.
+Cheap, high-confidence, and covered by the existing Vitest golden tests; they
+protect every later change. The single-source refactor here is nearly finished,
+and the tax reconciliation stream is actively in flight.
 
-- [ ] **Enforce `balanceCheck`.** Add `assertBalanced(bs, tolerance)`; have
-  `runConsolidation` set `status: 'failed'` and record the imbalance instead of
-  always saving `completed`. *(#5)*
-- [ ] **Fix proportional-method minority interest.** Proportional consolidation
-  already scales by ownership, so MI should be 0; remove the phantom charge in
-  `statements.ts:85`. *(#7)*
-- [ ] **De-duplicate IC elimination sources.** Make the `intercompanyTransaction`
-  path and the `trialBalance.isIntercompany` path mutually exclusive (shared key)
-  so internal sales aren't netted twice. *(#2)*
-- [ ] **Stop silent FX fallbacks.** `getExchangeRate` should not return `1.0` for
-  an unknown currency, and `convertToEUR` should not return the unconverted amount
-  on `rate === 0` — quarantine or throw. *(#8)*
+- [x] **TOP.1 — Enforce `balanceCheck`.** `assertBalanced(bs, tolerance)` lives in
+  the finance domain (`statements.ts`); `computeConsolidation` gates `status` on it
+  and `runConsolidation` persists the signed imbalance to a new
+  `ConsolidationRun.balanceCheck` column (migration
+  `20260622000000_consolidation_run_balance_check`). Unblocks trustworthy FX work
+  in MEDIUM.1. *(#5)*
+- [x] **TOP.2 — Stop silent FX fallbacks.** `getExchangeRate` now throws
+  `FxRateUnavailableError` instead of falling back to a static table / `1.0`, and
+  `convertToEUR` throws on a non-positive/non-finite rate. Also fixed the
+  period-end vs month-start rate-lookup mismatch the fallback had masked
+  (`periodCeiling`). `/api/consolidation` maps the error to 422. Covered by
+  `src/lib/finance/fx.test.ts`. *(#8)*
+- [ ] **TOP.3 — De-duplicate IC elimination sources.** Make the
+  `intercompanyTransaction` path and the `trialBalance.isIntercompany` path
+  mutually exclusive (shared key) so internal sales aren't netted twice. *(#2)*
+- [x] **TOP.4 — Fix proportional-method minority interest.** Verified: proportional
+  consolidation already scales by ownership, so `computeMinorityInterest` returns 0
+  (no phantom charge); covered by `statements.test.ts`. *(#7)*
+- [x] **TOP.5 — Tax reconciliation.** **Done (2026-06-22).** Bug fixes A2/A3 plus
+  `reconcileGroupTax` wired into the engine (B1–B4): informational drift on actuals
+  (golden values unchanged), opt-in modelled IRC for forecasts, drift persisted on
+  `ConsolidationRun` and surfaced as a 10th compliance check. Detail: [Completed:
+  Tax reconciliation](#completed--tax-reconciliation-remediation). *(#6)*
+- [ ] **TOP.6 — Finish the single-source refactor.** Have `scenarios/run` call
+  `deriveIncomeStatement` / `deriveBalanceSheet` rather than re-deriving subtotals
+  where any remain. *(remaining tail of the `finance` domain-module refactor —
+  `kpis`, `consolidation-engine`, `export/*`, `variance`, `trends`, `budget`
+  already repointed; see [`CHANGELOG.md`](CHANGELOG.md))*
 
-### Phase 1 — Single source of truth (finish the refactor)
+### MEDIUM — structural correctness & forecasting
 
-- [x] `src/lib/finance` domain module (account maps, statements, FX, KPIs).
-- [x] Repoint `kpis` route and `consolidation-engine` onto `finance`.
-- [x] Repoint `export/excel`, `export/pdf`, `variance`, `trends`, `scenarios/run`,
-  `budget` off legacy prefix-matching (done across the review passes — see
-  [`CHANGELOG.md`](CHANGELOG.md)).
-- [ ] Have `scenarios/run` call `deriveIncomeStatement` / `deriveBalanceSheet`
-  rather than re-deriving subtotals where any remain.
+The FX/IC corrections the TOP rails protect, plus the forecasting and tax-depth
+work that turns this from a *reporting* engine into a *forecasting* engine.
 
-### Phase 2 — FX engine (IAS 21 compliance)
-
-See the [IAS 21 design](#design--ias-21-currency-translation--cta) below for the
-worked algorithm.
-
-- [ ] Translate the income statement at the **average** rate, balance sheet at
-  **closing**, equity/share capital at **historical**. *(#4)*
-- [ ] Add a `cta` (Cumulative Translation Adjustment) line to `BalanceSheetData`
-  and `totalEquity`, computed as the residual that forces `balanceCheck → 0`.
-- [ ] Refresh / source the static `FALLBACK_RATES` table and treat it as a
-  last-resort, logged path.
-- [ ] **Stress test:** loss-making USD subsidiary across a depreciating EUR with
-  historical-rate share capital → non-zero CTA, BS still balances. *(edge case 1)*
-
-### Phase 3 — Intercompany & consolidation depth
-
-- [ ] Automate **balance-sheet IC elimination** (IC receivable/payable, IC loans:
-  `AST-009`/`LIA-006`) instead of mapping them into "other". *(#3)*
-- [ ] Eliminate **unrealized intra-group profit in inventory** (margin on unsold
-  internal stock). *(#2)*
-- [ ] Rework eliminations into explicit, auditable **elimination journal entries**
-  keyed on `(period, counterpartyPair, account)`.
-- [ ] Derive **minority equity** on the BS from ownership × subsidiary equity (not
-  only stored `EQY-003`).
-- [ ] **Multi-period roll-forward:** link opening retained earnings to prior
-  closing; produce a multi-period consolidated balance sheet. *(#1.6 / single-period)*
-
-### Phase 4 — Tax engine wiring & cross-border rules
-
-The detailed, in-flight plan for this phase is [Active: Tax
-reconciliation](#active--tax-reconciliation-remediation) below.
-
-- [x] Pluggable tax providers (`PT` full IRC chain; `ES`/`US` flat-rate stubs).
-- [~] **Wire `getTaxProvider().computeTax()` into the engine for forecast
-  periods** (keep passthrough only for stamped actuals) — reconcile foundation
-  shipped; engine wiring (B1–B4) open. *(#6)*
-- [ ] **NOL carryforward:** thread `nolOpening`/`nolClosing` through
-  `TaxInput`/`TaxResult` so loss years shelter future profit. *(#6)*
-- [ ] **Deferred tax** from book-vs-tax timing differences; drive `AST-010` (DTA)
-  dynamically.
-- [ ] **Transfer pricing:** a `TransferPricingPolicy` (arm's-length markup per IC
-  relationship) consumed by both IC pricing and the inventory-profit elimination.
-  *(#6)*
-- [~] Restore the PT SME reduced-rate parameters (`portugal.ts:46-48`) — see
-  workstream A2.
-- [ ] Per-jurisdiction tax view in the Compliance UI.
-- [ ] **Stress test:** multi-year NOL with a pending RFAI credit overhang.
-  *(edge case 2)*
-
-### Phase 5 — Forecasting & debt waterfall
-
-- [ ] Replace the fabricated `/api/forecast` (`forecast/route.ts:251` discards
-  real data and returns demo arrays) with real projected statements. *(#1)*
-- [ ] **Debt schedule + cash sweep** with interest on the **average** balance;
-  resolve the cash↔interest circularity via controlled fixed-point iteration
-  (`solveDebtSchedule`). *(#3.2)*
-- [ ] **Pure projection kernel** `finance/project.ts`:
+- [x] **MEDIUM.1 — FX engine (IAS 21 compliance).** **Done (2026-06-22).**
+  Income statement translated at the **average** rate, assets/liabilities at
+  **closing**, contributed/pre-existing equity at **historical**; new `cta`
+  (Cumulative Translation Adjustment) line on `BalanceSheetData`, folded into
+  `totalEquity` by `deriveBalanceSheet`, computed as the residual that forces
+  `balanceCheck → 0`. Pure translation lives in `src/lib/finance/translation.ts`
+  (`translateForeignEntity`), wired into the engine via a dedicated foreign-entity
+  path (`buildForeignEntityFinancials`) that leaves the EUR per-line path — and
+  thus every golden test — untouched. No static fallback table (removed in TOP.2);
+  each of the three rates is resolved independently and fails loudly if missing.
+  Tests: `translation.test.ts` (worked example + rates-equal + EUR-identity +
+  invalid-rate) and `fx-translation.engine.test.ts` (USD MUSA book consolidated
+  end-to-end → CTA raised, group still balances → completed). Worked example
+  written up in the [README](README.md#currency-translation-ias-21). *(#4)*
+- [~] **MEDIUM.2 — Real forecasting.** *Partially shipped.* `/api/forecast` no
+  longer fabricates data — it reads real annual actuals (`buildRealAnnualCashFlow`),
+  derives the consolidated cash flow through the finance domain, then projects 12
+  months from it. Remaining gaps: it projects **cash flow only** (no forward IS/BS);
+  the projection is a flat run-rate × growth, not **driver-based** (revenue → COGS →
+  working capital → debt → cash); the uncertainty fan is hardcoded (±5/8/3%/mo); and
+  no tax is applied to projected periods. Finishing this = projecting full IS/BS/CF
+  on the **MEDIUM.10** kernel. *(was #1; fabrication resolved, scope narrowed)*
+- [ ] **MEDIUM.3 — Balance-sheet IC elimination.** Automate elimination of IC
+  receivable/payable and IC loans (`AST-009`/`LIA-006`) instead of mapping them
+  into "other". *(#3)*
+- [ ] **MEDIUM.4 — Unrealized intra-group profit in inventory.** Eliminate the
+  margin on unsold internal stock. *(#2)*
+- [ ] **MEDIUM.5 — Elimination journal entries.** Rework eliminations into
+  explicit, auditable entries keyed on `(period, counterpartyPair, account)`.
+- [ ] **MEDIUM.6 — Minority equity on the BS.** Derive from ownership × subsidiary
+  equity (not only stored `EQY-003`).
+- [ ] **MEDIUM.7 — Multi-period roll-forward.** Link opening retained earnings to
+  prior closing; produce a multi-period consolidated balance sheet.
+  *(#1.6 / single-period)*
+- [ ] **MEDIUM.8 — Tax depth & cross-border rules.** NOL carryforward (thread
+  `nolOpening`/`nolClosing` through `TaxInput`/`TaxResult` so loss years shelter
+  future profit); deferred tax from book-vs-tax timing differences driving
+  `AST-010` (DTA) dynamically; a `TransferPricingPolicy` (arm's-length markup per
+  IC relationship) consumed by both IC pricing and the inventory-profit
+  elimination. **Stress test:** multi-year NOL with a pending RFAI credit
+  overhang. *(#6 / edge case 2)*
+- [ ] **MEDIUM.9 — Debt schedule + cash sweep.** Interest on the **average**
+  balance; resolve the cash↔interest circularity via controlled fixed-point
+  iteration (`solveDebtSchedule`). *(#3.2)*
+- [ ] **MEDIUM.10 — Pure projection kernel** `finance/project.ts`:
   `projectPeriod(openingState, assumptions) → ClosingState`, no DB. Basis for
-  scenarios, forecasting, and simulation. *(refactor #1)*
-- [ ] **Stress test:** cross-border IC sale with margin stuck in inventory at
-  mixed FX rates. *(edge case 3)*
+  scenarios, forecasting, and simulation. **Stress test:** cross-border IC sale
+  with margin stuck in inventory at mixed FX rates. *(refactor #1 / edge case 3)*
 
-### Phase 6 — Simulation & scale
+### LOW — simulation, scale & hardening
 
-- [ ] Run scenarios/Monte Carlo through the in-memory kernel (no per-iteration DB
-  round trips or `ConsolidationRun` persistence). *(#3.3)*
-- [ ] Remove N+1 query / per-row `await` patterns in the engine and IC elimination
-  loops.
-- [ ] Evaluate integer-cents / decimal money representation to avoid float drift
-  in multi-year runs. *(#4)*
+- [ ] **LOW.1 — Simulation through the kernel.** Run scenarios/Monte Carlo through
+  the in-memory kernel (no per-iteration DB round trips or `ConsolidationRun`
+  persistence). *(#3.3)*
+- [ ] **LOW.2 — Remove N+1 / per-row `await`** patterns in the engine and IC
+  elimination loops.
+- [ ] **LOW.3 — Integer-cents / decimal money** representation to avoid float
+  drift in multi-year runs. *(#4)*
+- [ ] **LOW.4 — Per-jurisdiction tax view** in the Compliance UI.
+- [ ] **LOW.5 — Authentication / authorization** on API routes (currently
+  single-tenant demo; middleware gates destructive routes — see the README).
 
-### Phase 7 — Platform hardening (tracked, lower priority)
-
-- [ ] Authentication / authorization on API routes (currently single-tenant demo;
-  middleware gates destructive routes — see the README).
-
-> **Suggested next step:** start with **Phase 0** — all four items are small,
-> high-confidence, and guarded by `npm test`. `assertBalanced` (#5) and the
-> proportional-MI fix (#7) are low-risk and unblock trustworthy FX work in Phase 2.
+> **Suggested next step (2026-06-22, post-MEDIUM.1).** Integrity rails (TOP.1, .2,
+> .4) and the FX/CTA centerpiece (MEDIUM.1) are done. Recommended order by
+> value-per-effort and dependency:
+>
+> 1. **Seed a USD demo book into MUSA** — tiny; makes the new IAS 21 CTA visible in
+>    the live UI (today the demo is all-EUR so CTA only shows in tests/README).
+> 2. **TOP.3 — IC elimination de-duplication** — small correctness guard that
+>    unblocks the IC family (MEDIUM.3/4/5).
+> 3. **MEDIUM.10 kernel → MEDIUM.2 (full IS/BS/CF forecast)** — do as one stream;
+>    the next structural centerpiece, the way MEDIUM.1 was for FX. The B4 forecast
+>    tax override now has somewhere richer to live once the kernel projects a full
+>    IS/BS.
+>
+> ~~4. TOP.5 / Workstream B — tax wiring~~ — **done (2026-06-22)**, see below.
 
 ---
 
-## Active — Tax reconciliation remediation
+## Completed — Tax reconciliation remediation
+
+> **Status: ✅ fully shipped (2026-06-22).** All workstreams below are done and
+> green (`npm test` 178 / `tsc` clean / `build` exit 0); see the top of
+> [`CHANGELOG.md`](CHANGELOG.md). The plan is kept here as the record of what was
+> built and why. The reconcile-only design was confirmed via go/no-go **option
+> (a)** (proceed with B1–B4 as specified — no golden-number change).
 
 Remediation plan for the Tax Divergence / Correctness Report (engine stored IRC
 vs. the standalone tax module). Findings are cross-referenced D1–D7, R1, L1 (table
@@ -140,50 +158,41 @@ at the end of this section). Organized into three workstreams by risk: **A** =
 unambiguous bug fixes, **B** = the engine reconciliation feature (one product
 decision), **C** = tests & verification.
 
-**Completed:** A1 + C3 shipped; the `src/lib/tax/reconcile.ts` module + C1
-(standalone) shipped (see [`CHANGELOG.md`](CHANGELOG.md)). Remaining work below.
-
 ### Workstream A — Bug fixes (no judgment calls)
 
-#### A2 — `PT_TAX_CONFIG` drift + dead reduced-rate path (D7) — Med
+#### A2 — `PT_TAX_CONFIG` drift + dead reduced-rate path (D7) — ✅ Done
 
 **File:** `src/lib/tax/jurisdictions/portugal.ts` (`:36-59`, lookup at `:91`).
 
-- **Silent year fallback.** `ircRateByYear` covers 2024–2028; any other year drops
-  to `ircGeneralRate = 0.20`. A 2023 actual (21%) or a 2030 projection is silently
-  mis-rated. **Fix:** replace `?? c.ircGeneralRate` with a helper that picks the
+- **Silent year fallback → fixed.** `ircRateByYear` covers 2024–2028; any other
+  year used to drop to `ircGeneralRate = 0.20`, silently mis-rating a 2023 actual
+  (21%) or a 2030 projection. **Shipped:** new `ircRateForYear` helper picks the
   **nearest scheduled year ≤ requested year** (clamp forward), falling to
   `ircGeneralRate` only for years before the table.
-- **Dead + wrong SME reduced rate.** `ircReducedRate: 0.20` with
-  `applyReducedRate: false` — disabled *and* mis-valued (2024 statutory SME rate is
-  **17%** on the first €50,000). **Fix:** set `ircReducedRate: 0.17`, keep
-  `applyReducedRate: false` (opt-in per call, since the engine can't classify
-  PME/non-PME), add a doc line. **Confirm the exact rate/threshold against current
-  CIRC before merging.**
+- **Dead + wrong SME reduced rate → fixed.** Was `ircReducedRate: 0.20` with
+  `applyReducedRate: false` — disabled *and* mis-valued. **Shipped:**
+  `ircReducedRate: 0.17` (2024 statutory SME rate on the first €50,000),
+  `applyReducedRate` kept `false` (opt-in per call, since the engine can't classify
+  PME/non-PME) with a doc line.
 
-`tax-drift.test.ts:239-243` already characterizes the current behaviour (2030 →
-0.20) as a documented defect; C5 updates those assertions once the clamp helper
-lands. Risk: the lookup change affects only out-of-table years; the reduced-rate
-value is inert while `applyReducedRate = false`.
+C5 (`tax-drift.test.ts`) now pins the clamp: 2024→21%, 2026→19%, 2029/2030→17%,
+pre-table→20%.
 
-#### A3 — `formatCompactEUR` not localized (L1) — Med
+#### A3 — `formatCompactEUR` not localized (L1) — ✅ Done
 
-**File:** `src/lib/format.ts` (`:38-44`).
+**File:** `src/lib/format.ts`.
 
-`toFixed()` emits en-US dots (`€52.2M`) next to de-DE commas elsewhere; the `K`
-branch also ignores its `decimals` arg. **Fix:** build the mantissa with
-`formatNumber(abs/1_000_000, decimals)` (`€52,2M`) and honor `decimals` in the `K`
-branch. This intentionally changes display output → add C4 assertions for the
-localized strings (separate describe block; `tax-drift.test.ts:247-263` tests
-`formatNumber` but not `formatCompactEUR`).
+`toFixed()` emitted en-US dots (`€52.2M`) next to de-DE commas elsewhere and the
+`K` branch ignored its `decimals` arg. **Shipped:** the mantissa is built with
+`formatNumber(abs/1e6, decimals)` (`€52,2M`) and `decimals` is honored in both the
+M and K bands. C4 (`src/lib/format.test.ts`) pins the localized strings, sign, and
+decimal overrides.
 
-A2 and A3 are independent — either can go first.
+### Workstream B — Make the engine tax-aware (D1–D6) — ✅ Done
 
-### Workstream B — Make the engine tax-aware (D1–D6) — High
-
-**Foundation complete.** `src/lib/tax/reconcile.ts` (`reconcileEntityTax`,
-`reconcileGroupTax`, `storedTaxFromIS`) is written, exported, and tested. Wiring
-into the engine (B1–B4) is the remaining work.
+**Foundation + engine wiring complete.** `src/lib/tax/reconcile.ts`
+(`reconcileEntityTax`, `reconcileGroupTax`, `storedTaxFromIS`) is written,
+exported, and tested, and B1–B4 are wired into `consolidation-engine.ts`.
 
 **The product decision — reconcile, don't replace.** Stored IRC on **actuals** is
 authoritative: real 2024 IRC reflects SIFIDE/RFAI/ICE credits and
@@ -196,87 +205,87 @@ RAI→lucro-tributável adjustments the EBT-based model can't reproduce. So:
   `computeTaxForProjections` flag (default `false`) that, when set, replaces
   forecast `taxExpense` with modelled IRC.
 
-#### B1 — Wire `reconcileGroupTax` into `computeConsolidation` — ⏳
+#### B1 — Wire `reconcileGroupTax` into `computeConsolidation` — ✅ Done
 
-**File:** `src/lib/consolidation-engine.ts` (`:229-317`).
+**File:** `src/lib/consolidation-engine.ts`.
 
-- `buildEntityFinancials` (`:53`) has the entity but **not `countryCode`** — add
-  `Entity.countryCode` to the fetch select and carry it onto `EntityFinancials`.
-- After aggregation (`:254`), build `GroupTaxEntity[]` from `entityFinancials`
+- `Entity.countryCode` is carried onto `EntityFinancials` (`buildEntityFinancials`
+  / `buildForeignEntityFinancials`).
+- After aggregation, the engine builds `GroupTaxEntity[]` from `entityFinancials`
   using `getTaxProvider(ef.countryCode)` and `{ ebt, taxExpense }` per entity IS,
-  then call `reconcileGroupTax(...)`. Per-entity basis is already correct there
-  (derrama progressivity, D5).
-- Add the result to the returned object as `taxReconciliation`.
+  then calls `reconcileGroupTax(...)` (per-entity basis, D5).
+- The result is attached to the return object as `taxReconciliation` —
+  informational, so net income on actuals is unchanged (golden values hold).
 
-#### B2 — Unmodelled-jurisdiction handling (D4) — ⏳
+#### B2 — Unmodelled-jurisdiction handling (D4) — ✅ Done
 
-`reconcileGroupTax` already sets `comparable = false` when any entity hits the
-`"<CC> — unmodelled"` 0% provider (DE/FR/UK/IT). Surface it: report drift as
-**"not comparable — unmodelled jurisdictions: [DE, FR]"**, never a 100% over-book.
-No fabricated tax.
+`reconcileGroupTax` sets `comparable = false` when any entity hits the
+`"<CC> — unmodelled"` 0% provider (DE/FR/UK/IT); the compliance check surfaces it
+as **"not comparable — unmodelled jurisdictions: [DE, FR]"** rather than a 100%
+over-book. No fabricated tax. Covered by the B2 engine test (synthetic DE entity).
 
-#### B3 — Persist + a Compliance "Tax Reconciliation" check (D2) — ⏳
+#### B3 — Persist + a Compliance "Tax Reconciliation" check (D2) — ✅ Done
 
-- **Persist:** add a nullable `taxDriftEUR` (and optionally `taxComparable`) to
-  `ConsolidationRun` → a new Prisma migration (project is migration-managed; use
-  `db:deploy`, not `db:push`). Write it in `runConsolidation` (`:327`).
-- **Compliance check:** add a 10th check `tax-reconciliation` to
-  `src/app/api/compliance/route.ts` flagging `|drift| > tolerance` (skip
-  non-comparable). This closes D2 — the BS integrity gate structurally *cannot*
-  see tax drift because booked tax and its offsetting payable net to zero.
+- **Persisted:** nullable `taxDriftEUR` + `taxComparable` columns on
+  `ConsolidationRun` (migration `20260622010000_consolidation_run_tax_drift`).
+  `runConsolidation` writes the drift **only when comparable** (else `null`, so a 0
+  is never read as "no divergence").
+- **Compliance check:** the 10th check `tax-reconciliation` in
+  `src/app/api/compliance/route.ts` flags `|drift| > €1,000` (skips non-comparable).
+  Closes D2 — the BS integrity gate structurally *cannot* see tax drift because
+  booked tax and its offsetting payable net to zero.
 
-#### B4 — Forecast override toggle (D6, opt-in) — ⏳
+#### B4 — Forecast override toggle (D6, opt-in) — ✅ Done
 
-Add `computeTaxForProjections?: boolean` to `ConsolidationInput`. When `true` and
-`periodType !== 'actual'`, set each forecast entity's `is.taxExpense =
--modelledTax` (negation via `storedTaxFromIS`) before
-`deriveIncomeStatement`/aggregation. Default `false`.
+`computeTaxForProjections?: boolean` on `ConsolidationInput` (default `false`).
+When `true` and `scenarioType !== 'base'`, `applyModelledTax` replaces each
+forecast entity's booked tax with modelled IRC (sign bridged via the engine's
+negative convention) and accrues the incremental tax as a payable
+(`otherCurrentLiabilities`) so the entity sheet still reconciles. Actuals untouched.
 
 ### Workstream C — Tests & verification
 
-| #  | Test | Status | Asserts |
-|----|------|--------|---------|
-| C1 | `tax-drift.test.ts` (standalone module) | ✅ Done | `reconcileGroupTax` drift = 56,250 on demo pack; sign-convention, loss year, unmodelled jurisdiction, PT edge cases. Engine-integration extension pending B1. |
-| C2 | Forecast-override test | ⏳ | With `computeTaxForProjections:true`, forecast `taxExpense` becomes `-modelledTax`; with `false`, booked passthrough. |
-| C3 | Compliance characterization (`route.test.ts`) | ✅ Done | bs-integrity passes on `EQY-*` equity; minority-interest `hasEquityData` true for a 60%-owned `EQY-001` entity. |
-| C4 | `formatCompactEUR` localization | ⏳ | de-DE compact strings `€52,2M`, `€85K`, `decimals` honored. |
-| C5 | PT config year-clamp | ⏳ | 2023→2024, 2030→2028, pre-2024→`ircGeneralRate`. |
+| #   | Test                                          | Status | Asserts                                                                                                                                                       |
+| --- | --------------------------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| C1  | `tax-drift.test.ts` (standalone module)       | ✅ Done | `reconcileGroupTax` drift = 56,250 on demo pack; sign-convention, loss year, unmodelled jurisdiction, PT edge cases.                                          |
+| C2  | Forecast-override + engine integration        | ✅ Done | `tax reconciliation (B1/B2/B4)` block in `consolidation-engine.test.ts`: B1 attaches +56,250 drift (net income unchanged); B2 flags DE non-comparable; B4 modelled IRC lifts net income, collapses drift to ~0, keeps `balanceCheck ≈ 0`; override off by default. |
+| C3  | Compliance characterization (`route.test.ts`) | ✅ Done | bs-integrity passes on `EQY-*` equity; minority-interest `hasEquityData` true for a 60%-owned `EQY-001` entity.                                               |
+| C4  | `formatCompactEUR` localization               | ✅ Done | de-DE compact strings `€52,2M`, `€85K`, `decimals` honored (`src/lib/format.test.ts`).                                                                        |
+| C5  | PT config year-clamp                          | ✅ Done | 2024→21%, 2026→19%, 2029/2030→17%, pre-table→`ircGeneralRate`.                                                                                                |
 
-**Verification gate (every workstream):** `npm test` green + `tsc --noEmit` clean.
-B3 additionally needs `npm run db:deploy` against a fresh clone to prove the
-migration applies.
+**Verification gate (achieved):** `npm test` = 178 passed / 24 files · `tsc
+--noEmit` clean · `eslint` 0 errors · `npm run build` exit 0. The B3 migration
+(`20260622010000_consolidation_run_tax_drift`) is committed alone, applies via
+`npm run db:deploy`.
 
-### Sequencing & decision
+### Sequencing & decision (as executed)
 
-**Order:** A2 + C5 → A3 + C4 → B1 (+ extend C1) → B2 → B3 → B4 + C2. B3's
-migration is the only DB change; commit it alone. No change to the
-`finance`-has-no-`tax` layering — all tax access stays in the engine/route layer.
+**Order followed:** A2 + C5 → A3 + C4 → B1 (+ C2 engine tests) → B2 → B3 → B4. The
+B3 migration was the only DB change. No change to the `finance`-has-no-`tax`
+layering — all tax access stays in the engine/route layer.
 
-**Go/no-go before B1** (reconcile-only design is unchanged):
-
-- **(a)** Proceed with B1–B4 as specified — safe, no golden-number change.
-- **(b)** Workstream A only for now — B deferred to a later sprint.
-- **(c)** Adjust the B design first.
+**Go/no-go before B1 — chose (a):** proceeded with B1–B4 as specified (reconcile-only;
+no golden-number change), rather than (b) workstream-A-only or (c) redesigning B.
 
 ### Finding cross-reference
 
-| ID | Finding | Addressed by |
-|----|---------|--------------|
-| D1 | No reconciliation seam; drift invisible by construction | B1 ⏳ |
-| D2 | BS integrity gate cannot detect tax drift | B3 ⏳ |
-| D3 | Sign-convention landmine (engine negative, module positive) | ✅ `storedTaxFromIS`; reused in B4 |
-| D4 | Unmodelled jurisdictions fall back to 0% | B2 ⏳ (module already flags `comparable=false`) |
-| D5 | Per-entity vs. group basis (derrama progressivity) | ✅ `reconcileGroupTax`; engine wiring (B1) ⏳ |
-| D6 | Base mismatch (EBT/RAI vs. lucro tributável); credits | B (reconcile-only) + B4 toggle ⏳ |
-| D7 | `PT_TAX_CONFIG` drift; dead reduced-rate path | A2 ⏳ |
-| R1 | `compliance/route.ts` hand-rolled COA classification + `EQ-` bug | ✅ Done |
-| L1 | `formatCompactEUR` not localized | A3 ⏳ |
+| ID  | Finding                                                          | Addressed by                                   |
+| --- | ---------------------------------------------------------------- | ---------------------------------------------- |
+| D1  | No reconciliation seam; drift invisible by construction          | ✅ B1                                           |
+| D2  | BS integrity gate cannot detect tax drift                        | ✅ B3 (compliance check)                        |
+| D3  | Sign-convention landmine (engine negative, module positive)      | ✅ `storedTaxFromIS`; reused in B4              |
+| D4  | Unmodelled jurisdictions fall back to 0%                         | ✅ B2 (`comparable=false`)                      |
+| D5  | Per-entity vs. group basis (derrama progressivity)               | ✅ `reconcileGroupTax`; wired in B1             |
+| D6  | Base mismatch (EBT/RAI vs. lucro tributável); credits            | ✅ B (reconcile-only) + B4 toggle               |
+| D7  | `PT_TAX_CONFIG` drift; dead reduced-rate path                    | ✅ A2                                           |
+| R1  | `compliance/route.ts` hand-rolled COA classification + `EQ-` bug | ✅ Done                                         |
+| L1  | `formatCompactEUR` not localized                                 | ✅ A3                                           |
 
 ---
 
 ## Design — IAS 21 currency translation & CTA
 
-Status: **proposed** (Phase 2). Owner: finance domain.
+Status: **proposed** (MEDIUM.1). Owner: finance domain.
 
 ### Problem
 
@@ -290,16 +299,16 @@ const rate = await getExchangeRate(entity.localCurrency, periodDate, 'closing');
 This violates IAS 21 §39. For a subsidiary whose functional currency ≠ the EUR
 presentation currency, the standard requires **three** rates:
 
-| Statement | Rate | Rationale |
-|-----------|------|-----------|
-| Income statement (revenue → net income) | **average** for the period | flows accrue throughout the year |
-| Balance sheet — assets & liabilities | **closing** at period end | spot value of positions |
-| Equity (share capital, pre-acquisition reserves) | **historical** | frozen at transaction date |
+| Statement                                        | Rate                       | Rationale                        |
+| ------------------------------------------------ | -------------------------- | -------------------------------- |
+| Income statement (revenue → net income)          | **average** for the period | flows accrue throughout the year |
+| Balance sheet — assets & liabilities             | **closing** at period end  | spot value of positions          |
+| Equity (share capital, pre-acquisition reserves) | **historical**             | frozen at transaction date       |
 
 Because the rates differ, the translated balance sheet no longer balances. The
 residual is the **Cumulative Translation Adjustment (CTA)** — a real equity
 component (OCI), not a plug to hide. With the balance-sheet integrity gate in
-place (Phase 0 #5), a foreign entity's `balanceCheck` would be non-zero and the
+place (TOP.1, #5), a foreign entity's `balanceCheck` would be non-zero and the
 run would be marked `failed`; the CTA is the missing piece that makes a
 correctly-translated foreign sheet reconcile.
 
@@ -394,16 +403,16 @@ temporal method (hyperinflationary / integrated operations) is out of scope.
 
 ### Ranked fail-states
 
-| # | Severity | Location | Issue |
-|---|----------|----------|-------|
-| 1 | **Critical** | `forecast/route.ts:251` | Forecast returns fabricated demo data even when real TB exists. |
-| 2 | **Critical** | `consolidation-engine.ts:157,197` | IC eliminations double-count across the transaction table and TB rows. |
-| 3 | **High** | `consolidation-engine.ts` / `account-maps.ts:116` | IC loans/receivables/payables never eliminated → consolidated assets & liabilities inflated. |
-| 4 | **High** | `consolidation-engine.ts:60`, `fx.ts` | P&L translated at closing rate; no average rate; no CTA reserve → not IAS 21-compliant and will not balance once corrected. |
-| 5 | **High** | `statements.ts:100`, engine `:276` | `balanceCheck` never enforced; unbalanced runs marked `completed`. |
-| 6 | **Medium** | `tax/*` | No NOL carryforward, no deferred tax, no transfer pricing; tax not wired into forecasts. |
-| 7 | **Medium** | `statements.ts:85` | Proportional-method minority interest double-removes ownership share. |
-| 8 | **Medium** | `fx.ts:34,43` | Silent fallback to rate 1.0 / identity on bad data. |
+| #   | Severity     | Location                                          | Issue                                                                                                                       |
+| --- | ------------ | ------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| 1   | ~~Critical~~ → Med | `forecast/route.ts`                         | ~~Fabricated demo data~~ **resolved** — route now reads real actuals. Remaining: CF-only run-rate, not driver-based full IS/BS/CF (MEDIUM.2 + .10). |
+| 2   | **Critical** | `consolidation-engine.ts:157,197`                 | IC eliminations double-count across the transaction table and TB rows.                                                      |
+| 3   | **High**     | `consolidation-engine.ts` / `account-maps.ts:116` | IC loans/receivables/payables never eliminated → consolidated assets & liabilities inflated.                                |
+| 4   | **High**     | `consolidation-engine.ts:60`, `fx.ts`             | P&L translated at closing rate; no average rate; no CTA reserve → not IAS 21-compliant and will not balance once corrected. |
+| 5   | **High**     | `statements.ts:100`, engine `:276`                | `balanceCheck` never enforced; unbalanced runs marked `completed`.                                                          |
+| 6   | Med → partly resolved | `tax/*`                                  | ~~tax not wired into forecasts~~ **resolved (TOP.5/B1–B4)** — reconciliation on actuals + opt-in modelled IRC for forecasts. Remaining: no NOL carryforward, no deferred tax, no transfer pricing (MEDIUM.8). |
+| 7   | **Medium**   | `statements.ts:85`                                | Proportional-method minority interest double-removes ownership share.                                                       |
+| 8   | **Medium**   | `fx.ts:34,43`                                     | Silent fallback to rate 1.0 / identity on bad data.                                                                         |
 
 ### Detail
 
@@ -433,12 +442,14 @@ numbers instead of failing loudly.
 **Tax** (strongest module). Genuinely decoupled: `TaxProvider` interface, runtime
 registry with override, externalized `PT_TAX_CONFIG`, faithful PT IRC chain
 (coleta → ICE → SIFIDE → RFAI-capped-at-50% → derramas → tributação autónoma).
-Gaps (#6): not wired into the engine (passes through stored `TAX-001/2/3`; correct
-for 2024 actuals, no real tax for forecasts); no NOL carryforward (both providers
-floor taxable income at zero each year independently); no capital-allowance /
-book-vs-tax timing, so `AST-010` DTA is static; transfer pricing architecturally
-absent; reduced-rate parameters are placeholders. *(This phase is now detailed in
-[Active: Tax reconciliation](#active--tax-reconciliation-remediation).)*
+Gaps (#6) — **engine wiring now resolved** (TOP.5/B1–B4): the engine reconciles
+stored IRC against modelled tax on actuals (informational, passthrough preserved)
+and can replace forecast tax with modelled IRC via an opt-in flag. Remaining gaps:
+no NOL carryforward (both providers floor taxable income at zero each year
+independently); no capital-allowance / book-vs-tax timing, so `AST-010` DTA is
+static; transfer pricing architecturally absent — all folded into **MEDIUM.8**.
+*(The shipped reconciliation phase is detailed in
+[Completed: Tax reconciliation](#completed--tax-reconciliation-remediation).)*
 
 **Financial integrity & mechanisms.** Double-entry diagnosed, not enforced (#5).
 Debt & cash-flow waterfall does not exist — financing cash flow is static
