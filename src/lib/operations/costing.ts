@@ -79,7 +79,7 @@ export function totalCogs(model: OperationalModel): CogsBreakdown {
 /** Cost contribution of each raw material across the whole catalog. */
 export function materialCostByMaterial(
   model: OperationalModel,
-): Array<{ code: string; name: string; cost: number }> {
+): Array<{ code: string; name: string; cost: number; unit?: string; unitCost?: number }> {
   const totals = new Map<string, number>();
   const costOf = materialCostIndex(model.materials);
   for (const product of model.products) {
@@ -90,5 +90,11 @@ export function materialCostByMaterial(
       totals.set(line.materialCode, (totals.get(line.materialCode) ?? 0) + cost);
     }
   }
-  return model.materials.map((m) => ({ code: m.code, name: m.name, cost: totals.get(m.code) ?? 0 }));
+  return model.materials.map((m) => ({
+    code: m.code,
+    name: m.name,
+    cost: totals.get(m.code) ?? 0,
+    unit: m.unit,
+    unitCost: m.unitCost
+  }));
 }

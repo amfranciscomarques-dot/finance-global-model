@@ -8,8 +8,8 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useAppStore } from '@/lib/store';
-import { runConsolidation, getEntities, getCOA, getExchangeRates, getTrendAnalysis, getConsolidationRuns, getAuditTrail, type ConsolidationRunRecord } from '@/lib/api';
-import { KPIs, Entity, ConsolidatedResult, AuditEntry, ExchangeRateInfo } from '@/lib/types';
+import { runConsolidation, getEntities, getCOA, getExchangeRates, getTrendAnalysis, getConsolidationRuns, getAuditTrail, getOperations, type ConsolidationRunRecord } from '@/lib/api';
+import { KPIs, Entity, ConsolidatedResult, AuditEntry, ExchangeRateInfo, OperationalStatement } from '@/lib/types';
 import { formatCompactEUR } from '@/lib/format';
 import {
   COLORS,
@@ -175,6 +175,7 @@ export function DashboardView() {
   const [runs, setRuns] = useState<ConsolidationRunRecord[]>([]);
   const [activity, setActivity] = useState<AuditEntry[]>([]);
   const [kpiTrendSeries, setKpiTrendSeries] = useState<{ netIncome: number[]; assets: number[]; leverage: number[] }>({ netIncome: [], assets: [], leverage: [] });
+  const [operations, setOperations] = useState<OperationalStatement | null>(null);
 
   const ebitdaMarginTrend = revenueTrend.map(r => ({
     month: r.month,
@@ -276,7 +277,7 @@ export function DashboardView() {
       // Current period drives the KPIs, waterfall, entity contribution and
       // cash-flow bridge; the prior period gives period-over-period deltas; the
       // trend endpoint gives the monthly Revenue/EBITDA series. All real data.
-      const [current, prior, revTrend, ebitdaTrend, niTrend, assetTrend, levTrend, runsData, auditData] = await Promise.all([
+      const [current, prior, revTrend, ebitdaTrend, niTrend, assetTrend, levTrend, runsData, auditData, opsData] = await Promise.all([
         runConsolidation({ period: selectedPeriod, entityCodes, scenarioType: selectedScenario }),
         runConsolidation({ period: previousPeriod(selectedPeriod), entityCodes, scenarioType: selectedScenario }).catch(() => null),
         getTrendAnalysis({ metric: 'revenue' }).catch(() => null),
@@ -286,9 +287,13 @@ export function DashboardView() {
         getTrendAnalysis({ metric: 'leverage' }).catch(() => null),
         getConsolidationRuns().catch(() => [] as ConsolidationRunRecord[]),
         getAuditTrail().catch(() => [] as AuditEntry[]),
+        getOperations().catch(() => null),
       ]);
 
       setResult(current);
+      if (opsData?.statement) {
+        setOperations(opsData.statement);
+      }
       if (current?.kpis) setKPIs(current.kpis);
       setRuns(runsData);
       setActivity(auditData);
@@ -992,6 +997,76 @@ export function DashboardView() {
           ))}
         </div>
       </motion.div>
+
+      {/* Operational Insights Widget */}
+      {operations && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.4 }}
+          className="mt-6"
+        >
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <h3 className="text-sm font-semibold text-muted-foreground">Visão Operacional (Destaque)</h3>
+              <div className="h-px w-12 bg-gradient-to-r from-emerald-200 to-transparent dark:from-emerald-800" />
+            </div>
+            <Button variant="link" size="sm" className="h-auto p-0 text-emerald-600" onClick={() => setActiveView('operations')}>
+              Ver Detalhe Operacional <ArrowRight className="w-3 h-3 ml-1" />
+            </Button>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Card className="shadow-sm border border-slate-200/60 dark:border-slate-700/40">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm">Top Mercados</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {operations.byMarket.sort((a, b) => b.revenue - a.revenue).slice(0, 3).map((m) => (
+                    <div key={m.market} className="flex items-center justify-between">
+                      <span className="text-xs font-medium">{m.market}</span>
+                      <span className="text-xs text-muted-foreground font-mono">{formatCompactEUR(m.revenue)}</span>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="shadow-sm border border-slate-200/60 dark:border-slate-700/40">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm">Estrutura de Custos</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-medium text-slate-600 dark:text-slate-400">Materiais</span>
+                    <span className="text-xs font-mono">{formatCompactEUR(operations.cogs.materials)}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-medium text-slate-600 dark:text-slate-400">Mão de Obra</span>
+                    <span className="text-xs font-mono">{formatCompactEUR(operations.cogs.labor)}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-medium text-slate-600 dark:text-slate-400">GGF</span>
+                    <span className="text-xs font-mono">{formatCompactEUR(operations.cogs.overhead)}</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="shadow-sm border border-slate-200/60 dark:border-slate-700/40 bg-gradient-to-br from-emerald-50/50 to-transparent dark:from-emerald-950/20">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm">Margem Bruta (Global)</CardTitle>
+              </CardHeader>
+              <CardContent className="flex flex-col justify-center h-full pb-6">
+                <p className="text-3xl font-bold text-emerald-600 dark:text-emerald-400 font-mono">
+                  {(operations.grossMarginPct * 100).toFixed(1)}%
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">Lucro Bruto: {formatCompactEUR(operations.grossProfit)}</p>
+              </CardContent>
+            </Card>
+          </div>
+        </motion.div>
+      )}
+
 
       {/* Recent Activity Mini-Feed */}
       <motion.div

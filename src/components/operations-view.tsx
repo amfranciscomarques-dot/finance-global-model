@@ -68,9 +68,9 @@ function getDemoStatement(): OperationalStatement {
       { code: 'CUTELARIA', name: 'Cutelaria (revenda)', productType: 'merchandise', volume: 220_000, pricePerUnit: 15, unitCost: 9, revenue: 3_300_000, cogs: 1_980_000, grossProfit: 1_320_000, grossMarginPct: 0.4 },
     ],
     byMaterial: [
-      { code: 'PASTA_GRES', name: 'Pasta de grés', cost: 3_000_000 },
-      { code: 'VIDRADOS', name: 'Vidrados', cost: 1_500_000 },
-      { code: 'EMBALAGEM', name: 'Embalagem', cost: 490_000 },
+      { code: 'PASTA_GRES', name: 'Pasta de grés', cost: 3_000_000, unit: 'ton', unitCost: 150 },
+      { code: 'VIDRADOS', name: 'Vidrados', cost: 1_500_000, unit: 'kg', unitCost: 2.5 },
+      { code: 'EMBALAGEM', name: 'Embalagem', cost: 490_000, unit: 'un', unitCost: 0.15 },
     ],
     byMarket: [
       { market: 'PT', revenue: 16_000_000, volume: 2_400_000 },
@@ -146,8 +146,6 @@ export function OperationsView() {
   const materials = materialBars(s);
   const markets = marketMix(s);
   const channels = channelMix(s);
-
-  const costLabel = (key: CostKey) => t(`cost.${key}` as const);
 
   return (
     <div className="p-4 lg:p-6 space-y-6">
@@ -233,25 +231,134 @@ export function OperationsView() {
         <MixCard title={t('charts.revenueByChannel')} icon={Store} rows={channels} />
       </div>
 
-      {/* Cost by material */}
-      <Card>
-        <CardHeader><CardTitle className="text-base flex items-center gap-2"><Boxes className="w-4 h-4 text-signal" />{t('charts.costByMaterial')}</CardTitle></CardHeader>
-        <CardContent>
-          <ResponsiveContainer width="100%" height={Math.max(160, materials.length * 38)}>
-            <BarChart data={materials} layout="vertical" margin={{ left: 8, right: 16 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
-              <XAxis type="number" tickFormatter={(v) => formatEUR(v)} tick={{ fontSize: 11 }} />
-              <YAxis type="category" dataKey="name" width={110} tick={{ fontSize: 11 }} />
-              <Tooltip formatter={(v: number) => formatEUR(v)} />
-              <Bar dataKey="cost" fill={COLORS[1]} radius={[0, 4, 4, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </CardContent>
-      </Card>
+      {/* Raw Materials Dash: Cost & Unit Prices */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Cost by material */}
+        <Card>
+          <CardHeader><CardTitle className="text-base flex items-center gap-2"><Boxes className="w-4 h-4 text-signal" />{t('charts.costByMaterial')}</CardTitle></CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={Math.max(160, materials.length * 38)}>
+              <BarChart data={materials} layout="vertical" margin={{ left: 8, right: 16 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
+                <XAxis type="number" tickFormatter={(v) => formatEUR(v)} tick={{ fontSize: 11 }} />
+                <YAxis type="category" dataKey="name" width={110} tick={{ fontSize: 11 }} />
+                <Tooltip formatter={(v: number) => formatEUR(v)} />
+                <Bar dataKey="cost" fill={COLORS[1]} radius={[0, 4, 4, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
 
-      {/* Product margin table */}
+        {/* Material Prices Table */}
+        <Card>
+          <CardHeader><CardTitle className="text-base flex items-center gap-2"><Coins className="w-4 h-4 text-signal" />Preços de Matérias-Primas</CardTitle></CardHeader>
+          <CardContent className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-xs text-muted-foreground border-b">
+                  <th className="py-2 pr-3 font-medium">Material</th>
+                  <th className="py-2 px-3 font-medium text-right">Preço Unitário</th>
+                  <th className="py-2 px-3 font-medium text-right">Custo Total Consumido</th>
+                </tr>
+              </thead>
+              <tbody>
+                {s.byMaterial.sort((a, b) => b.cost - a.cost).map((m) => (
+                  <tr key={m.code} className="border-b border-border/50 hover:bg-muted/30">
+                    <td className="py-2 pr-3 font-medium">
+                      <div className="flex flex-col">
+                        <span>{m.name}</span>
+                        <span className="text-[10px] text-muted-foreground font-mono">{m.code}</span>
+                      </div>
+                    </td>
+                    <td className="py-2 px-3 text-right font-mono tabular-nums">
+                      {m.unitCost ? `€${m.unitCost.toFixed(2)}` : '—'} 
+                      {m.unit ? <span className="text-[10px] text-muted-foreground ml-1">/ {m.unit}</span> : ''}
+                    </td>
+                    <td className="py-2 px-3 text-right font-mono tabular-nums text-muted-foreground">{formatEUR(m.cost)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Product Datasheets (Fichas de Produtos) */}
+      <div className="space-y-4">
+        <h2 className="text-xl font-semibold tracking-tight flex items-center gap-2">
+          <Package className="w-5 h-5 text-signal" /> Fichas de Produtos
+        </h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          {products.map((p) => {
+            const tone = marginTone(p.grossMarginPct);
+            const toneClass = tone === 'gain' ? 'text-gain' : tone === 'loss' ? 'text-loss' : 'text-muted-foreground';
+            return (
+              <Card key={p.code} className="shadow-sm hover:shadow-md transition-shadow">
+                <CardHeader className="pb-3 border-b border-border/40">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <CardTitle className="text-lg">{p.name}</CardTitle>
+                      <p className="text-xs text-muted-foreground font-mono mt-0.5">{p.code}</p>
+                    </div>
+                    <Badge variant="outline" className={p.productType === 'manufactured' ? 'bg-blue-500/10 text-blue-700 dark:text-blue-400' : 'bg-orange-500/10 text-orange-700 dark:text-orange-400'}>
+                      {p.productType === 'manufactured' ? t('type.manufactured') : t('type.merchandise')}
+                    </Badge>
+                  </div>
+                </CardHeader>
+                <CardContent className="pt-4 space-y-4">
+                  {/* Economics */}
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="bg-muted/30 p-2 rounded-lg text-center">
+                      <p className="text-[10px] uppercase text-muted-foreground font-semibold">PVU</p>
+                      <p className="text-sm font-mono font-medium mt-0.5">€{p.pricePerUnit.toFixed(2)}</p>
+                    </div>
+                    <div className="bg-muted/30 p-2 rounded-lg text-center">
+                      <p className="text-[10px] uppercase text-muted-foreground font-semibold">Custo Un.</p>
+                      <p className="text-sm font-mono font-medium mt-0.5">€{p.unitCost.toFixed(2)}</p>
+                    </div>
+                    <div className={`p-2 rounded-lg text-center ${tone === 'gain' ? 'bg-emerald-500/10' : tone === 'loss' ? 'bg-red-500/10' : 'bg-muted/50'}`}>
+                      <p className={`text-[10px] uppercase font-semibold ${toneClass}`}>Margem</p>
+                      <p className={`text-sm font-mono font-bold mt-0.5 ${toneClass}`}>{fmtPct(p.grossMarginPct)}</p>
+                    </div>
+                  </div>
+                  
+                  {/* Totals */}
+                  <div className="space-y-1.5">
+                    <div className="flex justify-between text-xs">
+                      <span className="text-muted-foreground">Volume Anual</span>
+                      <span className="font-mono">{fmtUnits(p.volume)} uni</span>
+                    </div>
+                    <div className="flex justify-between text-xs">
+                      <span className="text-muted-foreground">Receita Total</span>
+                      <span className="font-mono">{formatEUR(p.revenue)}</span>
+                    </div>
+                    <div className="flex justify-between text-xs">
+                      <span className="text-muted-foreground">Lucro Bruto</span>
+                      <span className={`font-mono font-medium ${toneClass}`}>{formatEUR(p.grossProfit)}</span>
+                    </div>
+                  </div>
+
+                  {/* Profitability Bar */}
+                  <div className="mt-2">
+                    <div className="flex justify-between text-[10px] mb-1">
+                      <span className="text-muted-foreground">COGS: {fmtPct(1 - p.grossMarginPct)}</span>
+                      <span className={toneClass}>Margem: {fmtPct(p.grossMarginPct)}</span>
+                    </div>
+                    <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden flex">
+                      <div className="h-full bg-slate-400 dark:bg-slate-500" style={{ width: `${Math.max(0, (1 - p.grossMarginPct)) * 100}%` }} />
+                      <div className={`h-full ${tone === 'gain' ? 'bg-emerald-500' : 'bg-red-500'}`} style={{ width: `${Math.max(0, p.grossMarginPct) * 100}%` }} />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Product margin table (Summary) */}
       <Card>
-        <CardHeader><CardTitle className="text-base flex items-center gap-2"><Package className="w-4 h-4 text-signal" />{t('table.title')}</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="text-base flex items-center gap-2"><Package className="w-4 h-4 text-signal" />Resumo Económico por Produto</CardTitle></CardHeader>
         <CardContent className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>

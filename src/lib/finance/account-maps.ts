@@ -105,7 +105,8 @@ export const BS_DETAIL_ACCOUNTS: Record<string, keyof Pick<BalanceSheetData,
   'ppe' | 'intangibleAssets' | 'goodwill' | 'otherNonCurrentAssets' |
   'accountsPayable' | 'shortTermDebt' | 'otherCurrentLiabilities' |
   'longTermDebt' | 'otherNonCurrentLiabilities' |
-  'shareCapital' | 'retainedEarnings' | 'minorityEquity'
+  'shareCapital' | 'retainedEarnings' | 'minorityEquity' |
+  'historicalRetainedEarnings' | 'historicalMinorityEquity'
 >> = {
   'AST-001': 'cash',
   'AST-002': 'accountsReceivable',

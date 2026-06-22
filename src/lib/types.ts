@@ -643,9 +643,10 @@ export interface OperationalStatement {
   grossProfit: number;
   grossMarginPct: number;
   byProduct: OperationalProductLine[];
-  byMaterial: Array<{ code: string; name: string; cost: number }>;
+  byMaterial: Array<{ code: string; name: string; cost: number; unit?: string; unitCost?: number }>;
   byMarket: Array<{ market: string; revenue: number; volume: number }>;
   byChannel: Array<{ channel: string; revenue: number; volume: number }>;
+  allocations: Array<{ productCode: string; productName: string; market: string; channel: string; revenue: number; volume: number }>;
 }
 
 export interface OperationsData {
