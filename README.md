@@ -67,6 +67,18 @@ elimination, so every figure is reproducible from `src/lib/company-packs/templat
 | Tax jurisdictions | `src/lib/tax` | Pluggable per-country tax providers keyed by entity `countryCode`. `PT` implements the full IRC chain (derrama municipal/estadual, tributação autónoma, SIFIDE/RFAI/ICE); `ES`/`US` are flat-rate stubs. |
 | Projects | `src/lib/projects` | Investment appraisal: NPV / IRR / discounted payback, finite horizon + residual value. |
 | Group COA | `src/lib/coa-data.ts` | Shared group chart of accounts all packs map onto. |
+| Operations | `src/lib/operations` | Bottom-up operational catalog: `Product`, `RawMaterial`, `BillOfMaterial`, and `SalesMix`. Reconstructs gross margin and generates trial-balance revenue/COGS lines. |
+
+## Operational Catalog
+
+The model supports a robust **bottom-up operational catalog** for manufacturing and trading entities (managed via Prisma SQL: `Product`, `RawMaterial`, `BillOfMaterial`, and `SalesMix`). 
+
+This acts as the driver for the entity's actual financial performance:
+- **Revenue** is computed dynamically per product (`annualVolume` × `salesPricePerUnit`) and distributed via the `SalesMix`.
+- **Cost of Goods Sold (COGS)** is computed by mapping the product's `BillOfMaterial` to `RawMaterial` unit costs, plus direct labor and overhead.
+- These calculations automatically generate the **REV** (Revenue) and **COGS** trial-balance lines for the entity, ensuring that the financial consolidation is perfectly tied to the physical operational realities of the factories and stores.
+
+You can add or modify products and raw materials directly via your favorite SQL client or by running `npx prisma studio`. Any changes will instantly reflect in the dashboards and consolidation engine.
 
 ## Onboarding a new company
 
