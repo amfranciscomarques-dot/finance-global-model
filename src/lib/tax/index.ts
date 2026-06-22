@@ -12,6 +12,7 @@ import { portugalProvider } from './jurisdictions/portugal';
 import { spainProvider, usaProvider, createFlatRateProvider } from './jurisdictions/flat-rate';
 
 export * from './types';
+export * from './reconcile';
 export { portugalProvider, PT_TAX_CONFIG, createPortugalProvider } from './jurisdictions/portugal';
 export { spainProvider, usaProvider, createFlatRateProvider } from './jurisdictions/flat-rate';
 

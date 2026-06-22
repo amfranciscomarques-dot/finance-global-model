@@ -125,9 +125,9 @@ centralises where that gate lives.
 
 ## Known limitations (roadmap)
 
-See [`docs/ROADMAP.md`](docs/ROADMAP.md) for the phased plan and
-[`docs/ARCHITECTURE_REVIEW.md`](docs/ARCHITECTURE_REVIEW.md) for the full
-architecture review behind it.
+See [`PLAN.md`](PLAN.md) for the phased roadmap, the architecture-review
+findings behind it, and the IAS 21 FX design. Completed work (review passes and
+remediations) is recorded in [`CHANGELOG.md`](CHANGELOG.md).
 
 - Tax providers are not yet wired into the engine for forecast periods (actuals pass through the stored IRC charge, which is correct for credits-affected years). Scenario projections preserve the base run's effective tax rate rather than recomputing per jurisdiction.
 - Balance-sheet IC eliminations (IC receivable/payable netting) are not automated; P&L IC flows are.

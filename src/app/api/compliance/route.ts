@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { buildStatements } from '@/lib/finance';
+import { categorizeCoaCode } from '@/lib/coa-data';
 
 // Jurisdiction filing requirements
 const JURISDICTION_CONFIG: Record<string, { name: string; flag: string; framework: string; filings: { name: string; deadline: string }[] }> = {
@@ -30,14 +32,11 @@ const JURISDICTION_CONFIG: Record<string, { name: string; flag: string; framewor
   ]},
 };
 
-// Balance Sheet account code prefixes
-const ASSET_CODES = ['AST-'];
-const LIABILITY_CODES = ['LIA-'];
-const EQUITY_CODES = ['EQ-'];
-
-function isAssetCode(code: string) { return ASSET_CODES.some(p => code.startsWith(p)); }
-function isLiabilityCode(code: string) { return LIABILITY_CODES.some(p => code.startsWith(p)); }
-function isEquityCode(code: string) { return EQUITY_CODES.some(p => code.startsWith(p)); }
+// Balance-sheet classification is NOT done by hand here: it lives in the shared
+// finance domain (buildStatements) and src/lib/coa-data (categorizeCoaCode), the
+// single sources of truth for COA→statement rollup. A prior copy of the equity
+// predicate checked the wrong prefix (`EQ-`, but equity codes are `EQY-*`), so
+// equity summed to 0 and every balanced entity failed the integrity check.
 
 export async function GET(request: NextRequest) {
   try {
@@ -87,23 +86,22 @@ export async function GET(request: NextRequest) {
 
     for (const entity of entities) {
       const entityTBs = trialBalances.filter(tb => tb.entityId === entity.id);
-      let totalAssets = 0;
-      let totalLiabilities = 0;
-      let totalEquity = 0;
 
-      for (const tb of entityTBs) {
-        const amt = tb.amountEUR;
-        if (isAssetCode(tb.groupCOACode)) totalAssets += amt;
-        else if (isLiabilityCode(tb.groupCOACode)) totalLiabilities += amt;
-        else if (isEquityCode(tb.groupCOACode)) totalEquity += amt;
-      }
+      // No trial-balance data for the entity → nothing to check (skip, don't fail).
+      if (entityTBs.length === 0) continue;
 
-      const balanceDiff = Math.abs(totalAssets - (totalLiabilities + totalEquity));
-      const tolerance = Math.max(100, Math.abs(totalAssets) * 0.01); // 1% or min 100
+      // Derive the balance sheet through the shared finance pipeline. Crucially
+      // this folds the current-year net income into retained earnings, so the
+      // check reflects true equity (Assets = Liabilities + Equity) rather than
+      // just the stored EQY-* accounts, which exclude the period result.
+      const { balanceSheet } = buildStatements(
+        entityTBs.map(tb => ({ groupCOACode: tb.groupCOACode, amountEUR: tb.amountEUR })),
+      );
 
-      if (totalAssets === 0 && totalLiabilities === 0 && totalEquity === 0) {
-        // No data for entity - skip (or could flag)
-      } else if (balanceDiff <= tolerance) {
+      const balanceDiff = Math.abs(balanceSheet.balanceCheck);
+      const tolerance = Math.max(100, Math.abs(balanceSheet.totalAssets) * 0.01); // 1% or min 100
+
+      if (balanceDiff <= tolerance) {
         bsPassCount++;
       } else {
         bsFailCount++;
@@ -265,7 +263,7 @@ export async function GET(request: NextRequest) {
     for (const entity of minorityEntities) {
       // Check if the entity has trial balance data and can calculate minority interest
       const entityTBs = trialBalances.filter(tb => tb.entityId === entity.id);
-      const hasEquityData = entityTBs.some(tb => isEquityCode(tb.groupCOACode));
+      const hasEquityData = entityTBs.some(tb => categorizeCoaCode(tb.groupCOACode) === 'Equity');
 
       if (hasEquityData) {
         minorityPassCount++;

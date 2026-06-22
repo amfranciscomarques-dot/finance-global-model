@@ -34,6 +34,13 @@ const stmt: OperationalStatement = {
     { channel: 'Private_Label', revenue: 600, volume: 90 },
     { channel: 'Retalho', revenue: 400, volume: 60 },
   ],
+  // Per product × market × channel; revenue reconciles to the product, market
+  // and channel totals above (Σ = revenueTotal).
+  allocations: [
+    { productCode: 'A', productName: 'Alpha', market: 'PT', channel: 'Private_Label', revenue: 600, volume: 100 },
+    { productCode: 'B', productName: 'Beta', market: 'PT', channel: 'Retalho', revenue: 100, volume: 5 },
+    { productCode: 'B', productName: 'Beta', market: 'UE', channel: 'Retalho', revenue: 300, volume: 45 },
+  ],
 };
 
 describe('operations view / helpers', () => {
