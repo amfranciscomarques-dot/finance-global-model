@@ -13,6 +13,50 @@ because they grew over time.
 
 ---
 
+## 2026-06-22 — Operations → forecast link
+
+Forecast COGS is now catalog-derived (BOM + labor + overhead) instead of a flat
+ratio extracted from the opening income statement. When a manufacturing entity's
+operational catalog exists, `loadCatalogMargin()` computes `grossMarginPct` from
+`buildOperationalStatement` and threads it through the kernel chain and the
+Monte-Carlo simulation; if no catalog exists the forecast falls back to the
+historical margin ratio unchanged (zero regression).
+
+- **`src/app/api/forecast/route.ts`** — `loadCatalogMargin()` helper queries the
+  first operational entity's products/BOM/sales-mix and returns its blended gross
+  margin; `kernelAssumptions` accepts `catalogMarginRate` and uses it over
+  `base.grossMarginRate`; `buildForecast` threads the parameter through the kernel
+  loop and the Monte-Carlo lambda; GET and POST handlers call `loadCatalogMargin`
+  before building the forecast.
+- **`src/lib/types.ts`** — `ForecastProjection.drivers` gains `grossMarginSource:
+  'catalog' | 'historical'` so clients can show the margin's provenance.
+
+---
+
+## 2026-06-22 — Integer-cents / decimal money (LOW.3)
+
+Eliminates float drift in multi-year / Monte-Carlo projection runs by quantizing
+each period's driver-computed lines to the nearest cent before they feed the next
+period. Design decisions settled: **integer-cents at the projection seams** (not a
+full `Decimal` library or `bigint` schema change — Prisma stays `Float`); **half-up
+away from zero** per derived line; rates and the cash plug left unrounded.
+
+- **`src/lib/finance/money.ts`** (new) — canonical `round2(n)`: half-up-away-from-zero
+  rounding to 2 decimal places (the financial standard: 0.5 rounds away from zero,
+  not toward +∞). Exported from the domain index.
+- **`src/lib/finance/project.ts`** — `projectPeriod` wraps the 8 driver-computed
+  values (revenue, COGS, OPEX, depreciation, accounts-receivable, inventory,
+  accounts-payable, PPE) in `round2`. The cash plug, interest, taxExpense, and
+  netIncome are intentionally left unrounded: anything that flows through
+  `cf.netChangeInCash` must remain algebraically exact to keep `balanceCheck = 0`
+  and the debt-sweep `cash ≈ buffer` invariant intact.
+- **`src/lib/finance/eliminations.ts`** — replaced the local inline `round2` with
+  the shared import from `money.ts`.
+
+277 tests pass. The LOW tier is complete.
+
+---
+
 ## 2026-06-22 — Single-tenant auth & role-based authorization (LOW.5)
 
 Real credential login and role-based authorization, layered over the original

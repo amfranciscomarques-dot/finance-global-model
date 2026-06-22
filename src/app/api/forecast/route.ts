@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { loadOperationalModel, listOperationalEntityCodes } from '@/lib/operations/from-db';
+import { buildOperationalStatement } from '@/lib/operations/rollup';
 import {
   addEntry,
   createEmptyBS,
@@ -95,14 +97,19 @@ async function buildRealAnnualStatements(
 // Map the UI's percentage/day assumptions onto the kernel's driver set, anchored
 // on the opening period's structural ratios (margin, depreciation/interest/tax
 // rates, payout). Only the levers the UI exposes are flexed.
+// When catalogMarginRate is provided it replaces the historical margin ratio so
+// that projected COGS is catalog-derived (BOM/labor/overhead) rather than a flat
+// ratio read off the opening income statement.
 function kernelAssumptions(
   opening: FinancialStatements,
   ui: ForecastAssumptions,
+  catalogMarginRate: number | null = null,
 ): ProjectionAssumptions {
   const base = deriveDefaultAssumptions(opening);
   return {
     ...base,
     revenueGrowthRate: ui.revenueGrowthRate / 100,
+    grossMarginRate: catalogMarginRate ?? base.grossMarginRate,
     capex: base.capex * (1 + ui.capexGrowthRate / 100),
     // Hold the opening DSO unless the user pins a target (avoids a one-off WC
     // step). DIO/DPO continue to scale with revenue via the opening ratios.
@@ -110,6 +117,18 @@ function kernelAssumptions(
     // A monthly extra repayment becomes an annual reduction in net debt.
     netDebtChange: -(ui.debtRepaymentSchedule * 12),
   };
+}
+
+// Load the blended gross margin from the operational catalog (BOM + labor +
+// overhead). Returns null when no catalog exists so the kernel falls back to
+// the historical margin ratio from the opening income statement.
+async function loadCatalogMargin(): Promise<number | null> {
+  const codes = await listOperationalEntityCodes(db);
+  if (codes.length === 0) return null;
+  const model = await loadOperationalModel(db, codes[0]);
+  if (!model) return null;
+  const { grossMarginPct } = buildOperationalStatement(model);
+  return grossMarginPct > 0 ? grossMarginPct : null;
 }
 
 // ============================================================
@@ -129,13 +148,14 @@ function buildForecast(
   yearEndCash: number,
   year: number,
   assumptions: ForecastAssumptions,
+  catalogMarginRate: number | null = null,
 ): CashFlowForecast {
   // --- Driver-based annual projection (chained kernel) ---
   const projYears: ForecastProjectionYear[] = [];
   let state = opening;
-  let firstDrivers = kernelAssumptions(opening, assumptions);
+  let firstDrivers = kernelAssumptions(opening, assumptions, catalogMarginRate);
   for (let i = 0; i < PROJECTION_YEARS; i++) {
-    const a = kernelAssumptions(state, assumptions);
+    const a = kernelAssumptions(state, assumptions, catalogMarginRate);
     if (i === 0) firstDrivers = a;
     state = projectPeriod(state, a);
     projYears.push({
@@ -154,7 +174,7 @@ function buildForecast(
   const sim = simulateProjection(
     opening,
     PROJECTION_YEARS,
-    (_i, state) => kernelAssumptions(state, assumptions),
+    (_i, state) => kernelAssumptions(state, assumptions, catalogMarginRate),
     DEFAULT_FORECAST_DISPERSION,
     CASH_FLOW_METRICS,
     { draws: MC_DRAWS, seed: MC_SEED },
@@ -321,6 +341,7 @@ function buildForecast(
       drivers: {
         revenueGrowthRate: firstDrivers.revenueGrowthRate,
         grossMarginRate: firstDrivers.grossMarginRate,
+        grossMarginSource: catalogMarginRate !== null ? 'catalog' : 'historical',
         receivableDays: firstDrivers.receivableDays,
         capex: firstDrivers.capex,
         netDebtChange: firstDrivers.netDebtChange,
@@ -357,8 +378,9 @@ export async function GET(request: Request) {
       );
     }
 
+    const catalogMarginRate = await loadCatalogMargin();
     return NextResponse.json(
-      buildForecast(real.statements, real.yearEndCash, year, DEFAULT_ASSUMPTIONS),
+      buildForecast(real.statements, real.yearEndCash, year, DEFAULT_ASSUMPTIONS, catalogMarginRate),
     );
   } catch (error) {
     console.error('Error building forecast:', error);
@@ -384,7 +406,8 @@ export async function POST(request: Request) {
       );
     }
 
-    const data = buildForecast(real.statements, real.yearEndCash, year, assumptions);
+    const catalogMarginRate = await loadCatalogMargin();
+    const data = buildForecast(real.statements, real.yearEndCash, year, assumptions, catalogMarginRate);
     return NextResponse.json({
       success: true,
       message: 'Forecast recalculated from real year-end cash flow',

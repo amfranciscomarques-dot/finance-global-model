@@ -499,6 +499,7 @@ export interface ForecastProjection {
   drivers: {
     revenueGrowthRate: number;
     grossMarginRate: number;
+    grossMarginSource: 'catalog' | 'historical';
     receivableDays: number;
     capex: number;
     netDebtChange: number;

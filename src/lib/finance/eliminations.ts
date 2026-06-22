@@ -37,6 +37,7 @@ import {
   type FinancialStatements,
 } from './statements';
 import type { BalanceSheetData, IncomeStatementData } from './account-maps';
+import { round2 } from './money';
 
 /**
  * One intercompany sale of inventory between two group entities in a period.
@@ -107,9 +108,6 @@ export function counterpartyPair(a: string, b: string): string {
   return [a, b].sort().join('~');
 }
 
-function round2(n: number): number {
-  return Math.round(n * 100) / 100;
-}
 
 /**
  * Build the elimination entries for one intercompany sale flow. Returns 1–3

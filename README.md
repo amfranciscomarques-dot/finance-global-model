@@ -61,7 +61,7 @@ elimination, so every figure is reproducible from `src/lib/company-packs/templat
 
 | Layer                | Where                             | Role                                                                                                                                                                                                     |
 | -------------------- | --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Finance domain       | `src/lib/finance`                 | Single source of truth: COA→statement mapping, FX, statement derivation, KPIs. Pure functions, unit-tested.                                                                                              |
+| Finance domain       | `src/lib/finance`                 | Single source of truth: COA→statement mapping, FX, statement derivation, KPIs, and cent-level rounding (`money.ts`). Pure functions, unit-tested.                                                        |
 | Consolidation engine | `src/lib/consolidation-engine.ts` | Orchestrates: trial balances → entity statements → IC eliminations → group statements. Idempotent per period.                                                                                            |
 | Company packs        | `src/lib/company-packs`           | Pluggable company data sets (entities, trial balance, IC transactions, FX, projects). `template` (Meridian Group) is the reference pack.                                                                 |
 | Tax jurisdictions    | `src/lib/tax`                     | Pluggable per-country tax providers keyed by entity `countryCode`. `PT` implements the full IRC chain (derrama municipal/estadual, tributação autónoma, SIFIDE/RFAI/ICE); `ES`/`US` are flat-rate stubs. |
@@ -183,6 +183,7 @@ Two paths:
 - FX rates follow ECB convention: `1 EUR = X currency`; `amountEUR = amountLocal / rate`.
 - Annual actuals are stored as a single `YYYY-12` snapshot with `periodType: 'actual'`.
 - Only **detail** COA codes carry amounts; all subtotals (current assets, EBITDA, …) are recomputed, never trusted from storage.
+- **Integer-cents quantization at projection seams.** `round2()` in `src/lib/finance/money.ts` (half-up, away from zero) is applied to each period's driver-computed lines (revenue, COGS, OPEX, depreciation, working-capital balances, PPE) so float errors cannot compound across a multi-year / Monte-Carlo run. The cash plug and income-statement finalisation chain are left unrounded to preserve the double-entry identity exactly.
 
 ## Security / auth posture
 
@@ -229,15 +230,21 @@ multiple groups would add a `tenantId` to `Entity`/`TrialBalance`/`Consolidation
 and scope every query by it; the auth layer and middleware matcher already
 centralise where identity is established.
 
-## Known limitations (roadmap)
+## Known limitations & follow-ups
 
-See [`PLAN.md`](PLAN.md) for the phased roadmap, the architecture-review
-findings behind it, and the IAS 21 FX design. Completed work (review passes and
-remediations) is recorded in [`CHANGELOG.md`](CHANGELOG.md).
+The full backlog (quick wins, deferred polish) lives in [`PLAN.md`](PLAN.md).
+Completed work is in [`CHANGELOG.md`](CHANGELOG.md). The three remaining items:
 
-- Tax providers are now reconciled against the engine (see [Tax reconciliation](#tax-reconciliation) below): every consolidation attaches an informational stored-vs-modelled IRC drift, and forecast periods can opt in to modelled IRC. Stored IRC on actuals stays authoritative (it captures SIFIDE/RFAI/ICE credits the EBT-based model can't reproduce). Remaining tax depth — NOL carryforward, deferred tax, transfer pricing — is tracked as MEDIUM.8 in [`PLAN.md`](PLAN.md).
-- Intercompany eliminations are automated for both P&L flows (revenue/COGS netting) and the balance sheet: IC receivable (`AST-009`) and IC payable (`LIA-006`) are first-class lines, netted against each other in an explicit, auditable elimination pass on consolidation (see `src/lib/finance/eliminations.ts`).
-- Non-controlling interest is derived from **ownership × the subsidiary's full equity**, not just a stored `EQY-003`: the minority's share of opening equity is reclassified to minority equity and the current-year share of net income is carved out of the consolidated P&L, so the consolidated minority equity is `(1 − ownership) × subsidiary total equity`. (All demo entities are wholly owned, so this is a correctness guarantee for the `<100%` case rather than visible in the demo numbers.)
-- All analytical routes now compute through `src/lib/finance` (the shared `metrics.ts` resolver / consolidation engine): `trends`, `budget`, `variance`, `scenarios/run`, and the Excel/PDF exports. The exporters call a compute-only `computeConsolidation` via `src/lib/report-model.ts`, so a downloaded report's Consolidated column carries the real IC eliminations (and ties to the dashboard) instead of an un-eliminated entity sum.
-- Settings, validation rules, the AI-chat sessions and import history are persisted (Prisma `Setting`/`ValidationRule`/`ChatSession`/`ImportBatch` tables) rather than held in module-level memory, so they survive restarts and behave correctly across serverless instances.
-- The codebase typechecks cleanly under `strict` (`noImplicitAny` included), so `next.config.ts` no longer sets `ignoreBuildErrors` — `next build` enforces TypeScript. ESLint runs with a curated rule set at **0 errors**; the only remaining warnings are the React-Compiler-readiness `set-state-in-effect` lints (24) in the view components, which are runtime-safe and tracked for a follow-up sweep.
+- **Operations → forecast link.** Forecast COGS currently uses a flat gross-margin
+  driver; wiring it to the operational catalog's BOM-derived margin would make the
+  projection catalog-derived end-to-end.
+- **FX deferred polish.** Per-tranche historical equity rates (v1 uses
+  acquisition-date or closing); CTA recycling to P&L on disposal (IAS 21 §48, out
+  of scope until disposals are modelled); period-weighted average rates when monthly
+  FX data is available.
+- **Multi-tenancy.** A `tenantId` on every table + query scoping. Out of scope for
+  the single-tenant model but the natural next step if the app serves multiple groups.
+
+The codebase typechecks cleanly under `strict` and `next build` enforces TypeScript.
+ESLint runs at **0 errors**; 24 React-Compiler-readiness `set-state-in-effect`
+warnings in view components are runtime-safe and tracked for a follow-up sweep.

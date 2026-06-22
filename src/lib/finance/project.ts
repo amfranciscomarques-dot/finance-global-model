@@ -42,6 +42,7 @@ import {
   type FinancialStatements,
 } from './statements';
 import { solveDebtSchedule } from './debt';
+import { round2 } from './money';
 
 /** Driver assumptions for a single projected period. All rates are fractions. */
 export interface ProjectionAssumptions {
@@ -134,26 +135,30 @@ export function projectPeriod(
   const cf = createEmptyCF();
 
   // --- Income statement down to EBIT (interest-independent) ---
-  is.revenue = o.incomeStatement.revenue * (1 + a.revenueGrowthRate);
-  is.cogs = -(1 - a.grossMarginRate) * is.revenue;            // stored negative
-  is.opex = o.incomeStatement.opex * (1 + a.opexGrowthRate);  // stored negative
-  is.depreciation = -a.depreciationRate * o.balanceSheet.ppe; // stored negative
+  // Round each driver-computed line to the nearest cent. This prevents float
+  // errors from compounding multiplicatively across a multi-period chain
+  // (LOW.3). The cash plug and income-statement finalization are intentionally
+  // left unrounded to preserve the double-entry identity exactly.
+  is.revenue = round2(o.incomeStatement.revenue * (1 + a.revenueGrowthRate));
+  is.cogs = round2(-(1 - a.grossMarginRate) * is.revenue);            // stored negative
+  is.opex = round2(o.incomeStatement.opex * (1 + a.opexGrowthRate));  // stored negative
+  is.depreciation = round2(-a.depreciationRate * o.balanceSheet.ppe); // stored negative
   const ebit = is.revenue + is.cogs + is.opex + is.depreciation; // grossProfit + opex + dep
   const depMag = Math.abs(is.depreciation);
   const openingDebt = o.balanceSheet.shortTermDebt + o.balanceSheet.longTermDebt;
 
   // --- Working-capital drivers (closing balances from days) ---
   const cogsMag = Math.abs(is.cogs);
-  bs.accountsReceivable = (a.receivableDays / 365) * is.revenue;
-  bs.inventory = (a.inventoryDays / 365) * cogsMag;
-  bs.accountsPayable = (a.payableDays / 365) * cogsMag;
+  bs.accountsReceivable = round2((a.receivableDays / 365) * is.revenue);
+  bs.inventory = round2((a.inventoryDays / 365) * cogsMag);
+  bs.accountsPayable = round2((a.payableDays / 365) * cogsMag);
   const deltaWC =
     (bs.accountsReceivable - o.balanceSheet.accountsReceivable) +
     (bs.inventory - o.balanceSheet.inventory) -
     (bs.accountsPayable - o.balanceSheet.accountsPayable); // ↑ net WC consumes cash
 
   // --- PPE roll-forward: opening + capex − depreciation ---
-  bs.ppe = o.balanceSheet.ppe + a.capex - depMag;
+  bs.ppe = round2(o.balanceSheet.ppe + a.capex - depMag);
 
   // Cash available to service debt at a given interest charge: the full period's
   // cash from operations + investing, less dividends, before repaying principal.
