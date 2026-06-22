@@ -201,7 +201,7 @@ function applyModelledTax(ef: EntityFinancials, year: number): void {
   ef.balanceSheet.otherCurrentLiabilities += additionalTax;
 
   is.taxExpense = newTaxExpense;
-  is.netIncome = is.ebt + is.taxExpense;
+  deriveIncomeStatement(is); // re-derive netIncome from the new tax (single source)
   is.minorityInterest = computeMinorityInterest(is, ef.consolidationMethod, ef.ownershipPercentage);
   deriveBalanceSheet(ef.balanceSheet, is);
   deriveCashFlow(ef.cashFlow, is);

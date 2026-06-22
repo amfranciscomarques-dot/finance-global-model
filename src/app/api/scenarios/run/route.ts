@@ -65,7 +65,7 @@ export async function POST(request: NextRequest) {
     adjustedIS.interestExpense = baseIS.interestExpense;
     deriveIncomeStatement(adjustedIS);                              // grossProfit→ebt chain
     adjustedIS.taxExpense = adjustedIS.ebt * baseEffectiveTaxRate;  // preserve effective rate (signed)
-    adjustedIS.netIncome = adjustedIS.ebt + adjustedIS.taxExpense;
+    deriveIncomeStatement(adjustedIS);                             // re-derive netIncome from the new tax (single source)
     adjustedIS.minorityInterest = baseIS.minorityInterest;         // ownership structure unchanged
 
     // --- Scenario balance sheet ----------------------------------------------
