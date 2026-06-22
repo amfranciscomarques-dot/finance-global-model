@@ -3,6 +3,42 @@ import { db } from '@/lib/db';
 import { buildStatements } from '@/lib/finance';
 import { getTaxProvider, reconcileGroupTax } from '@/lib/tax';
 import { categorizeCoaCode } from '@/lib/coa-data';
+import type { TaxJurisdiction } from '@/lib/types';
+
+// Display name + flag for any country code that can appear in a TAX jurisdiction.
+// Wider than JURISDICTION_CONFIG (which is filings-only and excludes US): the tax
+// module models PT/ES/US, and an entity can sit in any code. Falls back to the
+// raw code with a neutral flag so an unmodelled jurisdiction still renders.
+const COUNTRY_META: Record<string, { name: string; flag: string }> = {
+  PT: { name: 'Portugal', flag: '🇵🇹' },
+  ES: { name: 'Spain', flag: '🇪🇸' },
+  DE: { name: 'Germany', flag: '🇩🇪' },
+  FR: { name: 'France', flag: '🇫🇷' },
+  UK: { name: 'United Kingdom', flag: '🇬🇧' },
+  US: { name: 'United States', flag: '🇺🇸' },
+  IT: { name: 'Italy', flag: '🇮🇹' },
+};
+
+function countryMeta(code: string): { name: string; flag: string } {
+  return COUNTRY_META[code] ?? { name: code, flag: '🏳️' };
+}
+
+// One-line statutory note per jurisdiction, surfaced beside the carryforwards so
+// the modelling depth (the PT NOL/RFAI caps in particular) is legible in the UI
+// rather than buried in the tax providers.
+function statutoryNote(code: string, comparable: boolean): string {
+  if (!comparable) return 'Jurisdiction not modelled — booked tax retained as authoritative.';
+  switch (code) {
+    case 'PT':
+      return 'IRC + derramas. NOL deduction capped at 70% of taxable income (art.º 52.º CIRC); RFAI capped at 50% of the coleta, excess carried forward (art.º 23.º CFI).';
+    case 'ES':
+      return 'Impuesto sobre Sociedades — flat statutory rate on taxable income.';
+    case 'US':
+      return 'Federal corporate income tax — flat statutory rate on taxable income.';
+    default:
+      return 'Flat statutory rate on taxable income.';
+  }
+}
 
 // Jurisdiction filing requirements
 const JURISDICTION_CONFIG: Record<string, { name: string; flag: string; framework: string; filings: { name: string; deadline: string }[] }> = {
@@ -357,6 +393,72 @@ export async function GET(request: NextRequest) {
     }
 
     // ============================================================
+    // 10b. Per-jurisdiction tax breakdown (LOW.4)
+    //
+    // Groups the per-entity reconciliation computed above by country, so the
+    // Compliance UI can show booked vs. modelled IRC, the statutory rate, and the
+    // NOL/RFAI carryforwards (otherwise only visible in the engine/tests). Reuses
+    // taxRows (carries the entity code/order) zipped with taxRecon.perEntity.
+    // ============================================================
+    const entityByCode = new Map(entities.map((e) => [e.code, e]));
+    const taxJurisMap = new Map<string, TaxJurisdiction>();
+
+    taxRows.forEach((row, i) => {
+      const recon = taxRecon.perEntity[i];
+      const entity = entityByCode.get(row.code);
+      const cc = entity?.countryCode ?? 'XX';
+
+      let jur = taxJurisMap.get(cc);
+      if (!jur) {
+        const meta = countryMeta(cc);
+        jur = {
+          countryCode: cc,
+          countryName: meta.name,
+          flag: meta.flag,
+          statutoryRate: recon.baseRate,
+          comparable: true,
+          storedTax: 0,
+          modelledTax: 0,
+          drift: 0,
+          withinTolerance: true,
+          note: '',
+          entities: [],
+        };
+        taxJurisMap.set(cc, jur);
+      }
+
+      jur.entities.push({
+        entityCode: row.code,
+        entityName: entity?.legalName ?? row.code,
+        taxableIncome: recon.taxableIncome,
+        storedTax: recon.storedTax,
+        modelledTax: recon.modelledTax,
+        drift: recon.drift,
+        baseRate: recon.baseRate,
+        nolClosing: recon.nolClosing,
+        rfaiClosing: recon.rfaiClosing,
+        comparable: recon.comparable,
+        withinTolerance: recon.withinTolerance,
+      });
+
+      jur.storedTax += recon.storedTax;
+      jur.modelledTax += recon.modelledTax;
+      jur.drift += recon.drift;
+      jur.comparable = jur.comparable && recon.comparable;
+      // Prefer a modelled (non-zero) rate over the unmodelled 0% fallback's.
+      if (recon.comparable) jur.statutoryRate = recon.baseRate;
+    });
+
+    const taxByJurisdiction = Array.from(taxJurisMap.values())
+      .map((jur) => ({
+        ...jur,
+        withinTolerance: Math.abs(jur.drift) <= taxTolerance,
+        note: statutoryNote(jur.countryCode, jur.comparable),
+      }))
+      // Surface the jurisdictions with the largest absolute drift first.
+      .sort((a, b) => Math.abs(b.drift) - Math.abs(a.drift));
+
+    // ============================================================
     // Build Checks Array
     // ============================================================
     const checks = [
@@ -601,6 +703,7 @@ export async function GET(request: NextRequest) {
       checks,
       entities: entityCompliance,
       jurisdictions: jurisdictionCompliance,
+      taxByJurisdiction,
       recentViolations: violations,
       trend: trend.slice(-6),
       lastChecked: new Date().toISOString(),

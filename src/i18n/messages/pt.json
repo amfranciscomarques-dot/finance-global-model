@@ -1,4 +1,29 @@
 {
+  "login": {
+    "title": "Iniciar sessão",
+    "subtitle": "Consolidação financeira multi-empresa",
+    "hint": "Introduza as suas credenciais para aceder à plataforma.",
+    "email": "Email",
+    "password": "Palavra-passe",
+    "submit": "Entrar",
+    "submitting": "A entrar…",
+    "invalid": "Email ou palavra-passe inválidos.",
+    "error": "Falha ao iniciar sessão. Tente novamente.",
+    "demoTitle": "Contas de demonstração",
+    "demoHint": "Clique numa conta para entrar. As permissões variam consoante o perfil.",
+    "backToApp": "← Voltar à aplicação"
+  },
+  "auth": {
+    "signIn": "Entrar",
+    "signOut": "Sair",
+    "signedInAs": "Sessão iniciada como {name}",
+    "viewer": "Consulta",
+    "preparer": "Preparador",
+    "approver": "Aprovador",
+    "viewerDesc": "Acesso apenas de leitura",
+    "preparerDesc": "Preparar dados e correr consolidações",
+    "approverDesc": "Acesso total, incl. eliminar e repor"
+  },
   "common": {
     "language": "Idioma",
     "english": "English",
@@ -1167,6 +1192,21 @@
     },
     "filedCount": "{filed}/{total} submetidos",
     "overdueCount": "{count} em atraso",
+    "taxTitle": "Imposto por Jurisdição",
+    "taxDesc": "IRC contabilizado vs. imposto estatutário modelado, com reportes de prejuízos e créditos",
+    "statutoryRate": "Taxa estatutária",
+    "taxReconciled": "Reconciliado",
+    "taxNotModelled": "Não modelado",
+    "taxDriftBadge": "Desvio {amount}",
+    "taxHeaders": {
+      "entity": "Entidade",
+      "taxableIncome": "Matéria coletável",
+      "booked": "Contabilizado",
+      "modelled": "Modelado",
+      "drift": "Desvio",
+      "nol": "Prej. a reportar",
+      "rfai": "RFAI a reportar"
+    },
     "violationsTitle": "Violações e Avisos Recentes",
     "export": "Exportar",
     "noViolations": "Nenhuma violação encontrada — todas as verificações aprovadas!",

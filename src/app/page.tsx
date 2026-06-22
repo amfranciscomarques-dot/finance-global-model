@@ -27,6 +27,7 @@ import { GroupSelectScreen } from '@/components/group-select-screen';
 import { NotificationCenter } from '@/components/notification-center';
 import { CommandPalette } from '@/components/command-palette';
 import { LocaleToggle } from '@/components/locale-toggle';
+import { AuthStatus } from '@/components/auth-status';
 import { useTranslations, useLocale } from 'next-intl';
 import { dateLocale, type Locale } from '@/i18n/locale-context';
 import {
@@ -205,6 +206,8 @@ export default function Home() {
               </span>
             </div>
             <div className="flex items-center gap-3">
+              {/* Account / role indicator + logout */}
+              <AuthStatus />
               {/* Language toggle */}
               <LocaleToggle />
               {/* Enhanced System Status */}

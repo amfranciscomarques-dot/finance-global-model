@@ -1,4 +1,4 @@
-import { Entity, ConsolidatedResult, Scenario, VarianceData, ExchangeRateInfo, KPIs, COAAccount, COAMapping, ImportRecord, ImportHistoryEntry, AuditEntry, ICTransaction, GeneratedReport, BudgetVsActualSummary, BudgetVarianceDetail, TrendData, SystemSettings, CashFlowForecast, AppNotification, ComplianceCheck, EntityCompliance, JurisdictionCompliance, Violation, JournalEntry, JournalEntryCreateRequest, WorkflowData, OperationsData } from './types';
+import { Entity, ConsolidatedResult, Scenario, VarianceData, ExchangeRateInfo, KPIs, COAAccount, COAMapping, ImportRecord, ImportHistoryEntry, AuditEntry, ICTransaction, GeneratedReport, BudgetVsActualSummary, BudgetVarianceDetail, TrendData, SystemSettings, CashFlowForecast, AppNotification, ComplianceCheck, EntityCompliance, JurisdictionCompliance, TaxJurisdiction, Violation, JournalEntry, JournalEntryCreateRequest, WorkflowData, OperationsData } from './types';
 
 const BASE_URL = '/api';
 
@@ -441,6 +441,7 @@ export interface ComplianceData {
   checks: ComplianceCheck[];
   entities: EntityCompliance[];
   jurisdictions: JurisdictionCompliance[];
+  taxByJurisdiction: TaxJurisdiction[];
   recentViolations: Violation[];
   trend: { period: string; score: number }[];
   lastChecked: string;

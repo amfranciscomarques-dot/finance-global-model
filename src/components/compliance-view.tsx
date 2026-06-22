@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   Shield, CheckCircle2, AlertTriangle, XCircle, ChevronDown, ChevronUp,
-  Clock, ArrowRight, RefreshCw, Download,
+  Clock, ArrowRight, RefreshCw, Download, Landmark,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -12,6 +12,7 @@ import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { getCompliance, ComplianceData } from '@/lib/api';
+import { formatCurrency, formatPercent } from '@/lib/format';
 import { DataLoadError } from '@/components/data-load-error';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslations, useLocale } from 'next-intl';
@@ -120,6 +121,32 @@ const demoComplianceData: ComplianceData = {
       { name: 'Déclaration de Résultat', deadline: '2025-04-30', status: 'overdue' },
       { name: 'Déclaration IS', deadline: '2025-05-20', status: 'pending' },
     ]},
+  ],
+  taxByJurisdiction: [
+    {
+      countryCode: 'PT', countryName: 'Portugal', flag: '🇵🇹', statutoryRate: 0.21, comparable: true,
+      storedTax: 600000, modelledTax: 543750, drift: 56250, withinTolerance: false,
+      note: 'IRC + derramas. NOL deduction capped at 70% of taxable income (art.º 52.º CIRC); RFAI capped at 50% of the coleta, excess carried forward (art.º 23.º CFI).',
+      entities: [
+        { entityCode: 'MERID', entityName: 'Meridian Components, S.A.', taxableIncome: 2500000, storedTax: 600000, modelledTax: 543750, drift: 56250, baseRate: 0.21, nolClosing: 0, rfaiClosing: 0, comparable: true, withinTolerance: false },
+      ],
+    },
+    {
+      countryCode: 'ES', countryName: 'Spain', flag: '🇪🇸', statutoryRate: 0.25, comparable: true,
+      storedTax: 187500, modelledTax: 187500, drift: 0, withinTolerance: true,
+      note: 'Impuesto sobre Sociedades — flat statutory rate on taxable income.',
+      entities: [
+        { entityCode: 'MESP', entityName: 'Meridian España, S.L.', taxableIncome: 750000, storedTax: 187500, modelledTax: 187500, drift: 0, baseRate: 0.25, nolClosing: 0, rfaiClosing: 0, comparable: true, withinTolerance: true },
+      ],
+    },
+    {
+      countryCode: 'US', countryName: 'United States', flag: '🇺🇸', statutoryRate: 0.21, comparable: true,
+      storedTax: 105000, modelledTax: 105000, drift: 0, withinTolerance: true,
+      note: 'Federal corporate income tax — flat statutory rate on taxable income.',
+      entities: [
+        { entityCode: 'MUSA', entityName: 'Meridian USA, Inc.', taxableIncome: 500000, storedTax: 105000, modelledTax: 105000, drift: 0, baseRate: 0.21, nolClosing: 0, rfaiClosing: 0, comparable: true, withinTolerance: true },
+      ],
+    },
   ],
   recentViolations: [
     { id: 'v1', severity: 'critical', entityCode: 'FR0005', description: 'COA Mapping Coverage: Only 58% of accounts mapped to group COA', detectedAt: new Date().toISOString(), remediation: 'Map remaining 42% of local accounts to group COA codes for FR0005.', status: 'open' },
@@ -682,6 +709,112 @@ export function ComplianceView() {
           })}
         </div>
       </div>
+
+      {/* Gradient divider */}
+      <div className="h-px bg-gradient-to-r from-transparent via-emerald-300 dark:via-emerald-700 to-transparent" />
+
+      {/* Per-Jurisdiction Tax */}
+      {data.taxByJurisdiction && data.taxByJurisdiction.length > 0 && (
+        <div>
+          <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-4 flex items-center gap-2">
+            <Landmark className="w-4 h-4 text-emerald-600" />
+            {t('taxTitle')}
+          </h3>
+          <p className="text-xs text-muted-foreground -mt-2 mb-4">{t('taxDesc')}</p>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {data.taxByJurisdiction.map((jur, i) => {
+              const reconciled = jur.comparable && jur.withinTolerance;
+              return (
+                <motion.div
+                  key={jur.countryCode}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: i * 0.08, duration: 0.35 }}
+                >
+                  <Card className={`shadow-sm border h-full ${
+                    !jur.comparable ? 'border-slate-200 dark:border-slate-700/60'
+                    : reconciled ? 'border-emerald-200 dark:border-emerald-800/50'
+                    : 'border-amber-200 dark:border-amber-800/50'
+                  }`}>
+                    <CardContent className="p-4">
+                      {/* Header */}
+                      <div className="flex items-center gap-2 mb-3">
+                        <span className="text-xl">{jur.flag}</span>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold truncate">{jur.countryName}</p>
+                          <p className="text-[10px] text-muted-foreground">
+                            {t('statutoryRate')}: {formatPercent(jur.statutoryRate * 100)}
+                          </p>
+                        </div>
+                        {!jur.comparable ? (
+                          <Badge className="bg-slate-100 dark:bg-slate-800/50 text-slate-600 dark:text-slate-400 text-[10px]">
+                            {t('taxNotModelled')}
+                          </Badge>
+                        ) : reconciled ? (
+                          <Badge className="bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 text-[10px]">
+                            {t('taxReconciled')}
+                          </Badge>
+                        ) : (
+                          <Badge className="bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 text-[10px]">
+                            {t('taxDriftBadge', { amount: formatCurrency(jur.drift) })}
+                          </Badge>
+                        )}
+                      </div>
+
+                      {/* Booked / Modelled / Drift summary */}
+                      <div className="grid grid-cols-3 gap-2 mb-3">
+                        {[
+                          { label: t('taxHeaders.booked'), value: jur.storedTax, accent: '' },
+                          { label: t('taxHeaders.modelled'), value: jur.modelledTax, accent: '' },
+                          { label: t('taxHeaders.drift'), value: jur.drift, accent: jur.comparable && !jur.withinTolerance ? 'text-amber-600 dark:text-amber-400' : 'text-muted-foreground' },
+                        ].map((stat) => (
+                          <div key={stat.label} className="rounded-lg bg-slate-50 dark:bg-slate-900/40 px-2 py-1.5">
+                            <p className="text-[9px] text-muted-foreground uppercase tracking-wider">{stat.label}</p>
+                            <p className={`text-xs font-semibold tabular-nums ${stat.accent}`}>{formatCurrency(stat.value)}</p>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Per-entity table */}
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-[11px]">
+                          <thead>
+                            <tr className="text-muted-foreground border-b border-slate-100 dark:border-slate-800">
+                              <th className="text-left font-medium py-1 pr-2">{t('taxHeaders.entity')}</th>
+                              <th className="text-right font-medium py-1 px-1">{t('taxHeaders.booked')}</th>
+                              <th className="text-right font-medium py-1 px-1">{t('taxHeaders.modelled')}</th>
+                              <th className="text-right font-medium py-1 px-1">{t('taxHeaders.nol')}</th>
+                              <th className="text-right font-medium py-1 pl-1">{t('taxHeaders.rfai')}</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {jur.entities.map((e) => (
+                              <tr key={e.entityCode} className="border-b border-slate-50 dark:border-slate-800/50 last:border-0">
+                                <td className="py-1 pr-2">
+                                  <span className="font-mono">{e.entityCode}</span>
+                                </td>
+                                <td className="text-right py-1 px-1 tabular-nums">{formatCurrency(e.storedTax)}</td>
+                                <td className="text-right py-1 px-1 tabular-nums">{e.comparable ? formatCurrency(e.modelledTax) : t('na')}</td>
+                                <td className="text-right py-1 px-1 tabular-nums">{formatCurrency(e.nolClosing)}</td>
+                                <td className="text-right py-1 pl-1 tabular-nums">{formatCurrency(e.rfaiClosing)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      {/* Statutory note */}
+                      <p className="mt-3 pt-2 border-t border-slate-100 dark:border-slate-800 text-[10px] text-muted-foreground leading-relaxed">
+                        {jur.note}
+                      </p>
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Gradient divider */}
       <div className="h-px bg-gradient-to-r from-transparent via-emerald-300 dark:via-emerald-700 to-transparent" />

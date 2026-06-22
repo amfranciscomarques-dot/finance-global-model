@@ -1,6 +1,7 @@
 import type { PrismaClient } from '@prisma/client';
 import { CHART_OF_ACCOUNTS } from '@/lib/coa-data';
 import { appraiseProject } from '@/lib/projects/finance';
+import { ensureAuthUsers } from '@/lib/auth/users';
 import type { CompanyPack } from './types';
 
 export interface SeedPackResult {
@@ -245,6 +246,12 @@ export async function seedCompanyPack(
       stats.products++;
     }
   }
+
+  // 9. Demo auth users (LOW.5) — one per role, idempotent, so the seeded
+  //    single-tenant demo always has a working login. Deliberately NOT cleared
+  //    by `reset` (users outlive the dataset they administer); real deployments
+  //    create their own users and set AUTH_SECRET.
+  await ensureAuthUsers(db);
 
   return { packId: pack.id, reset, period: pack.period, projectAppraisals, stats };
 }

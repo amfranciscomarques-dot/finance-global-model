@@ -428,3 +428,26 @@ model ChatSession {
 
   @@index([lastActive])
 }
+
+// ==========================================
+// USERS & AUTH (single-tenant hardening — LOW.5)
+//
+// Real credential login layered over the demo-safe middleware guard. Passwords
+// are stored as PBKDF2-SHA256 (Web Crypto) hashes; sessions are stateless
+// HMAC-signed cookies (no server-side session store). `role` drives the
+// middleware authorization policy (src/lib/auth/policy.ts):
+//   viewer    — read-only
+//   preparer  — + run/import/edit the dataset
+//   approver  — + destructive/structural actions (delete, reset, re-seed)
+// ==========================================
+
+model User {
+  id                    String    @id @default(cuid())
+  email                 String    @unique
+  name                  String
+  passwordHash          String                               // pbkdf2$<iters>$<salt_b64>$<hash_b64>
+  role                  String    @default("viewer")         // viewer | preparer | approver
+  isActive              Boolean   @default(true)
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+}

@@ -574,6 +574,55 @@ export interface JurisdictionCompliance {
   filings: { name: string; deadline: string; status: 'filed' | 'pending' | 'overdue' }[];
 }
 
+// Per-entity row in the per-jurisdiction tax breakdown (LOW.4). Mirrors one
+// TaxReconciliation from src/lib/tax, plus the entity's display name.
+export interface TaxJurisdictionEntity {
+  entityCode: string;
+  entityName: string;
+  /** Taxable base fed to the provider (≈ max(0, EBT)). */
+  taxableIncome: number;
+  /** Booked IRC, positive magnitude (= -taxExpense). */
+  storedTax: number;
+  /** Provider-modelled statutory tax (positive). */
+  modelledTax: number;
+  /** storedTax − modelledTax. Positive ⇒ booked tax over-states the liability. */
+  drift: number;
+  /** Headline statutory rate applied, as a fraction (e.g. 0.21). */
+  baseRate: number;
+  /** Loss pool carried forward — next year's NOL opening (art.º 52.º CIRC). */
+  nolClosing: number;
+  /** Unused RFAI credit carried forward (art.º 23.º CFI). */
+  rfaiClosing: number;
+  /** False for the unmodelled-jurisdiction fallback provider. */
+  comparable: boolean;
+  /** |drift| within the materiality tolerance. */
+  withinTolerance: boolean;
+}
+
+// One jurisdiction's tax position: the per-entity rows above plus the summed
+// stored/modelled/drift and a one-line statutory note. Drives the
+// "Per-Jurisdiction Tax" section of the Compliance view.
+export interface TaxJurisdiction {
+  countryCode: string;
+  countryName: string;
+  flag: string;
+  /** Headline statutory rate for the jurisdiction, as a fraction. */
+  statutoryRate: number;
+  /** True only when EVERY entity in the jurisdiction is modelled. */
+  comparable: boolean;
+  /** Summed booked IRC across the jurisdiction's entities. */
+  storedTax: number;
+  /** Summed provider-modelled tax. */
+  modelledTax: number;
+  /** storedTax − modelledTax. */
+  drift: number;
+  /** |drift| within tolerance (only meaningful when comparable). */
+  withinTolerance: boolean;
+  /** One-line statutory note (NOL/RFAI caps for PT, flat rate elsewhere). */
+  note: string;
+  entities: TaxJurisdictionEntity[];
+}
+
 export interface Violation {
   id: string;
   severity: 'critical' | 'warning' | 'info';

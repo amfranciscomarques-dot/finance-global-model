@@ -186,26 +186,48 @@ Two paths:
 
 ## Security / auth posture
 
-This is a **single-tenant portfolio demo** seeded with sample company data, so it
-deliberately ships **no login system** — a recruiter or reviewer can open the
-live demo and explore every dashboard, run consolidations and play with scenarios
-without signing in. Full multi-tenant auth (per-user/org sessions plus a tenant
-column on every table) is the right call for a real product, but for a demo it
-would only add friction.
+This is a **single-tenant** app: one shared dataset, with **real credential login
+and role-based authorization** deciding who may change it (LOW.5). Reads stay open
+so a recruiter or reviewer can explore every dashboard, run consolidations and play
+with scenarios without signing in; mutations are gated by role.
 
-What *is* protected: `src/middleware.ts` gates the handful of endpoints that can
-destroy or bulk-replace the shared dataset (`POST /api/packs`, `POST /api/import`,
-`settings` writes, any `DELETE`) behind an admin token.
+**Authentication** (`src/lib/auth/*`) is built on the Web Crypto API — no external
+dependency, no native bindings, and edge-compatible so the same code verifies
+sessions in `src/middleware.ts`:
 
-- **Local dev:** `ADMIN_TOKEN` unset → every route is open.
-- **Deployed demo:** set `ADMIN_TOKEN` (env). Destructive routes then require it
-  via the `x-admin-token` header or `admin_token` cookie; everything else stays
-  open. This keeps the public demo explorable while protecting its data integrity.
+- Passwords are stored as **PBKDF2-SHA256** hashes (`pbkdf2$<iters>$<salt>$<hash>`).
+- Sessions are **stateless, HMAC-signed cookies** (httpOnly, SameSite=Lax,
+  Secure in production) — no server-side session store.
+- `AUTH_SECRET` signs/verifies the session. In production it **must** be set;
+  locally it falls back to a clearly-insecure constant so the demo works with
+  zero config.
 
-**Production upgrade path:** replace the middleware guard with real
-authentication (e.g. session-based) and scope every Prisma query by `userId`/
-`orgId`. The schema would gain a tenant column; the middleware matcher already
-centralises where that gate lives.
+**Authorization** (`src/lib/auth/policy.ts`) maps three roles onto capabilities
+(segregation of duties):
+
+| Role | Can |
+|------|-----|
+| `viewer` | read-only |
+| `preparer` | + run/import/edit the dataset |
+| `approver` | + destructive/structural actions (any `DELETE`, re-seed/reset via `POST /api/packs`) |
+
+The `src/middleware.ts` guard activates when **either** `AUTH_SECRET` **or**
+`ADMIN_TOKEN` is set (pure local dev, with neither, stays fully open). When
+active: reads pass; the auth-bootstrap (`/api/auth/login`,`/logout`) and
+compute-only POSTs (`/api/consolidation`, `/api/scenarios/run`) stay open to keep
+the demo explorable; every other mutation needs a session whose role permits it,
+or — as a CI/script escape hatch — the legacy `ADMIN_TOKEN` (`x-admin-token`
+header / `admin_token` cookie) for full access.
+
+**Demo accounts** (seeded with the template pack, one per role; visible on the
+login page): `approver@demo.local`, `preparer@demo.local`, `viewer@demo.local` —
+each with the password equal to its role. Real deployments create their own users
+and set `AUTH_SECRET`.
+
+**Remaining gap — multi-tenancy:** the model is still single-tenant. Isolating
+multiple groups would add a `tenantId` to `Entity`/`TrialBalance`/`ConsolidationRun`
+and scope every query by it; the auth layer and middleware matcher already
+centralise where identity is established.
 
 ## Known limitations (roadmap)
 

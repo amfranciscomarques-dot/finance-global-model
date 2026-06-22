@@ -13,6 +13,82 @@ because they grew over time.
 
 ---
 
+## 2026-06-22 — Single-tenant auth & role-based authorization (LOW.5)
+
+Real credential login and role-based authorization, layered over the original
+demo-safe middleware guard. The model stays **single-tenant** (one shared dataset);
+roles decide who may change it. Built on the **Web Crypto API** — no new runtime
+dependency, no native bindings, edge-compatible — chosen over Auth.js so the same
+hashing/signing code runs in both the edge middleware and Node route handlers and
+the strict `test`+`eslint`+`build` gate stays safe on Next 16 / React 19 / Windows.
+
+- **Auth core (`src/lib/auth/*`), all edge-safe where it must be.**
+  - `password.ts` — **PBKDF2-SHA256** hashing (100k iters), self-describing format
+    `pbkdf2$<iters>$<salt_b64>$<hash_b64>`, constant-time compare.
+  - `session.ts` — **stateless HMAC-signed** session token
+    (`base64url(payload).base64url(HMAC)`), 8 h TTL, tamper/expiry/wrong-secret
+    rejection. `AUTH_SECRET` is required in production; a dev fallback keeps local
+    use config-free.
+  - `policy.ts` — role→capability map (pure, no I/O): `viewer` (read-only),
+    `preparer` (+ run/import/edit), `approver` (+ any `DELETE`, + re-seed/reset via
+    `POST /api/packs`).
+  - `users.ts` — Prisma-backed `authenticate` + idempotent `ensureAuthUsers`
+    (seeds one demo user per role; called from the company-pack seeder).
+- **Middleware (`src/middleware.ts`) extended, not replaced.** Activates when
+  `AUTH_SECRET` *or* `ADMIN_TOKEN` is set (else fully open locally). Reads pass; the
+  auth-bootstrap and compute-only POSTs (`/api/auth/login|logout`,
+  `/api/consolidation`, `/api/scenarios/run`) stay open; every other mutation needs a
+  session whose role permits it (`401` if anonymous, `403` if under-privileged), or
+  the legacy `ADMIN_TOKEN` escape hatch for full access.
+- **Routes:** `POST /api/auth/login` (sets httpOnly cookie; no user enumeration on
+  failure), `POST /api/auth/logout`, `GET /api/auth/me`.
+- **UI:** a standalone `/login` page (form + clickable demo accounts, full EN + PT
+  i18n) and a header `AuthStatus` indicator (role badge + logout / "Sign in").
+- **Schema:** new `User` model + migration `20260622030000_user_auth` (the dev
+  `custom.db` predates clean migration history, so the table was applied with
+  `prisma db execute`; fresh clones get it via `npm run db:deploy`).
+- **Verification:** 277 tests pass (was 251 — +26 across `auth.test.ts`,
+  `middleware.test.ts`, `login/route.test.ts`); `tsc --noEmit` clean; `eslint` 0
+  errors; `npm run build` ✓. Verified live: `/login` renders (PT), approver login →
+  httpOnly session (not JS-readable) → header shows "Aprovador" → logout reverts to
+  "Entrar"; no console errors.
+
+---
+
+## 2026-06-22 — Per-jurisdiction tax view in Compliance (LOW.4)
+
+Surfaces the per-entity tax reconciliation — already computed for the
+`tax-reconciliation` compliance check — as a **per-jurisdiction breakdown** in the
+Compliance UI, and with it the NOL/RFAI carryforwards and PT statutory caps that
+were previously visible only in the engine/tests (closing the MEDIUM.8 "surface the
+carryforwards" quick win). Purely additive and read-only: no new computation, no
+schema change, every golden value untouched.
+
+- **`taxByJurisdiction` on `GET /api/compliance`.** Reuses the existing
+  `reconcileGroupTax` result (same rows, same tolerance as check #10), grouping the
+  per-entity `TaxReconciliation` by `countryCode`. Each jurisdiction carries the
+  summed booked vs. modelled IRC, the headline statutory rate, a `comparable` flag,
+  `withinTolerance`, the per-entity rows (taxable income, booked/modelled tax, drift,
+  NOL c/f, RFAI c/f) and a one-line statutory note (the PT art.º 52.º CIRC NOL cap /
+  art.º 23.º CFI RFAI cap; flat-rate note for ES/US; "not modelled" otherwise).
+  Sorted by descending |drift|. Entities with no trial-balance data contribute no
+  row, so the empty `MESP` (ES) book correctly produces no ES card.
+- **New `TaxJurisdiction` / `TaxJurisdictionEntity` types** (`src/lib/types.ts`),
+  added to `ComplianceData` in `api.ts`.
+- **"Per-Jurisdiction Tax" section in `compliance-view.tsx`.** One card per
+  jurisdiction (flag, country, statutory rate, reconciled/drift/not-modelled badge),
+  a booked/modelled/drift summary, the per-entity table, and the statutory note.
+  Money/percent via the shared `de-DE` formatters; full EN + PT i18n; demo-fallback
+  data added. Verified live in both locales (no console errors): the demo group
+  renders **US (MUSA) drift €131.701** and **PT €56.250** (MERID €500k→€465k, MSUB
+  €100k→€78,75k), the per-jurisdiction drifts summing to the €187.951 the
+  `tax-reconciliation` check reports.
+- **Tests (251 pass, was 249).** Two cases in `compliance/route.test.ts`: the
+  jurisdictions group with internally-consistent sums and numeric NOL/RFAI
+  carryforwards on every entity (PT/US present, empty ES absent); and the
+  per-jurisdiction drift reconciles to the authoritative `tax-reconciliation` check
+  with the PT statutory note surfaced. `npx tsc --noEmit` clean, eslint 0 errors.
+
 ## 2026-06-22 — Remove N+1 / per-row `await` in the engine (LOW.2)
 
 Collapses the per-row database round trips in the consolidation engine and the IC

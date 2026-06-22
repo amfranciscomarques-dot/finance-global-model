@@ -1,4 +1,29 @@
 {
+  "login": {
+    "title": "Sign in",
+    "subtitle": "Multi-company financial consolidation",
+    "hint": "Enter your credentials to access the workspace.",
+    "email": "Email",
+    "password": "Password",
+    "submit": "Sign in",
+    "submitting": "Signing in…",
+    "invalid": "Invalid email or password.",
+    "error": "Sign-in failed. Please try again.",
+    "demoTitle": "Demo accounts",
+    "demoHint": "Click an account to sign in. Permissions differ by role.",
+    "backToApp": "← Back to the app"
+  },
+  "auth": {
+    "signIn": "Sign in",
+    "signOut": "Sign out",
+    "signedInAs": "Signed in as {name}",
+    "viewer": "Viewer",
+    "preparer": "Preparer",
+    "approver": "Approver",
+    "viewerDesc": "Read-only access",
+    "preparerDesc": "Prepare data & run consolidations",
+    "approverDesc": "Full access incl. delete & reset"
+  },
   "common": {
     "language": "Language",
     "english": "English",
@@ -1167,6 +1192,21 @@
     },
     "filedCount": "{filed}/{total} filed",
     "overdueCount": "{count} overdue",
+    "taxTitle": "Per-Jurisdiction Tax",
+    "taxDesc": "Booked IRC vs. the modelled statutory tax, with loss & credit carryforwards",
+    "statutoryRate": "Statutory rate",
+    "taxReconciled": "Reconciled",
+    "taxNotModelled": "Not modelled",
+    "taxDriftBadge": "Drift {amount}",
+    "taxHeaders": {
+      "entity": "Entity",
+      "taxableIncome": "Taxable income",
+      "booked": "Booked",
+      "modelled": "Modelled",
+      "drift": "Drift",
+      "nol": "NOL c/f",
+      "rfai": "RFAI c/f"
+    },
     "violationsTitle": "Recent Violations & Warnings",
     "export": "Export",
     "noViolations": "No violations found — all checks passing!",

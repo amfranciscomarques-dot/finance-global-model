@@ -1,64 +1,78 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { SESSION_COOKIE, verifySession } from '@/lib/auth/session';
+import { authorizeMutation } from '@/lib/auth/policy';
 
 // ============================================================
-// DEMO-SAFE API GUARD
+// API GUARD — single-tenant auth (LOW.5)
 //
-// This app is a single-tenant portfolio demo seeded with sample company data,
-// not a multi-tenant product — so it intentionally ships NO login system. A full
-// auth stack (per-user sessions + a userId/orgId column on every table) would be
-// the right call for production, but for a clickable demo it only adds friction.
+// Real credential login (src/lib/auth/*) layered over the original demo-safe
+// guard. The model stays single-tenant: one shared dataset, with roles deciding
+// who may change it.
 //
-// Instead we default-deny every MUTATING request (POST/PUT/PATCH/DELETE) behind
-// an admin token, and explicitly allowlist the few safe interactive POSTs
-// (running a consolidation / scenario) so the live demo stays fully explorable
-// (dashboards, reads, running consolidations) with zero sign-in.
+//   - Neither AUTH_SECRET nor ADMIN_TOKEN set (pure local dev): everything is
+//     open — zero friction.
+//   - Otherwise the guard is active:
+//       * Reads (GET/HEAD/OPTIONS) are always open — the demo stays explorable.
+//       * A short allowlist of safe POSTs stays open: the auth bootstrap routes
+//         (login/logout, which can't require a session) and the compute-only
+//         interactive runs (consolidation / scenario projection).
+//       * Every other mutation requires either a valid session cookie whose
+//         role permits the action (see policy.ts), or — as a CI/script escape
+//         hatch — the legacy admin token.
 //
-//   - ADMIN_TOKEN unset (local dev):  every route is open.
-//   - ADMIN_TOKEN set (deployed demo): reads + the allowlisted interactive POSTs
-//     are open; all other mutations require the token via the `x-admin-token`
-//     header or the `admin_token` cookie.
-//
-// Production upgrade path (documented in README): swap this guard for real
-// per-user/per-org authentication and scope every query by tenant.
+// Session verification uses the Web Crypto API (HMAC), which runs in the edge
+// runtime; policy.ts and session.ts are dependency-free, so no Prisma or Node
+// API is pulled into the middleware bundle.
 // ============================================================
 
-// Default-deny for mutating methods: any POST/PUT/PATCH/DELETE requires the
-// admin token, EXCEPT the short allowlist of genuinely safe interactive POSTs
-// below (running a consolidation or a scenario projection — compute-only, so the
-// demo stays explorable). This is stricter than an enumerated block list: new
-// mutating routes are protected by default rather than accidentally left open.
 const MUTATING_METHODS: ReadonlySet<string> = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
 const OPEN_POSTS: ReadonlyArray<RegExp> = [
-  /^\/api\/consolidation(\/|$)/,    // run a consolidation (compute + audit row)
-  /^\/api\/scenarios\/run(\/|$)/,   // run a scenario projection (compute + audit row)
+  /^\/api\/auth\/(login|logout)(\/|$)/, // auth bootstrap — must be reachable pre-session
+  /^\/api\/consolidation(\/|$)/, // run a consolidation (compute + audit row)
+  /^\/api\/scenarios\/run(\/|$)/, // run a scenario projection (compute + audit row)
 ];
 
-export function middleware(req: NextRequest): NextResponse {
-  const token = process.env.ADMIN_TOKEN;
-  if (!token) return NextResponse.next(); // open in local/dev — no token configured
+function deny(status: number, error: string, detail: string): NextResponse {
+  return NextResponse.json({ error, detail }, { status });
+}
+
+export async function middleware(req: NextRequest): Promise<NextResponse> {
+  const adminToken = process.env.ADMIN_TOKEN;
+  const authSecret = process.env.AUTH_SECRET;
+
+  // Open in pure local/dev when no guard is configured at all.
+  if (!adminToken && !authSecret) return NextResponse.next();
 
   const { pathname } = req.nextUrl;
   const method = req.method.toUpperCase();
 
-  // Reads (GET/HEAD/OPTIONS) are always open.
+  // Reads are always open.
   if (!MUTATING_METHODS.has(method)) return NextResponse.next();
 
-  // Allowlisted interactive POSTs stay open; everything else that mutates the
-  // shared dataset — or costs money / egresses data, e.g. POST /api/ai-chat —
-  // requires the token.
-  const isOpenInteractive = method === 'POST' && OPEN_POSTS.some((p) => p.test(pathname));
-  if (isOpenInteractive) return NextResponse.next();
+  // Allowlisted safe POSTs (auth bootstrap + compute-only runs) stay open.
+  if (method === 'POST' && OPEN_POSTS.some((p) => p.test(pathname))) return NextResponse.next();
 
+  // 1) Real login: a valid session cookie whose role permits the action.
+  const session = await verifySession(req.cookies.get(SESSION_COOKIE)?.value);
+  if (session) {
+    if (authorizeMutation(session.role, method, pathname)) return NextResponse.next();
+    return deny(
+      403,
+      'Insufficient role for this action.',
+      `Your role '${session.role}' cannot perform ${method} ${pathname}.`,
+    );
+  }
+
+  // 2) Legacy admin-token escape hatch (CI / scripts) — full access.
   const provided = req.headers.get('x-admin-token') ?? req.cookies.get('admin_token')?.value;
-  if (provided && provided === token) return NextResponse.next();
+  if (adminToken && provided && provided === adminToken) return NextResponse.next();
 
-  return NextResponse.json(
-    {
-      error: 'This action is disabled on the public demo.',
-      detail: 'Run the app locally, or supply an admin token, to modify the dataset.',
-    },
-    { status: 403 },
+  // 3) Otherwise authentication is required.
+  return deny(
+    401,
+    'Authentication required.',
+    'Sign in (or supply an admin token) to modify the dataset.',
   );
 }
 

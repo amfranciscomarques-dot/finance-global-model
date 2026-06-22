@@ -66,6 +66,7 @@ interface ComplianceCheck {
   id: string;
   status: 'pass' | 'warning' | 'fail';
   score: number;
+  details: string;
   affectedEntities: string[];
 }
 
@@ -107,5 +108,78 @@ describe('GET /api/compliance — balance-sheet integrity (EQY-* equity)', () =>
     expect(mi.status).toBe('pass');
     expect(mi.score).toBe(100);
     expect(mi.affectedEntities).not.toContain('MNCI');
+  });
+});
+
+// LOW.4 — per-jurisdiction tax breakdown. The route already reconciles booked IRC
+// against the modelled statutory tax for the tax-reconciliation check; this asserts
+// the same reconciliation is now grouped by country and exposed for the UI, with the
+// NOL/RFAI carryforwards and the statutory note surfaced (no longer engine-only).
+interface TaxJurisdictionEntity {
+  entityCode: string;
+  storedTax: number;
+  modelledTax: number;
+  drift: number;
+  nolClosing: number;
+  rfaiClosing: number;
+  comparable: boolean;
+}
+interface TaxJurisdiction {
+  countryCode: string;
+  comparable: boolean;
+  storedTax: number;
+  modelledTax: number;
+  drift: number;
+  withinTolerance: boolean;
+  note: string;
+  entities: TaxJurisdictionEntity[];
+}
+
+describe('GET /api/compliance — per-jurisdiction tax (LOW.4)', () => {
+  it('groups the modelled jurisdictions with internally-consistent sums', async () => {
+    const res = await call(PERIOD);
+    const body = await res.json();
+    const tax = body.taxByJurisdiction as TaxJurisdiction[];
+
+    expect(Array.isArray(tax)).toBe(true);
+    // PT (MERID, MSUB, MNCI) and US (MUSA) carry trial-balance data; MESP (ES) is
+    // seeded empty in the template, so ES has nothing to reconcile and is absent.
+    const codes = tax.map(j => j.countryCode);
+    expect(codes).toEqual(expect.arrayContaining(['PT', 'US']));
+
+    // Each jurisdiction's headline figures are exactly the sum of its entity rows,
+    // and every entity exposes numeric NOL/RFAI carryforwards (LOW.4 surfacing).
+    for (const jur of tax) {
+      const sum = (k: keyof TaxJurisdictionEntity) =>
+        jur.entities.reduce((s, e) => s + (e[k] as number), 0);
+      expect(jur.storedTax).toBeCloseTo(sum('storedTax'), 2);
+      expect(jur.modelledTax).toBeCloseTo(sum('modelledTax'), 2);
+      expect(jur.drift).toBeCloseTo(sum('drift'), 2);
+      expect(jur.comparable).toBe(jur.entities.every(e => e.comparable));
+      for (const e of jur.entities) {
+        expect(Number.isFinite(e.nolClosing)).toBe(true);
+        expect(Number.isFinite(e.rfaiClosing)).toBe(true);
+      }
+    }
+  });
+
+  it('reconciles with the tax-reconciliation check and surfaces the statutory note', async () => {
+    const res = await call(PERIOD);
+    const body = await res.json();
+    const tax = body.taxByJurisdiction as TaxJurisdiction[];
+
+    // The per-jurisdiction drift sums to the same figure the authoritative
+    // tax-reconciliation check reports (both reuse reconcileGroupTax over the same
+    // rows) — so the new view can never silently disagree with the check.
+    const totalDrift = tax.reduce((s, j) => s + j.drift, 0);
+    const taxCheck = (body.checks as ComplianceCheck[]).find(c => c.id === 'tax-reconciliation')!;
+    expect(taxCheck.details).toContain(`€${Math.round(totalDrift)}`);
+
+    const pt = tax.find(j => j.countryCode === 'PT')!;
+    expect(pt.comparable).toBe(true);
+    expect(pt.storedTax).toBeGreaterThan(0);
+    expect(pt.entities.map(e => e.entityCode)).toContain('MERID');
+    // The PT NOL/RFAI caps are legible in the UI, not buried in the providers.
+    expect(pt.note).toContain('art.º 52');
   });
 });
