@@ -53,8 +53,8 @@ describe('resolveMetric', () => {
   it('resolves balance-sheet totals and leverage', () => {
     expect(resolveMetric(s, 'assets')).toBe(500);
     expect(resolveMetric(s, 'liabilities')).toBe(300);
-    expect(resolveMetric(s, 'equity')).toBe(200);
-    expect(resolveMetric(s, 'leverage')).toBeCloseTo(1.5, 6); // 300 / 200
+    expect(resolveMetric(s, 'equity')).toBe(500);
+    expect(resolveMetric(s, 'leverage')).toBeCloseTo(0.6, 6); // 300 / 500
   });
 
   it('returns 0 for ebitdaMargin when revenue is zero (no divide-by-zero)', () => {

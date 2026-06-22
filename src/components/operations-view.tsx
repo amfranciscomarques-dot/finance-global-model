@@ -84,6 +84,12 @@ function getDemoStatement(): OperationalStatement {
       { channel: 'Retalho', revenue: 8_000_000, volume: 1_100_000 },
       { channel: 'E_Commerce', revenue: 4_000_000, volume: 600_000 },
     ],
+    allocations: [
+      { productCode: 'PRATOS', productName: 'Pratos', market: 'PT', channel: 'Hotelaria', revenue: 4_200_000, volume: 600_000 },
+      { productCode: 'PRATOS', productName: 'Pratos', market: 'UE', channel: 'Private_Label', revenue: 4_900_000, volume: 700_000 },
+      { productCode: 'TIGELAS', productName: 'Tigelas', market: 'USA', channel: 'Retalho', revenue: 2_400_000, volume: 480_000 },
+      { productCode: 'CUTELARIA', productName: 'Cutelaria (revenda)', market: 'PT', channel: 'Hotelaria', revenue: 1_320_000, volume: 88_000 },
+    ],
   };
 }
 
@@ -281,6 +287,44 @@ export function OperationsView() {
                   </tr>
                 );
               })}
+            </tbody>
+          </table>
+        </CardContent>
+      </Card>
+
+      {/* Granular Sales Mix */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Globe2 className="w-4 h-4 text-signal" />
+            {t('table.granularSalesTitle') || 'Vendas por Produto × Mercado × Canal'}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-xs text-muted-foreground border-b">
+                <th className="py-2 pr-3 font-medium">{t('table.product')}</th>
+                <th className="py-2 px-3 font-medium">{t('table.market') || 'Mercado'}</th>
+                <th className="py-2 px-3 font-medium">{t('table.channel') || 'Canal'}</th>
+                <th className="py-2 px-3 font-medium text-right">{t('table.volume')}</th>
+                <th className="py-2 pl-3 font-medium text-right">{t('table.revenue')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {s.allocations.sort((a, b) => b.revenue - a.revenue).map((alloc, idx) => (
+                <tr key={`${alloc.productCode}-${alloc.market}-${alloc.channel}-${idx}`} className="border-b border-border/50 hover:bg-muted/30">
+                  <td className="py-2 pr-3 font-medium">{alloc.productName}</td>
+                  <td className="py-2 px-3">
+                    <Badge variant="secondary" className="text-[10px] bg-muted/50">{alloc.market}</Badge>
+                  </td>
+                  <td className="py-2 px-3">
+                    <Badge variant="outline" className="text-[10px]">{alloc.channel.replace('_', ' ')}</Badge>
+                  </td>
+                  <td className="py-2 px-3 text-right font-mono tabular-nums">{fmtUnits(alloc.volume)}</td>
+                  <td className="py-2 pl-3 text-right font-mono tabular-nums">{formatEUR(alloc.revenue)}</td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </CardContent>

@@ -62,7 +62,7 @@ async function buildRealAnnualCashFlow(
   for (const e of entries) addEntry(stmts, e.groupCOACode, e.amountEUR);
 
   deriveIncomeStatement(stmts.incomeStatement);
-  deriveBalanceSheet(stmts.balanceSheet);
+  deriveBalanceSheet(stmts.balanceSheet, stmts.incomeStatement);
   deriveCashFlow(stmts.cashFlow, stmts.incomeStatement);
 
   return { cashFlow: stmts.cashFlow, yearEndCash: stmts.balanceSheet.cash };

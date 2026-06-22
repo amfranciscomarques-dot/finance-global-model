@@ -78,9 +78,8 @@ export async function POST(request: NextRequest) {
       - (baseIS.netIncome + baseIS.minorityInterest);
     const deltaCapex = baseCF.capex * (scenario.capexGrowthFactor - 1); // capex stored negative
     adjustedBS.ppe = baseBS.ppe - deltaCapex;                      // extra spend increases PPE
-    adjustedBS.retainedEarnings = baseBS.retainedEarnings + deltaNI;
     adjustedBS.cash = baseBS.cash + deltaNI + deltaCapex;          // earnings in, extra capex out
-    deriveBalanceSheet(adjustedBS);                                // recompute subtotals + balanceCheck
+    deriveBalanceSheet(adjustedBS, adjustedIS);                                // recompute subtotals + balanceCheck
 
     // --- Scenario cash flow ---------------------------------------------------
     const adjustedCF = { ...baseCF };

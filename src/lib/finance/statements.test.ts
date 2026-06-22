@@ -55,9 +55,10 @@ describe('addEntry', () => {
     expect(bs.otherNonCurrentAssets).toBe(230);  // AST-008 + AST-010
     expect(bs.otherCurrentLiabilities).toBe(80); // LIA-003 + LIA-008 + LIA-010
     expect(bs.otherNonCurrentLiabilities).toBe(95); // LIA-005 + LIA-009
-    expect(bs.retainedEarnings).toBe(165);       // EQY-004 + EQY-005
+    expect(bs.historicalRetainedEarnings).toBe(165);       // EQY-004 + EQY-005
 
     deriveBalanceSheet(bs);
+    expect(bs.retainedEarnings).toBe(165);
     expect(bs.currentAssets).toBe(150);
     expect(bs.nonCurrentAssets).toBe(230);
     expect(bs.totalAssets).toBe(380);
@@ -118,7 +119,7 @@ describe('deriveBalanceSheet', () => {
     bs.cash = 100; bs.accountsReceivable = 200; bs.inventory = 300;
     bs.ppe = 400;
     bs.accountsPayable = 150; bs.shortTermDebt = 50; bs.longTermDebt = 200;
-    bs.shareCapital = 100; bs.retainedEarnings = 500;
+    bs.shareCapital = 100; bs.historicalRetainedEarnings = 500;
     deriveBalanceSheet(bs);
 
     expect(bs.currentAssets).toBe(600);

@@ -105,13 +105,22 @@ export function computeMinorityInterest(
 }
 
 /** Recompute all balance-sheet subtotals (and the balance check) from details. */
-export function deriveBalanceSheet(bs: BalanceSheetData): void {
+export function deriveBalanceSheet(bs: BalanceSheetData, is?: IncomeStatementData): void {
   bs.currentAssets = bs.cash + bs.accountsReceivable + bs.inventory + bs.otherCurrentAssets;
   bs.nonCurrentAssets = bs.ppe + bs.intangibleAssets + bs.goodwill + bs.otherNonCurrentAssets;
   bs.totalAssets = bs.currentAssets + bs.nonCurrentAssets;
   bs.currentLiabilities = bs.accountsPayable + bs.shortTermDebt + bs.otherCurrentLiabilities;
   bs.nonCurrentLiabilities = bs.longTermDebt + bs.otherNonCurrentLiabilities;
   bs.totalLiabilities = bs.currentLiabilities + bs.nonCurrentLiabilities;
+
+  if (is) {
+    bs.retainedEarnings = bs.historicalRetainedEarnings + is.netIncome + (is.minorityInterest || 0);
+    bs.minorityEquity = bs.historicalMinorityEquity - (is.minorityInterest || 0);
+  } else {
+    bs.retainedEarnings = bs.historicalRetainedEarnings;
+    bs.minorityEquity = bs.historicalMinorityEquity;
+  }
+
   bs.totalEquity = bs.shareCapital + bs.retainedEarnings + bs.minorityEquity;
   bs.balanceCheck = bs.totalAssets - bs.totalLiabilities - bs.totalEquity;
 }
@@ -152,8 +161,8 @@ export function aggregateFinancials(entityStatements: FinancialStatements[]): Fi
     }
   }
 
-  deriveBalanceSheet(bs);
   deriveIncomeStatement(is);
+  deriveBalanceSheet(bs, is);
   // Cash-flow subtotals from aggregated detail lines (netIncome/depreciation
   // were summed directly above, so recompute the rollups without re-linking).
   cf.operatingCashFlow = cf.netIncome + cf.depreciation + cf.changesInWorkingCapital;

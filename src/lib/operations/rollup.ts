@@ -22,6 +22,7 @@ import {
   totalRevenue,
   revenueByMarket,
   revenueByChannel,
+  allocate,
 } from './revenue';
 
 export interface ProductLine {
@@ -47,6 +48,7 @@ export interface OperationalStatement {
   byMaterial: Array<{ code: string; name: string; cost: number }>;
   byMarket: Array<{ market: string; revenue: number; volume: number }>;
   byChannel: Array<{ channel: string; revenue: number; volume: number }>;
+  allocations: Array<{ productCode: string; productName: string; market: string; channel: string; revenue: number; volume: number }>;
 }
 
 export function buildOperationalStatement(model: OperationalModel): OperationalStatement {
@@ -83,6 +85,7 @@ export function buildOperationalStatement(model: OperationalModel): OperationalS
     byMaterial: materialCostByMaterial(model),
     byMarket: revenueByMarket(model),
     byChannel: revenueByChannel(model),
+    allocations: allocate(model),
   };
 }
 

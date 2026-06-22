@@ -58,7 +58,7 @@ export async function GET(request: NextRequest) {
       const { incomeStatement: is, balanceSheet: bs, cashFlow: cf } = stmts;
       deriveIncomeStatement(is);
       is.minorityInterest = computeMinorityInterest(is, entity.consolidationMethod, entity.ownershipPercentage);
-      deriveBalanceSheet(bs);
+      deriveBalanceSheet(bs, is);
       deriveCashFlow(cf, is);
       entityStatements.push(stmts);
 

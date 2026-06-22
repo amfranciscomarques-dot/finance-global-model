@@ -45,7 +45,9 @@ export interface BalanceSheetData {
   nonCurrentLiabilities: number;
   totalLiabilities: number;
   shareCapital: number;
+  historicalRetainedEarnings: number;
   retainedEarnings: number;
+  historicalMinorityEquity: number;
   minorityEquity: number;
   totalEquity: number;
   balanceCheck: number;
@@ -126,10 +128,10 @@ export const BS_DETAIL_ACCOUNTS: Record<string, keyof Pick<BalanceSheetData,
   'LIA-009': 'otherNonCurrentLiabilities',// Pension Obligations
   'LIA-010': 'otherCurrentLiabilities',   // Deferred Revenue
   'EQY-001': 'shareCapital',
-  'EQY-002': 'retainedEarnings',
-  'EQY-004': 'retainedEarnings',          // Other Reserves → folded into reserves
-  'EQY-005': 'retainedEarnings',          // Current Year Earnings → folded into reserves
-  'EQY-003': 'minorityEquity',
+  'EQY-002': 'historicalRetainedEarnings',
+  'EQY-004': 'historicalRetainedEarnings',          // Other Reserves → folded into reserves
+  'EQY-005': 'historicalRetainedEarnings',          // Current Year Earnings → folded into reserves
+  'EQY-003': 'historicalMinorityEquity',
 };
 
 // Cash flow adjustments
@@ -152,7 +154,7 @@ export function createEmptyIS(): IncomeStatementData {
 }
 
 export function createEmptyBS(): BalanceSheetData {
-  return { cash: 0, accountsReceivable: 0, inventory: 0, otherCurrentAssets: 0, currentAssets: 0, ppe: 0, intangibleAssets: 0, goodwill: 0, otherNonCurrentAssets: 0, nonCurrentAssets: 0, totalAssets: 0, accountsPayable: 0, shortTermDebt: 0, otherCurrentLiabilities: 0, currentLiabilities: 0, longTermDebt: 0, otherNonCurrentLiabilities: 0, nonCurrentLiabilities: 0, totalLiabilities: 0, shareCapital: 0, retainedEarnings: 0, minorityEquity: 0, totalEquity: 0, balanceCheck: 0 };
+  return { cash: 0, accountsReceivable: 0, inventory: 0, otherCurrentAssets: 0, currentAssets: 0, ppe: 0, intangibleAssets: 0, goodwill: 0, otherNonCurrentAssets: 0, nonCurrentAssets: 0, totalAssets: 0, accountsPayable: 0, shortTermDebt: 0, otherCurrentLiabilities: 0, currentLiabilities: 0, longTermDebt: 0, otherNonCurrentLiabilities: 0, nonCurrentLiabilities: 0, totalLiabilities: 0, shareCapital: 0, historicalRetainedEarnings: 0, retainedEarnings: 0, historicalMinorityEquity: 0, minorityEquity: 0, totalEquity: 0, balanceCheck: 0 };
 }
 
 export function createEmptyCF(): CashFlowData {

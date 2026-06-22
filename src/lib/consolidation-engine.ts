@@ -97,7 +97,7 @@ async function buildEntityFinancials(
   is.minorityInterest = computeMinorityInterest(is, entity.consolidationMethod, entity.ownershipPercentage);
 
   // Calculate derived BS + CF fields
-  deriveBalanceSheet(bs);
+  deriveBalanceSheet(bs, is);
   deriveCashFlow(cf, is);
 
   return {
@@ -275,7 +275,7 @@ export async function computeConsolidation(input: ConsolidationInput) {
 
   // Recalculate all derived fields after eliminations
   deriveIncomeStatement(consolidatedIS);
-  deriveBalanceSheet(consolidatedBS);
+  deriveBalanceSheet(consolidatedBS, consolidatedIS);
 
   // Balance-sheet integrity gate (IFRS: assets must equal liabilities + equity).
   // If the consolidated sheet does not reconcile within tolerance the run is

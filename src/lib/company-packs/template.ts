@@ -72,7 +72,7 @@ const MERID_2024: Array<[string, number]> = [
   ['LIA-002', 5_500_000],    // current borrowings
   ['LIA-004', 12_000_000],   // non-current borrowings
   ['EQY-001', 5_000_000],    // share capital
-  ['EQY-002', 11_500_000],   // reserves + retained earnings (incl. 1,500,000 result for 2024)
+  ['EQY-002', 10_000_000],   // reserves + retained earnings (historical, excl. 1,500,000 result for 2024)
 
   // Cash flow (simplified indirect view; not part of the balance check)
   ['CFA-001', -1_000_000],   // change in working capital
@@ -99,7 +99,6 @@ const MSUB_2024: Array<[string, number, boolean?]> = [
   // Minimal balanced placeholder balance sheet
   ['AST-001', 750_000],          // cash
   ['EQY-001', 500_000],          // share capital
-  ['EQY-002', 250_000],          // result for the year (250,000)
 ];
 
 // ------------------------------------------------------------

@@ -20,6 +20,8 @@ export function totalRevenue(model: OperationalModel): number {
 }
 
 export interface Allocation {
+  productCode: string;
+  productName: string;
   market: string;
   channel: string;
   revenue: number;
@@ -33,6 +35,8 @@ export function allocate(model: OperationalModel): Allocation[] {
     const revenue = productRevenue(product);
     for (const mix of product.salesMix) {
       rows.push({
+        productCode: product.code,
+        productName: product.name,
         market: mix.market,
         channel: mix.channel,
         revenue: revenue * mix.weight,
