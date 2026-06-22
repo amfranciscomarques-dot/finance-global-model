@@ -45,6 +45,7 @@ const BS_LINE_ITEMS = [
   { key: 'ppe', label: '  Property, Plant & Equipment', indent: true },
   { key: 'intangibleAssets', label: '  Intangible Assets', indent: true },
   { key: 'goodwill', label: '  Goodwill', indent: true },
+  { key: 'deferredTaxAsset', label: '  Deferred Tax Assets', indent: true },
   { key: 'otherNonCurrentAssets', label: '  Other Non-Current Assets', indent: true },
   { key: 'nonCurrentAssets', label: 'Total Non-Current Assets', isSubtotal: true },
   { key: 'totalAssets', label: 'TOTAL ASSETS', isTotal: true },

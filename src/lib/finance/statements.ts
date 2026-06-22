@@ -136,7 +136,7 @@ export function reclassifyMinorityEquity(
 /** Recompute all balance-sheet subtotals (and the balance check) from details. */
 export function deriveBalanceSheet(bs: BalanceSheetData, is?: IncomeStatementData): void {
   bs.currentAssets = bs.cash + bs.accountsReceivable + bs.inventory + bs.otherCurrentAssets + bs.icReceivable;
-  bs.nonCurrentAssets = bs.ppe + bs.intangibleAssets + bs.goodwill + bs.otherNonCurrentAssets;
+  bs.nonCurrentAssets = bs.ppe + bs.intangibleAssets + bs.goodwill + bs.deferredTaxAsset + bs.otherNonCurrentAssets;
   bs.totalAssets = bs.currentAssets + bs.nonCurrentAssets;
   bs.currentLiabilities = bs.accountsPayable + bs.shortTermDebt + bs.otherCurrentLiabilities + bs.icPayable;
   bs.nonCurrentLiabilities = bs.longTermDebt + bs.otherNonCurrentLiabilities;

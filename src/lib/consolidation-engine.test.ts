@@ -420,8 +420,8 @@ describe('runConsolidation — deferred tax (IAS 12, MEDIUM.8b)', () => {
     const DTA = 200_000;
 
     // Book a deferred tax asset (AST-010), balanced by extra reserves so the
-    // standalone sheet still reconciles. AST-010 rolls into otherNonCurrentAssets
-    // on the sheet, but the engine captures it separately for the IAS 12 reconciliation.
+    // standalone sheet still reconciles. AST-010 maps to its own deferredTaxAsset
+    // line on the sheet, and the engine also captures it separately for the IAS 12 reconciliation.
     await db.trialBalance.createMany({
       data: [
         { entityId: merid!.id, period: periodDate, periodType: 'actual', groupCOACode: 'AST-010', amountLocal: DTA, amountEUR: DTA, currency: 'EUR' },

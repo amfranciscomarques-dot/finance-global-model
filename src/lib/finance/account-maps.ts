@@ -36,6 +36,10 @@ export interface BalanceSheetData {
   ppe: number;
   intangibleAssets: number;
   goodwill: number;
+  // Deferred tax asset (AST-010): IAS 1 §54(o) requires a dedicated balance-sheet
+  // line rather than burying it in "other". The engine also captures it separately
+  // (storedDeferredTaxAsset) for the IAS 12 reconciliation against the modelled DTA.
+  deferredTaxAsset: number;
   otherNonCurrentAssets: number;
   nonCurrentAssets: number;
   totalAssets: number;
@@ -113,7 +117,7 @@ export const IS_ACCOUNTS: Record<string, keyof IncomeStatementData> = {
 // amounts posted to it silently vanish from the balance sheet.
 export const BS_DETAIL_ACCOUNTS: Record<string, keyof Pick<BalanceSheetData,
   'cash' | 'accountsReceivable' | 'inventory' | 'otherCurrentAssets' | 'icReceivable' |
-  'ppe' | 'intangibleAssets' | 'goodwill' | 'otherNonCurrentAssets' |
+  'ppe' | 'intangibleAssets' | 'goodwill' | 'deferredTaxAsset' | 'otherNonCurrentAssets' |
   'accountsPayable' | 'shortTermDebt' | 'otherCurrentLiabilities' | 'icPayable' |
   'longTermDebt' | 'otherNonCurrentLiabilities' |
   'shareCapital' | 'retainedEarnings' | 'minorityEquity' |
@@ -128,7 +132,7 @@ export const BS_DETAIL_ACCOUNTS: Record<string, keyof Pick<BalanceSheetData,
   'AST-007': 'goodwill',
   'AST-008': 'otherNonCurrentAssets',     // Outros Ativos Não Correntes
   'AST-009': 'icReceivable',              // IC Receivable — eliminated against LIA-006 on consolidation
-  'AST-010': 'otherNonCurrentAssets',     // Deferred Tax Asset
+  'AST-010': 'deferredTaxAsset',          // Deferred Tax Asset (IAS 1 §54(o) — dedicated line)
   'LIA-001': 'accountsPayable',
   'LIA-002': 'shortTermDebt',
   'LIA-003': 'otherCurrentLiabilities',
@@ -166,7 +170,7 @@ export function createEmptyIS(): IncomeStatementData {
 }
 
 export function createEmptyBS(): BalanceSheetData {
-  return { cash: 0, accountsReceivable: 0, inventory: 0, otherCurrentAssets: 0, icReceivable: 0, currentAssets: 0, ppe: 0, intangibleAssets: 0, goodwill: 0, otherNonCurrentAssets: 0, nonCurrentAssets: 0, totalAssets: 0, accountsPayable: 0, shortTermDebt: 0, otherCurrentLiabilities: 0, icPayable: 0, currentLiabilities: 0, longTermDebt: 0, otherNonCurrentLiabilities: 0, nonCurrentLiabilities: 0, totalLiabilities: 0, shareCapital: 0, historicalRetainedEarnings: 0, retainedEarnings: 0, historicalMinorityEquity: 0, minorityEquity: 0, cta: 0, totalEquity: 0, balanceCheck: 0 };
+  return { cash: 0, accountsReceivable: 0, inventory: 0, otherCurrentAssets: 0, icReceivable: 0, currentAssets: 0, ppe: 0, intangibleAssets: 0, goodwill: 0, deferredTaxAsset: 0, otherNonCurrentAssets: 0, nonCurrentAssets: 0, totalAssets: 0, accountsPayable: 0, shortTermDebt: 0, otherCurrentLiabilities: 0, icPayable: 0, currentLiabilities: 0, longTermDebt: 0, otherNonCurrentLiabilities: 0, nonCurrentLiabilities: 0, totalLiabilities: 0, shareCapital: 0, historicalRetainedEarnings: 0, retainedEarnings: 0, historicalMinorityEquity: 0, minorityEquity: 0, cta: 0, totalEquity: 0, balanceCheck: 0 };
 }
 
 export function createEmptyCF(): CashFlowData {

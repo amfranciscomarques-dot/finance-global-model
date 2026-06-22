@@ -56,7 +56,8 @@ describe('addEntry', () => {
     const bs = s.balanceSheet;
     expect(bs.otherCurrentAssets).toBe(100);     // AST-004 only — AST-009 is now icReceivable
     expect(bs.icReceivable).toBe(50);            // AST-009
-    expect(bs.otherNonCurrentAssets).toBe(230);  // AST-008 + AST-010
+    expect(bs.otherNonCurrentAssets).toBe(200);  // AST-008 only — AST-010 is now its own DTA line
+    expect(bs.deferredTaxAsset).toBe(30);        // AST-010 (IAS 1 §54(o) dedicated line)
     expect(bs.otherCurrentLiabilities).toBe(80); // LIA-003 + LIA-008 + LIA-010
     expect(bs.icPayable).toBe(20);               // LIA-006
     expect(bs.otherNonCurrentLiabilities).toBe(95); // LIA-005 + LIA-009

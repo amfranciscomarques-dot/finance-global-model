@@ -76,6 +76,7 @@ export const BS_LINES: ReportLine[] = [
   { label: 'Property, Plant & Equipment', field: 'ppe', section: 'Non-Current Assets' },
   { label: 'Intangible Assets', field: 'intangibleAssets', section: 'Non-Current Assets' },
   { label: 'Goodwill', field: 'goodwill', section: 'Non-Current Assets' },
+  { label: 'Deferred Tax Assets', field: 'deferredTaxAsset', section: 'Non-Current Assets' },
   { label: 'Other Non-Current Assets', field: 'otherNonCurrentAssets', section: 'Non-Current Assets' },
   { label: 'Total Non-Current Assets', field: 'nonCurrentAssets', isTotal: true, section: 'Non-Current Assets' },
   { label: 'TOTAL ASSETS', field: 'totalAssets', isTotal: true, section: 'Total' },
