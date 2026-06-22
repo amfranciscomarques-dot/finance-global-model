@@ -11,8 +11,6 @@ import {
 import {
   aggregateFinancials,
   assertBalanced,
-  deriveBalanceSheet,
-  deriveIncomeStatement,
   type FinancialStatements,
 } from './statements';
 import { createEmptyBS, createEmptyCF, createEmptyIS } from './account-maps';

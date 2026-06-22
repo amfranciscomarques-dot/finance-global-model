@@ -13,6 +13,38 @@ because they grew over time.
 
 ---
 
+## 2026-06-22 — Final portfolio checkup
+
+Full verification gate re-run green and documentation brought current.
+
+- **Gate:** `npx tsc --noEmit` clean · `npm test` = 277 passed (34 files) · `npm run build` OK (TypeScript enforced) · `npx eslint .` = 0 errors.
+- **Lint cleanup:** removed four genuinely-unused imports (`deriveBalanceSheet`/`deriveIncomeStatement` in `eliminations.test.ts`, `createFlatRateProvider` in `nol.test.ts`, `type CostKey` in `operations-view.tsx`). ESLint now reports only the 25 tracked React-Compiler `set-state-in-effect` warnings (runtime-safe).
+- **Docs:** added [`TECH_DEBT.md`](TECH_DEBT.md) as the known-issues register; rewrote [`PLAN.md`](PLAN.md) as a lean prioritised list of the milestone-gated follow-ups; refreshed the README "Known limitations" section and the lint/test counts.
+
+---
+
+## 2026-06-22 — P3 Audit Backlog: BUG-12 (DTA presentation)
+
+Resolved the single P3 item from the code-audit backlog in `PLAN.md`.
+
+- **BUG-12 — Deferred tax asset not presented as a named balance-sheet line:** `AST-010` previously mapped to `otherNonCurrentAssets`, burying the DTA against IAS 1 §54(o), which requires a dedicated line. Added a `deferredTaxAsset` field to `BalanceSheetData`, remapped `AST-010` to it, folded it into the `nonCurrentAssets` subtotal (so totals are byte-identical), and surfaced a "Deferred Tax Assets" line in both statement renderings (`report-model.ts` BS_LINES and the PDF export). The engine's separate `storedDeferredTaxAsset` capture for the IAS 12 reconciliation is unchanged. Presentation-only: no balance or subtotal moves.
+
+Verified: `npx tsc --noEmit` clean; `npm test` = 277 passed; `eslint` clean on changed files.
+
+---
+
+## 2026-06-22 — P2 Audit Backlog Completed
+
+Resolved all three P2 items from the code-audit backlog in `PLAN.md`.
+
+- **BUG-05 — Modelled forecast tax ignored carryforwards:** `applyModelledTax` now receives each entity's prior-year closing NOL/RFAI pools and threads them as `nolOpening`/`rfaiOpening` into the jurisdiction provider. The carryforward fetch was moved ahead of the modelled-tax pass so a multi-year `computeTaxForProjections` run nets the loss shield instead of overstating Portuguese tax by up to ~70% of the NOL. Actuals are untouched (forecast-only path).
+- **S2-07 — Stacked YTD snapshots in the forecast anchor:** `buildRealAnnualStatements` now collapses to each entity's latest snapshot date within the year before summing, instead of summing every trial-balance row in the date range. A multi-month import of YTD-cumulative balances no longer stacks N× into the anchor; the single-snapshot demo is unchanged.
+- **S2-01 — Concurrent elimination race:** `runICEliminations` now takes a Prisma transaction client and its single call site wraps it in `db.$transaction`, so the reset→read→mark sequence is serialized. Two concurrent consolidations of the same period can no longer interleave and leave the loser with `eliminationsApplied=0`.
+
+Verified: `npm test` = 277 passed; `npx tsc --noEmit` clean; `eslint` clean on changed files.
+
+---
+
 ## 2026-06-22 — P1 Audit Backlog Completed
 
 Resolved all eight P1 items from the code-audit backlog in `PLAN.md`.

@@ -6,7 +6,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { createPortugalProvider, PT_TAX_CONFIG } from './jurisdictions/portugal';
-import { usaProvider, createFlatRateProvider } from './jurisdictions/flat-rate';
+import { usaProvider } from './jurisdictions/flat-rate';
 
 const pt = createPortugalProvider();
 

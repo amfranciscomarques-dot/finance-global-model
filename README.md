@@ -232,16 +232,23 @@ centralise where identity is established.
 
 ## Known limitations & follow-ups
 
-The full backlog (quick wins, deferred polish) lives in [`PLAN.md`](PLAN.md).
-Completed work is in [`CHANGELOG.md`](CHANGELOG.md). The two remaining items:
+The TOP/MEDIUM/LOW tiers and the full P1→P3 code-audit backlog are **closed** —
+see [`CHANGELOG.md`](CHANGELOG.md). What remains is optional, milestone-gated
+follow-up work: the prioritised schedule lives in [`PLAN.md`](PLAN.md) and the
+detailed known-issue register (with the trigger that should reopen each) in
+[`TECH_DEBT.md`](TECH_DEBT.md). In brief:
 
-- **FX deferred polish.** Per-tranche historical equity rates (v1 uses
-  acquisition-date or closing); CTA recycling to P&L on disposal (IAS 21 §48, out
-  of scope until disposals are modelled); period-weighted average rates when monthly
-  FX data is available.
-- **Multi-tenancy.** A `tenantId` on every table + query scoping. Out of scope for
-  the single-tenant model but the natural next step if the app serves multiple groups.
+- **Route input validation** — a small defensive pass on the remaining unguarded
+  query/body params (the KPI/variance/budget routes are already hardened).
+- **Forecast anchor IC elimination** — anchor multi-entity forecasts on the
+  consolidated result rather than a raw trial-balance sum (waits on the
+  multi-entity forecast milestone).
+- **FX deferred polish** — per-tranche historical equity rates, CTA recycling on
+  disposal (IAS 21 §48), and period-weighted averages once monthly FX data lands.
+- **Multi-tenancy** — a `tenantId` on every table + query scoping; the natural
+  next step if the app serves multiple groups.
 
-The codebase typechecks cleanly under `strict` and `next build` enforces TypeScript.
-ESLint runs at **0 errors**; 24 React-Compiler-readiness `set-state-in-effect`
-warnings in view components are runtime-safe and tracked for a follow-up sweep.
+The codebase typechecks cleanly under `strict`, `next build` enforces TypeScript,
+and all 277 tests pass. ESLint runs at **0 errors**; 25 React-Compiler-readiness
+`set-state-in-effect` warnings in view components are runtime-safe and tracked for
+a follow-up sweep.
