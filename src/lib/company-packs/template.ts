@@ -1,4 +1,6 @@
 import { EXCHANGE_RATES, SCENARIOS } from '@/lib/coa-data';
+import { toTbLines } from '@/lib/operations/rollup';
+import type { OperationalModel, OperationalProduct, SalesMixLine } from '@/lib/operations/types';
 import type { CompanyPack, PackTbRecord } from './types';
 
 // ============================================================
@@ -40,12 +42,15 @@ const ENTITIES: CompanyPack['entities'] = [
 // Balance sheet: assets 44,000,000 = liabilities 27,500,000 + equity 16,500,000
 //   (equity includes the 1,500,000 result for the year).
 // ------------------------------------------------------------
+// NOTE: REV-001 (turnover) and COGS-001/002/003 (cost of sales) are NOT listed
+// here — they are computed bottom-up from MERID_OPERATIONS below and appended in
+// buildTrialBalance(). The operational catalog is calibrated so they reproduce
+// the former hard-coded totals (REV-001 40,000,000; COGS 16,000,000), so EBITDA,
+// net income and the balance sheet are unchanged.
 const MERID_2024: Array<[string, number]> = [
   // Income statement
-  ['REV-001', 40_000_000],   // vendas / turnover
   ['REV-008', 1_000_000],    // other operating income
   ['REV-010', 500_000],      // change in production inventories
-  ['COGS-001', -16_000_000], // cost of goods sold
   ['OPX-004', -8_000_000],   // external supplies & services (FSE)
   ['OPX-010', -500_000],     // other expenses & impairments
   ['PAY-001', -12_000_000],  // personnel costs
@@ -97,11 +102,143 @@ const MSUB_2024: Array<[string, number, boolean?]> = [
   ['EQY-002', 250_000],          // result for the year (250,000)
 ];
 
+// ------------------------------------------------------------
+// MERID operational catalog — bottom-up driver for REV-001 / COGS-*.
+//
+// Ceramic-tableware maker: five manufactured families + two merchandise
+// (resale) families, sold across four markets and four channels. Numbers are
+// invented but calibrated so the catalog reproduces MERID's former turnover and
+// cost of sales to the cent:
+//   Revenue  = Σ volume × PVU                     = 40,000,000  → REV-001
+//   COGS     = Σ volume × (MP + MOD + GGF | PCU)  = 16,000,000  → COGS-001/002/003
+//     - materials (MP/CMVMC, COGS-001):  8,170,000
+//     - direct labor (MOD, COGS-002):    3,610,000
+//     - overhead    (GGF, COGS-003):     4,220,000
+// To add products/materials, extend these arrays — the roll-up is fully driven
+// by the data, not by the five families.
+// ------------------------------------------------------------
+const MERID_MATERIALS: OperationalModel['materials'] = [
+  { code: 'PASTA_GRES', name: 'Pasta cerâmica grés', unit: 'kg', unitCost: 0.50 },
+  { code: 'VIDRADOS', name: 'Vidrados e esmaltes', unit: 'kg', unitCost: 2.00 },
+  { code: 'EMBALAGEM', name: 'Cartão e embalagens', unit: 'un', unitCost: 0.20 },
+  { code: 'GESSO', name: 'Gesso para moldes', unit: 'kg', unitCost: 1.00 },
+  { code: 'TINTA_DEC', name: 'Tinta de decoração', unit: 'kg', unitCost: 4.00 },
+];
+
+// Shared channel split (fractions, Σ = 1). Per-product market split varies.
+const DEFAULT_CHANNELS: Record<string, number> = {
+  Private_Label: 0.35,
+  Hotelaria: 0.30,
+  Retalho: 0.25,
+  E_Commerce: 0.10,
+};
+
+function expandMix(
+  marketMix: Record<string, number>,
+  channelMix: Record<string, number> = DEFAULT_CHANNELS,
+): SalesMixLine[] {
+  const rows: SalesMixLine[] = [];
+  for (const [market, mw] of Object.entries(marketMix)) {
+    for (const [channel, cw] of Object.entries(channelMix)) {
+      rows.push({ market, channel, weight: round4(mw * cw) });
+    }
+  }
+  return rows;
+}
+
+const MERID_PRODUCTS: OperationalProduct[] = [
+  {
+    code: 'PRATOS', name: 'Pratos', productType: 'manufactured',
+    salesPricePerUnit: 7.00, annualVolume: 2_000_000,
+    laborCostPerUnit: 0.80, overheadPerUnit: 0.90, purchaseCostPerUnit: 0,
+    bom: [
+      { materialCode: 'PASTA_GRES', quantityPerUnit: 1.00 },
+      { materialCode: 'VIDRADOS', quantityPerUnit: 0.20 },
+      { materialCode: 'EMBALAGEM', quantityPerUnit: 0.50 },
+      { materialCode: 'GESSO', quantityPerUnit: 0.10 },
+    ],
+    salesMix: expandMix({ PT: 0.20, UE: 0.35, USA: 0.35, ROW: 0.10 }),
+  },
+  {
+    code: 'TIGELAS', name: 'Tigelas', productType: 'manufactured',
+    salesPricePerUnit: 5.00, annualVolume: 1_600_000,
+    laborCostPerUnit: 0.55, overheadPerUnit: 0.65, purchaseCostPerUnit: 0,
+    bom: [
+      { materialCode: 'PASTA_GRES', quantityPerUnit: 0.80 },
+      { materialCode: 'VIDRADOS', quantityPerUnit: 0.10 },
+      { materialCode: 'EMBALAGEM', quantityPerUnit: 0.50 },
+      { materialCode: 'GESSO', quantityPerUnit: 0.10 },
+    ],
+    salesMix: expandMix({ PT: 0.25, UE: 0.35, USA: 0.30, ROW: 0.10 }),
+  },
+  {
+    code: 'CANECAS', name: 'Canecas', productType: 'manufactured',
+    salesPricePerUnit: 4.50, annualVolume: 1_000_000,
+    laborCostPerUnit: 0.50, overheadPerUnit: 0.65, purchaseCostPerUnit: 0,
+    bom: [
+      { materialCode: 'PASTA_GRES', quantityPerUnit: 0.70 },
+      { materialCode: 'VIDRADOS', quantityPerUnit: 0.10 },
+      { materialCode: 'EMBALAGEM', quantityPerUnit: 0.50 },
+      { materialCode: 'TINTA_DEC', quantityPerUnit: 0.025 },
+    ],
+    salesMix: expandMix({ PT: 0.30, UE: 0.30, USA: 0.30, ROW: 0.10 }),
+  },
+  {
+    code: 'PECAS_SERVIR', name: 'Peças de Servir', productType: 'manufactured',
+    salesPricePerUnit: 7.00, annualVolume: 700_000,
+    laborCostPerUnit: 0.60, overheadPerUnit: 0.70, purchaseCostPerUnit: 0,
+    bom: [
+      { materialCode: 'PASTA_GRES', quantityPerUnit: 0.60 },
+      { materialCode: 'VIDRADOS', quantityPerUnit: 0.10 },
+      { materialCode: 'EMBALAGEM', quantityPerUnit: 0.50 },
+      { materialCode: 'GESSO', quantityPerUnit: 0.10 },
+    ],
+    salesMix: expandMix({ PT: 0.20, UE: 0.40, USA: 0.30, ROW: 0.10 }),
+  },
+  {
+    code: 'FORNO_COZINHA', name: 'Forno & Cozinha', productType: 'manufactured',
+    salesPricePerUnit: 5.50, annualVolume: 600_000,
+    laborCostPerUnit: 0.35, overheadPerUnit: 0.40, purchaseCostPerUnit: 0,
+    bom: [
+      { materialCode: 'PASTA_GRES', quantityPerUnit: 0.40 },
+      { materialCode: 'VIDRADOS', quantityPerUnit: 0.05 },
+      { materialCode: 'EMBALAGEM', quantityPerUnit: 0.50 },
+      { materialCode: 'GESSO', quantityPerUnit: 0.05 },
+    ],
+    salesMix: expandMix({ PT: 0.30, UE: 0.30, USA: 0.30, ROW: 0.10 }),
+  },
+  {
+    code: 'CUTELARIA', name: 'Cutelaria (revenda)', productType: 'merchandise',
+    salesPricePerUnit: 15.00, annualVolume: 220_000,
+    laborCostPerUnit: 0, overheadPerUnit: 0, purchaseCostPerUnit: 9.00,
+    bom: [],
+    salesMix: expandMix({ PT: 0.40, UE: 0.30, USA: 0.20, ROW: 0.10 }),
+  },
+  {
+    code: 'VIDROS_CRISTAIS', name: 'Vidros & Cristais (revenda)', productType: 'merchandise',
+    salesPricePerUnit: 5.00, annualVolume: 400_000,
+    laborCostPerUnit: 0, overheadPerUnit: 0, purchaseCostPerUnit: 3.00,
+    bom: [],
+    salesMix: expandMix({ PT: 0.35, UE: 0.35, USA: 0.20, ROW: 0.10 }),
+  },
+];
+
+const MERID_OPERATIONS: OperationalModel = {
+  entityCode: 'MERID',
+  materials: MERID_MATERIALS,
+  products: MERID_PRODUCTS,
+};
+
 function buildTrialBalance(): PackTbRecord[] {
   const records: PackTbRecord[] = [];
 
   for (const [code, amount] of MERID_2024) {
     records.push({ entityCode: 'MERID', groupCOACode: code, amountLocal: round2(amount), currency: 'EUR' });
+  }
+
+  // REV-001 / COGS-001/002/003 for MERID, computed bottom-up from the catalog.
+  for (const line of toTbLines(MERID_OPERATIONS)) {
+    records.push({ entityCode: 'MERID', groupCOACode: line.groupCOACode, amountLocal: line.amount, currency: 'EUR' });
   }
 
   for (const [code, amount, ic] of MSUB_2024) {
@@ -185,8 +322,13 @@ export const templatePack: CompanyPack = {
   buildTrialBalance,
   icTransactions: IC_TRANSACTIONS,
   projects: [HUB_PROJECT],
+  operations: [MERID_OPERATIONS],
 };
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
+}
+
+function round4(n: number): number {
+  return Math.round(n * 10000) / 10000;
 }

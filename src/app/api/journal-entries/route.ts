@@ -64,7 +64,7 @@ export async function GET(request: NextRequest) {
       entryGroups.get(groupKey)!.push(entry);
     }
 
-    const entries = Array.from(entryGroups.entries()).map(([key, lines], idx) => {
+    const entries = Array.from(entryGroups.entries()).map(([, lines], idx) => {
       const totalDebits = lines.reduce((sum, l) => sum + (l.amountLocal > 0 ? l.amountLocal : 0), 0);
       const totalCredits = lines.reduce((sum, l) => sum + (l.amountEUR > 0 ? l.amountEUR : 0), 0);
 

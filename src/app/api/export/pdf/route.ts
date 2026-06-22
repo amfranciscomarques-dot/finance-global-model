@@ -324,7 +324,7 @@ export async function GET(request: NextRequest) {
         alternateRowStyles: {
           fillColor: [249, 250, 251] as unknown as number,
         },
-        didDrawPage: (data) => {
+        didDrawPage: () => {
           // Footer on each page
           const pageWidth = doc.internal.pageSize.getWidth();
           const pageHeight = doc.internal.pageSize.getHeight();

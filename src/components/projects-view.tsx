@@ -41,6 +41,10 @@ interface Project {
   cashFlows: { years: number[]; cashFlows: number[] } | null;
 }
 
+// Intentionally local — NOT the shared src/lib/format.ts (which is EUR-only, de-DE).
+// Projects are multi-currency, so this picks the symbol per project ($ for USD, €
+// otherwise) and uses compact units (2-dp "M", lowercase "k"). Keep it here; do not
+// "unify" it with format.ts unless that formatter gains per-currency support.
 function fmtMoney(n: number, currency: string): string {
   const abs = Math.abs(n);
   const unit = abs >= 1_000_000 ? `${(n / 1_000_000).toFixed(2)}M` : abs >= 1_000 ? `${(n / 1_000).toFixed(0)}k` : n.toFixed(0);
@@ -66,7 +70,7 @@ export function ProjectsView() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => { load(); }, [load]);
 

@@ -12,7 +12,6 @@ import { Input } from '@/components/ui/input';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
-import { Separator } from '@/components/ui/separator';
 import { getAuditTrail } from '@/lib/api';
 import { AuditEntry, AuditActionType } from '@/lib/types';
 import { DataLoadError } from '@/components/data-load-error';
@@ -214,11 +213,6 @@ export function AuditTrailView() {
     return acc;
   }, {} as Record<string, number>);
 
-  const todayEntries = entries.filter(e => {
-    const d = new Date(e.timestamp);
-    const now = new Date();
-    return d.toDateString() === now.toDateString();
-  }).length;
 
   return (
     <div className="space-y-6">

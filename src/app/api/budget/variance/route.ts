@@ -15,7 +15,6 @@ export async function GET(request: NextRequest) {
 
     const entities = await db.entity.findMany({ where: entityFilter });
     const entityIds = entities.map((e) => e.id);
-    const entityMap = new Map(entities.map((e) => [e.id, e]));
 
     // Fetch budget and actuals
     const [budgetEntries, actualEntries] = await Promise.all([

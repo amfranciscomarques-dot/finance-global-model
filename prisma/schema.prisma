@@ -245,6 +245,80 @@ model Project {
 }
 
 // ==========================================
+// OPERATIONAL CATALOG — products, raw materials, bill-of-materials, sales mix
+//
+// Bottom-up driver for the manufacturing entity's REV-* / COGS-* trial-balance
+// lines. Revenue = Σ product (volume × price); COGS = Σ product volume ×
+// (materials from BOM + direct labor + overhead) [+ merchandise purchase cost].
+// Scoped per entity so several manufacturing entities can each carry a catalog.
+// The financial layer (TrialBalance/COA) stays the single source for the
+// statements; this layer simply produces the REV/COGS lines that feed it.
+// ==========================================
+
+model Product {
+  id                    String    @id @default(cuid())
+  entityCode            String                               // owning manufacturing/trading entity
+  code                  String                               // product/family code, e.g. PRATOS
+  name                  String
+  productType           String    @default("manufactured")   // manufactured, merchandise
+  salesPricePerUnit     Float     @default(0)                // PVU — selling price per unit
+  annualVolume          Float     @default(0)                // units sold per year (annual snapshot)
+  laborCostPerUnit      Float     @default(0)                // MOD — direct labor / unit (manufactured)
+  overheadPerUnit       Float     @default(0)                // GGF — manufacturing overhead / unit (manufactured)
+  purchaseCostPerUnit   Float     @default(0)                // PCU — purchase cost / unit (merchandise)
+  sortOrder             Int       @default(0)
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  bom                   BillOfMaterial[]
+  salesMix              SalesMix[]
+
+  @@unique([entityCode, code])
+  @@index([entityCode])
+}
+
+model RawMaterial {
+  id                    String    @id @default(cuid())
+  entityCode            String
+  code                  String                               // material code, e.g. PASTA_GRES
+  name                  String
+  unit                  String    @default("kg")             // kg, un, l, ...
+  unitCost              Float     @default(0)                // purchase price per unit
+  sortOrder             Int       @default(0)
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  bomLines              BillOfMaterial[]
+
+  @@unique([entityCode, code])
+  @@index([entityCode])
+}
+
+model BillOfMaterial {
+  id                    String    @id @default(cuid())
+  productId             String
+  product               Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  rawMaterialId         String
+  rawMaterial           RawMaterial @relation(fields: [rawMaterialId], references: [id], onDelete: Cascade)
+  quantityPerUnit       Float                                 // material units consumed per product unit
+
+  @@unique([productId, rawMaterialId])
+  @@index([rawMaterialId])
+}
+
+model SalesMix {
+  id                    String    @id @default(cuid())
+  productId             String
+  product               Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  market                String                               // PT, UE, USA, ROW
+  channel               String                               // Private_Label, Hotelaria, Retalho, E_Commerce
+  weight                Float                                 // fraction of product volume; Σ per product = 1
+
+  @@unique([productId, market, channel])
+  @@index([productId])
+}
+
+// ==========================================
 // SCENARIOS
 // ==========================================
 

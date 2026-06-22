@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { DollarSign, Plus, RefreshCw, Loader2, TrendingUp, TrendingDown, AlertTriangle, Bell, X } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { DollarSign, Plus, RefreshCw, Loader2, TrendingUp, TrendingDown, AlertTriangle, Bell } from 'lucide-react';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';

@@ -14,10 +14,8 @@ import {
   Upload,
   Trash2,
   Plus,
-  CheckCircle2,
   AlertTriangle,
   XCircle,
-  ChevronRight,
   Globe,
   DollarSign,
   Shield,
@@ -271,7 +269,7 @@ export function SettingsView() {
       }
     };
     input.click();
-  }, [validationRulesForm]);
+  }, []);
 
   const handleClearCache = useCallback(() => {
     toast.success('Cache cleared successfully');

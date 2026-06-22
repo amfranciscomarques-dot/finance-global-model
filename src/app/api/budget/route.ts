@@ -18,7 +18,6 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const period = searchParams.get('period') || '2024-12';
     const entityCode = searchParams.get('entityCode');
-    const scenario = searchParams.get('scenario') || 'base';
     const periodDate = new Date(period + '-01');
 
     // Build entity filter
@@ -27,7 +26,6 @@ export async function GET(request: NextRequest) {
 
     const entities = await db.entity.findMany({ where: entityFilter });
     const entityIds = entities.map((e) => e.id);
-    const entityMap = new Map(entities.map((e) => [e.id, e]));
 
     // Fetch budget entries and actuals in parallel
     const [budgetEntries, actualEntries] = await Promise.all([

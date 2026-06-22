@@ -1,12 +1,11 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Layers, Info, Loader2, Play, Download, Clock, CheckCircle2, Zap, XCircle, ShieldCheck, FileText, ChevronDown, ChevronUp, FileSpreadsheet, TrendingUp, TrendingDown } from 'lucide-react';
+import { Layers, Info, Loader2, Play, Download, Clock, CheckCircle2, Zap, XCircle, ShieldCheck, FileText, FileSpreadsheet, TrendingUp, TrendingDown } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Separator } from '@/components/ui/separator';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
@@ -20,7 +19,7 @@ import { useTranslations, useLocale } from 'next-intl';
 import { dateLocale, type Locale } from '@/i18n/locale-context';
 import { motion } from 'framer-motion';
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RTooltip, ResponsiveContainer, Cell, Legend,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RTooltip, ResponsiveContainer, Legend,
 } from 'recharts';
 
 // Colour palette assigned to entity columns by position (company-agnostic).
@@ -227,7 +226,7 @@ export function ConsolidationView() {
           };
         }));
       }
-    } catch (err) {
+    } catch {
       console.log('Could not load consolidation history');
     }
   }, []);

@@ -8,6 +8,13 @@
 // packs are the only place company-specific data lives.
 // ============================================================
 
+import type { OperationalModel } from '@/lib/operations/types';
+
+// Optional operational catalog for a manufacturing/trading entity. When
+// present, the pack's buildTrialBalance drives the entity's REV-001/COGS-*
+// lines bottom-up from this catalog (see src/lib/operations).
+export type PackOperations = OperationalModel;
+
 export interface PackEntity {
   code: string;
   legalName: string;
@@ -94,4 +101,7 @@ export interface CompanyPack {
   buildTrialBalance: () => PackTbRecord[];
   icTransactions: PackICTransaction[];
   projects: PackProject[];
+  // Operational catalogs keyed by owning entity code. The generic seeder loads
+  // these into the Product/RawMaterial/BillOfMaterial/SalesMix tables.
+  operations?: PackOperations[];
 }

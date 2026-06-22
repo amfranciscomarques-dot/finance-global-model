@@ -1,4 +1,4 @@
-import { Entity, ConsolidatedResult, Scenario, VarianceData, ExchangeRateInfo, KPIs, COAAccount, COAMapping, ImportRecord, ImportHistoryEntry, AuditEntry, ICTransaction, GeneratedReport, BudgetVsActualSummary, BudgetVarianceDetail, TrendData, SystemSettings, CashFlowForecast, AppNotification, ChatMessage, ComplianceCheck, EntityCompliance, JurisdictionCompliance, Violation, JournalEntry, JournalEntryCreateRequest, WorkflowData } from './types';
+import { Entity, ConsolidatedResult, Scenario, VarianceData, ExchangeRateInfo, KPIs, COAAccount, COAMapping, ImportRecord, ImportHistoryEntry, AuditEntry, ICTransaction, GeneratedReport, BudgetVsActualSummary, BudgetVarianceDetail, TrendData, SystemSettings, CashFlowForecast, AppNotification, ComplianceCheck, EntityCompliance, JurisdictionCompliance, Violation, JournalEntry, JournalEntryCreateRequest, WorkflowData, OperationsData } from './types';
 
 const BASE_URL = '/api';
 
@@ -479,4 +479,13 @@ export async function getWorkflow(params?: { period?: string }): Promise<Workflo
   if (params?.period) query.set('period', params.period);
   const data = await fetchAPI<unknown>(`/workflow${query.toString() ? `?${query.toString()}` : ''}`);
   return unwrap<WorkflowData>(data, 'workflow');
+}
+
+// ============================================================
+// OPERATIONS
+// ============================================================
+export async function getOperations(params?: { entityCode?: string }): Promise<OperationsData> {
+  const query = new URLSearchParams();
+  if (params?.entityCode) query.set('entityCode', params.entityCode);
+  return fetchAPI<OperationsData>(`/operations${query.toString() ? `?${query.toString()}` : ''}`);
 }

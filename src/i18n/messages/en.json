@@ -15,6 +15,7 @@
     "dashboard": { "label": "Dashboard", "desc": "Group KPIs and financial overview" },
     "entities": { "label": "Entities", "desc": "Manage subsidiaries and parameters" },
     "consolidation": { "label": "Consolidation", "desc": "Consolidated financial statements" },
+    "operations": { "label": "Operations", "desc": "Products, materials & sales mix" },
     "ic-transactions": { "label": "IC Transactions", "desc": "Intercompany transaction matching" },
     "journal": { "label": "Journal Entry", "desc": "Manual journal entry editor" },
     "scenarios": { "label": "Scenarios", "desc": "Scenario analysis and modelling" },
@@ -37,6 +38,7 @@
     "dashboard": "Dashboard",
     "entities": "Entity Management",
     "consolidation": "Consolidation",
+    "operations": "Operations",
     "scenarios": "Scenario Analysis",
     "variance": "Variance Analysis",
     "budget": "Budget vs Actual",
@@ -632,6 +634,46 @@
     "capex": "CAPEX",
     "debtLabel": "Debt @ {rate}%",
     "equity": "Equity"
+  },
+  "operations": {
+    "heading": "Operations",
+    "subtitle": "Bottom-up revenue & cost of sales by product, raw material, market and channel",
+    "selectEntity": "Entity",
+    "demoBanner": "Could not load the live operational catalog. Showing demo figures below.",
+    "kpi": {
+      "revenue": "Revenue",
+      "cogs": "Cost of Sales",
+      "grossProfit": "Gross Profit",
+      "grossMargin": "Gross Margin",
+      "catalogCount": "{products} products · {materials} materials"
+    },
+    "cost": {
+      "materials": "Materials (MP)",
+      "labor": "Direct Labor (MOD)",
+      "overhead": "Overhead (GGF)"
+    },
+    "charts": {
+      "revenueByProduct": "Revenue & gross profit by product",
+      "costStructure": "Cost of sales structure",
+      "revenueByMarket": "Revenue by market",
+      "revenueByChannel": "Revenue by channel",
+      "costByMaterial": "Material cost (manufactured)"
+    },
+    "table": {
+      "title": "Product margins",
+      "product": "Product",
+      "type": "Type",
+      "volume": "Volume",
+      "price": "Price/unit",
+      "unitCost": "Unit cost",
+      "revenue": "Revenue",
+      "cogs": "Cost of sales",
+      "margin": "Gross margin"
+    },
+    "type": {
+      "manufactured": "Manufactured",
+      "merchandise": "Merchandise"
+    }
   },
   "audit": {
     "title": "Audit Trail",

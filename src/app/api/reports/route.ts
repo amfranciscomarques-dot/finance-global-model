@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { z } from 'zod';
+import { parseEntityCodes } from '@/lib/entity-codes';
 
 const generateReportSchema = z.object({
   reportType: z.enum([
@@ -35,7 +36,7 @@ export async function GET(request: NextRequest) {
       title: `Consolidation Run - ${run.period.toISOString().slice(0, 7)}`,
       period: run.period.toISOString().slice(0, 7),
       scenarioType: run.scenarioType,
-      entityCodes: run.entityCodes ? JSON.parse(run.entityCodes) : [],
+      entityCodes: parseEntityCodes(run.entityCodes),
       generatedAt: run.createdAt.toISOString(),
       format: 'system',
     }));

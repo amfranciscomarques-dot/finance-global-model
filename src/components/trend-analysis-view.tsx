@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
-  TrendingUp, TrendingDown, ArrowUpRight, ArrowDownRight, Download, Loader2,
+  TrendingUp, TrendingDown, ArrowUpRight, ArrowDownRight, Download,
   DollarSign, BarChart3, PiggyBank, Building2, Percent, Activity, ChevronRight,
   Calendar, Target, LineChart as LineChartIcon,
 } from 'lucide-react';
@@ -15,10 +15,9 @@ import {
 } from '@/components/ui/table';
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, Area, ReferenceLine, Cell, Legend,
+  ResponsiveContainer, Area, ReferenceLine, Cell,
 } from 'recharts';
 import { getTrendAnalysis } from '@/lib/api';
-import { useAppStore } from '@/lib/store';
 import { TrendData, TrendPeriod } from '@/lib/types';
 import { formatCompactEUR } from '@/lib/format';
 import { DataLoadError } from '@/components/data-load-error';
@@ -298,7 +297,6 @@ export function TrendAnalysisView() {
   const t = useTranslations('trends');
   const loc = useLocale() as Locale;
   const dl = dateLocale(loc);
-  const { selectedPeriod } = useAppStore();
   const [selectedMetric, setSelectedMetric] = useState('revenue');
   const [trendData, setTrendData] = useState<TrendData | null>(null);
   const [loading, setLoading] = useState(false);
@@ -414,7 +412,7 @@ export function TrendAnalysisView() {
       change: m.p2 - m.p1,
       changePct: m.p1 !== 0 ? ((m.p2 - m.p1) / Math.abs(m.p1)) * 100 : 0,
     }));
-  }, [data, comparePeriod1, comparePeriod2]);
+  }, [data, comparePeriod1, comparePeriod2, t]);
 
   // CSV export
   const exportCSV = () => {

@@ -15,6 +15,7 @@
     "dashboard": { "label": "Painel", "desc": "KPIs do grupo e visão financeira geral" },
     "entities": { "label": "Entidades", "desc": "Gerir subsidiárias e parâmetros" },
     "consolidation": { "label": "Consolidação", "desc": "Demonstrações financeiras consolidadas" },
+    "operations": { "label": "Operações", "desc": "Produtos, matérias-primas e mix de vendas" },
     "ic-transactions": { "label": "Transações IC", "desc": "Correspondência de transações intragrupo" },
     "journal": { "label": "Lançamentos", "desc": "Editor manual de lançamentos" },
     "scenarios": { "label": "Cenários", "desc": "Análise e modelação de cenários" },
@@ -37,6 +38,7 @@
     "dashboard": "Painel",
     "entities": "Gestão de Entidades",
     "consolidation": "Consolidação",
+    "operations": "Operações",
     "scenarios": "Análise de Cenários",
     "variance": "Análise de Desvios",
     "budget": "Orçado vs Real",
@@ -632,6 +634,46 @@
     "capex": "CAPEX",
     "debtLabel": "Dívida @ {rate}%",
     "equity": "Capital próprio"
+  },
+  "operations": {
+    "heading": "Operações",
+    "subtitle": "Receita e custo das vendas bottom-up por produto, matéria-prima, mercado e canal",
+    "selectEntity": "Entidade",
+    "demoBanner": "Não foi possível carregar o catálogo operacional em direto. A mostrar valores de demonstração.",
+    "kpi": {
+      "revenue": "Receita",
+      "cogs": "Custo das Vendas",
+      "grossProfit": "Margem Bruta (€)",
+      "grossMargin": "Margem Bruta (%)",
+      "catalogCount": "{products} produtos · {materials} matérias-primas"
+    },
+    "cost": {
+      "materials": "Materiais (MP)",
+      "labor": "Mão de Obra Direta (MOD)",
+      "overhead": "Gastos Gerais de Fabrico (GGF)"
+    },
+    "charts": {
+      "revenueByProduct": "Receita e margem bruta por produto",
+      "costStructure": "Estrutura do custo das vendas",
+      "revenueByMarket": "Receita por mercado",
+      "revenueByChannel": "Receita por canal",
+      "costByMaterial": "Custo de materiais (fabricado)"
+    },
+    "table": {
+      "title": "Margens por produto",
+      "product": "Produto",
+      "type": "Tipo",
+      "volume": "Volume",
+      "price": "Preço/un.",
+      "unitCost": "Custo/un.",
+      "revenue": "Receita",
+      "cogs": "Custo das vendas",
+      "margin": "Margem bruta"
+    },
+    "type": {
+      "manufactured": "Fabricado",
+      "merchandise": "Mercadoria"
+    }
   },
   "audit": {
     "title": "Registo de Auditoria",

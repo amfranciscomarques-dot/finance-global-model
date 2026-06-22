@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   Shield, CheckCircle2, AlertTriangle, XCircle, ChevronDown, ChevronUp,
-  Loader2, Clock, ArrowRight, RefreshCw, Download,
+  Clock, ArrowRight, RefreshCw, Download,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -12,7 +12,6 @@ import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { getCompliance, ComplianceData } from '@/lib/api';
-import { ComplianceCheck, EntityCompliance, JurisdictionCompliance, Violation } from '@/lib/types';
 import { DataLoadError } from '@/components/data-load-error';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslations, useLocale } from 'next-intl';
@@ -161,7 +160,6 @@ function ScoreGauge({ score, size = 160, label = 'Score' }: { score: number; siz
   const center = size / 2;
 
   const color = score >= 80 ? '#10b981' : score >= 60 ? '#f59e0b' : '#ef4444';
-  const bgColor = score >= 80 ? 'rgba(16,185,129,0.1)' : score >= 60 ? 'rgba(245,158,11,0.1)' : 'rgba(239,68,68,0.1)';
 
   return (
     <div className="relative" style={{ width: size, height: size }}>
@@ -244,7 +242,6 @@ export function ComplianceView() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [expandedCheck, setExpandedCheck] = useState<string | null>(null);
-  const [selectedEntity, setSelectedEntity] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
     setLoading(true);

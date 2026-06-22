@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { GitBranch, Play, TrendingUp, TrendingDown, Minus, Loader2, AlertTriangle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -11,7 +11,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
   RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
 } from 'recharts';
 import { getScenarios, runScenario, getEntities } from '@/lib/api';
@@ -21,7 +21,7 @@ import { useToast } from '@/hooks/use-toast';
 import { demoScenarios, scenarioComparison as fallbackComparison } from '@/lib/demo-data';
 import { formatEUR } from '@/lib/utils';
 import { DataLoadError } from '@/components/data-load-error';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { useTranslations } from 'next-intl';
 
 const scenarioColors: Record<string, string> = {
@@ -101,9 +101,9 @@ export function ScenariosView() {
   const { selectedPeriod } = useAppStore();
   const [scenarios, setScenarios] = useState<Scenario[]>(demoScenarios);
   const [selectedScenario, setSelectedScenario] = useState<string>('scen-base');
-  const [scenarioComparison, setScenarioComparison] = useState(fallbackComparison);
+  const [scenarioComparison] = useState(fallbackComparison);
   const [isRunning, setIsRunning] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const { toast } = useToast();
 

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback, useMemo } from 'react';
-import { TrendingUp, TrendingDown, DollarSign, BarChart3, CircleDollarSign, Percent, Loader2, Play, FileDown, GitBranch, ArrowRight, Activity, Shield, CheckCircle2, AlertTriangle, XCircle, Clock, Building2, Eye } from 'lucide-react';
+import { TrendingUp, TrendingDown, DollarSign, BarChart3, CircleDollarSign, Percent, Play, FileDown, GitBranch, ArrowRight, Activity, Shield, CheckCircle2, AlertTriangle, XCircle, Clock, Building2, Eye } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -50,7 +50,6 @@ import {
   Legend,
   ResponsiveContainer,
   ReferenceLine,
-  Label,
 } from 'recharts';
 
 // Custom tooltip component
@@ -531,7 +530,7 @@ export function DashboardView() {
         transition={{ duration: 0.35, delay: 0.05 }}
         className="grid grid-cols-2 lg:grid-cols-4 gap-2"
       >
-        {quickStats.map((stat, i) => {
+        {quickStats.map((stat) => {
           const Icon = stat.icon;
           return (
             <TooltipProvider key={stat.id} delayDuration={300}>

@@ -526,3 +526,121 @@ The two remaining monolithic components were decomposed following the dashboard 
 - The pre-existing `set-state-in-effect` and remaining `no-unused-vars` warnings are untouched. With F11 done, all the originally-deferred follow-ups (F8, F9, F11, F1-residual, F3/F4/F5) are complete.
 
 *End of F11 decomposition.*
+
+---
+
+# Code Review — Pass 3: residual cleanup (2026-06-21)
+
+> Follow-on pass driven by `CODE_REVIEW_PLAN.md`. The plan was first **verified
+> against the code** — several of its items turned out to be stale or
+> mis-attributed (noted inline below) — then the genuinely-open items were
+> remediated. Gates after changes: `npx eslint .` → **0 errors, 24 warnings**
+> (down from 89; the remainder are all the pre-existing, runtime-safe
+> `react-hooks/set-state-in-effect` lints). `npm test` → **86 passed / 12 files**
+> (was 72/10; +10 route smoke, +4 entity-codes). `npm run build`
+> (`ignoreBuildErrors: false`) → **success, 34/34 pages**.
+
+## Plan verification — corrections to `CODE_REVIEW_PLAN.md`
+
+- **P1 (NaN gauge) was already closed.** The fix
+  ([`computeHealthIndicators`](src/components/dashboard/helpers.ts)) and its
+  regression tests ([`helpers.test.ts`](src/components/dashboard/helpers.test.ts),
+  finite-score cases for zero/negative/crash growth) were already present and
+  green. The plan also mis-stated the cause as "zero-equity/zero-liabilities" —
+  the real `NaN` was `0/0` from zero revenue growth, which the fix correctly
+  targets. No code change needed.
+- **R2 mis-located the unused `KPIs`.** It is in
+  [`src/lib/demo-data.ts`](src/lib/demo-data.ts), not `api.ts` (which was clean).
+- **R4 had its premise inverted.** There was **no** comment explaining
+  `projects-view`'s local `fmtMoney`; the gap was the missing comment, now added.
+- **R5 was understated.** There was no `prisma/migrations/` directory at all — the
+  *entire* schema was `db push`-only, not just `COAMapping`.
+- **R6 was overstated/mischaracterised.** The compliance route is mostly
+  real-data-derived; the fabrication was an empty-state fallback plus
+  `Math.random()` in the filing statuses and trend — which the plan didn't name.
+
+## Fixed
+
+- **R5 — Prisma migrations baselined.** Generated `prisma/migrations/0_init`
+  (`migrate diff --from-empty`, includes the `COAMapping`
+  `@@unique([entityCode, localAccountCode])` + `@@index([groupCOACode])` and the
+  `migration_lock.toml`), then `migrate resolve --applied 0_init` on the live DB
+  so existing data is untouched. `prisma migrate status` → "up to date". Added a
+  `db:deploy` script and updated the README so a fresh clone gets the
+  migration-managed schema instead of a `db push`-only DB that loses constraints
+  on reset.
+- **R6 — compliance route de-faked.** Removed the `Math.random()` filing-status
+  simulation (now deterministic: past-due → `overdue`, else `pending`; nothing is
+  reported `filed` because no filing-submission record exists), removed the
+  `Math.random()` synthetic trend (replaced with the single real point we can
+  compute — the current period — since compliance scores aren't persisted per
+  period), and deleted the demo-violation fallback (the UI already renders a
+  proper empty state). Also dropped the route's now-dead `consolidationRuns`
+  query and three unused locals.
+- **R7 — `entityCodes` JSON hardened.** New validated boundary
+  [`parseEntityCodes`](src/lib/entity-codes.ts) (Zod `string[]`, `[]` on any
+  parse/shape failure) replaces the raw `JSON.parse` in the `audit` and `reports`
+  routes, so malformed column data degrades gracefully instead of 500-ing. Unit
+  tested ([`entity-codes.test.ts`](src/lib/entity-codes.test.ts), 4 cases).
+- **R8 — route smoke suite.** [`src/app/api/smoke.test.ts`](src/app/api/smoke.test.ts)
+  exercises the 10 read routes added in remediation (`audit`, `coa`,
+  `compliance`, `exchange-rates`, `forecast`, `journal-entries`, `notifications`,
+  `projects`, `trial-balances`, `workflow`) against a seeded pack and asserts a
+  non-500 JSON response — a regression tripwire, not a full contract test.
+- **R1 — lint sweep.** Cleared all 61 `no-unused-vars` (dead imports, unused
+  locals/args/destructures across the API routes and ~20 view components), the 3
+  `react-hooks/exhaustive-deps` (added missing `t` deps; dropped an unnecessary
+  one), and the 1 `react-hooks/immutability` (refactored the variance waterfall
+  to precompute prefix sums so the `map` callback is pure). The 24
+  `set-state-in-effect` warnings are deliberately **deferred** — they are
+  runtime-safe React-Compiler-readiness flags whose fixes are genuine effect
+  refactors, not dead-code removal, and carry regression risk in a batch.
+- **R2 — removed the unused `KPIs` import** in `demo-data.ts`.
+- **R3 — documented the `formatMetricValue` scale deviation** explicitly (it
+  renders EUR-K inputs as `€M`; the shared `formatCompactEUR` expects full euros)
+  in [`entities/helpers.ts`](src/components/entities/helpers.ts).
+- **R4 — documented `projects-view`'s local `fmtMoney`** as intentionally
+  multi-currency and not to be unified with the EUR-only shared formatter.
+
+## P3 — browser smoke of the 18 views (2026-06-22)
+
+Drove the running app (`next dev --webpack`) through every view that hadn't been
+exercised in the browser — Consolidation, IC Transactions, Journal Entry,
+Scenarios, Variance, Budget vs Actual, Trend Analysis, Cash Flow Forecast,
+Projects, FX Rates, Chart of Accounts, Reports, AI Insights, Compliance, Data
+Import, Audit Trail, Workflow, Settings — after loading the Meridian Group pack.
+Each view was scanned for render failures, `NaN`/`Infinity`/`undefined` leakage,
+error-boundary/`DataLoadError` banners, and console errors.
+
+**Result:** all 18 render real consolidated data with **no failed network
+requests** and **no console errors**. The core engine path checks out visually —
+Consolidation shows the per-entity columns, **−€7.50M IC eliminations**,
+consolidated **€41.5M** revenue, a **Balanced ✓** balance-sheet check and a 100%
+quality score, all in `de-DE` grouping.
+
+One real defect was found and fixed:
+
+- **Cash Flow Forecast rendered the literal "Invalid Date".** `/api/forecast`
+  returns a full-year actual anchor as its first period (`month: "2024 (FY)"`),
+  but the view's `formatMonth` assumed every value was `YYYY-MM`. Its `try/catch`
+  was dead code — `new Date("2024 (FY)-01")` yields an *Invalid Date* object
+  (which does **not** throw); calling `toLocaleDateString` on it returns the
+  string `"Invalid Date"`, which surfaced on the X-axis and in the monthly
+  breakdown table. Extracted `formatMonth` to
+  [`cash-flow-forecast/helpers.ts`](src/components/cash-flow-forecast/helpers.ts)
+  with an explicit `Number.isNaN(getTime())` guard that passes non-month labels
+  through verbatim, and locked it with a golden test
+  ([`helpers.test.ts`](src/components/cash-flow-forecast/helpers.test.ts), 3
+  cases). Verified live: the first tick now reads **"2024 (FY)"**.
+
+Gates after this pass: `npx eslint .` → **0 errors, 24 warnings** (unchanged).
+`npm test` → **89 passed / 13 files** (+3 `formatMonth`). `npm run build` →
+**success, 34/34 pages**.
+
+## Intentionally not done
+
+- **24 `react-hooks/set-state-in-effect` warnings** — deferred as above.
+- **`ConsolidationRun.entityCodes` → normalized join table (R7 stretch)** — the
+  read boundary is now safe; a schema change is out of proportion for a demo.
+
+*End of Pass 3.*

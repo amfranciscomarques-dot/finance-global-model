@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   Upload, FileSpreadsheet, ArrowRight, ArrowLeft, CheckCircle2,
-  AlertCircle, Loader2, Download, FileUp, Check, X,
+  AlertCircle, Loader2, FileUp, Check, X,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -15,7 +15,6 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
-import { Separator } from '@/components/ui/separator';
 import { Progress } from '@/components/ui/progress';
 import { importTrialBalance, getImportHistory } from '@/lib/api';
 import { ImportRecord, ImportHistoryEntry } from '@/lib/types';
@@ -301,7 +300,6 @@ export function DataImportView() {
               const thisIdx = i;
               const isActive = thisIdx === currentIdx;
               const isCompleted = thisIdx < currentIdx;
-              const Icon = s.icon;
               return (
                 <div key={s.key} className="flex items-center gap-2 flex-1">
                   <div className={`flex items-center gap-2 ${isActive ? 'text-emerald-600 dark:text-emerald-400' : isCompleted ? 'text-teal-600 dark:text-teal-400' : 'text-muted-foreground'}`}>

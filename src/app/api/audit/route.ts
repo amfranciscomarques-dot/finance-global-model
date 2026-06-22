@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { parseEntityCodes } from '@/lib/entity-codes';
 
 export async function GET(request: NextRequest) {
   try {
@@ -26,7 +27,7 @@ export async function GET(request: NextRequest) {
       });
 
       for (const run of runs) {
-        const entityCodes = JSON.parse(run.entityCodes || '[]');
+        const entityCodes = parseEntityCodes(run.entityCodes);
         const period = run.period.toISOString().substring(0, 7);
         entries.push({
           id: run.id,

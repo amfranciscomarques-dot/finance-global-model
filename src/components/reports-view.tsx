@@ -22,7 +22,6 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog';
-import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { getReports, generateReport, exportExcel, exportPDF } from '@/lib/api';
 import { formatNumber as formatGrouped } from '@/lib/format';
@@ -79,12 +78,6 @@ const reportTemplates: ReportTemplate[] = [
 
 const iconMap: Record<string, React.ElementType> = {
   TrendingUp, Scale, Receipt, ArrowLeftRight, Building2, GitBranch, ShieldCheck, Table2,
-};
-
-const categoryConfig: Record<string, { label: string; color: string; bgColor: string }> = {
-  financial: { label: 'Financial', color: 'text-emerald-700 dark:text-emerald-400', bgColor: 'bg-emerald-100 dark:bg-emerald-900/30' },
-  analysis: { label: 'Analysis', color: 'text-teal-700 dark:text-teal-400', bgColor: 'bg-teal-100 dark:bg-teal-900/30' },
-  compliance: { label: 'Compliance', color: 'text-amber-700 dark:text-amber-400', bgColor: 'bg-amber-100 dark:bg-amber-900/30' },
 };
 
 // Demo report data for preview

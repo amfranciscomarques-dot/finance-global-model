@@ -25,7 +25,6 @@ import {
 import {
   ComposedChart,
   Area,
-  Line,
   Bar,
   XAxis,
   YAxis,
@@ -39,6 +38,7 @@ import { motion, type Variants } from 'framer-motion';
 import { useAppStore } from '@/lib/store';
 import { getForecast, saveForecastAssumptions } from '@/lib/api';
 import { formatEUR } from '@/lib/utils';
+import { formatMonth } from '@/components/cash-flow-forecast/helpers';
 import { DataLoadError } from '@/components/data-load-error';
 import { CashFlowForecast, ForecastPeriod } from '@/lib/types';
 import { useTranslations, useLocale } from 'next-intl';
@@ -157,14 +157,7 @@ function formatK(value: number): string {
   return formatEUR(value);
 }
 
-function formatMonth(month: string, locale = 'en-US'): string {
-  try {
-    const d = new Date(month + '-01');
-    return d.toLocaleDateString(locale, { month: 'short', year: '2-digit' });
-  } catch {
-    return month;
-  }
-}
+// formatMonth lives in ./cash-flow-forecast/helpers (golden-tested).
 
 // ============================================================
 // ANIMATION VARIANTS

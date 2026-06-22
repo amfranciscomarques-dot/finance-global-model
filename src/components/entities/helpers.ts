@@ -100,7 +100,11 @@ export function buildComparisonMetrics(isA: IncomeStatement, bsA: BalanceSheet, 
   ];
 }
 
-// Currency metrics are stored in €K, so the currency branch renders €M.
+// KNOWN DEVIATION from the shared src/lib/format.ts formatters: the comparison
+// metrics fed here are stored in EUR-thousands (€K), so the currency branch
+// divides by 1_000 and labels "€M". The shared `formatCompactEUR` expects full
+// euros and would render these values 1000× too small. Do NOT swap in
+// `formatCompactEUR` without first rescaling the inputs to full euros.
 export function formatMetricValue(value: number, format: 'currency' | 'percent' | 'ratio'): string {
   switch (format) {
     case 'currency':

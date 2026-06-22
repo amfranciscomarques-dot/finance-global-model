@@ -148,11 +148,6 @@ export function WorkflowView() {
 
   const selectedStep = workflow.steps.find((s) => s.id === selectedStepId) || null;
 
-  // Find the current active step (first in_progress or first pending after last complete)
-  const currentStepIdx = workflow.steps.findIndex((s) => s.status === 'in_progress');
-  const firstPendingIdx = workflow.steps.findIndex((s) => s.status === 'pending');
-  const activeStepIdx = currentStepIdx >= 0 ? currentStepIdx : firstPendingIdx;
-
   return (
     <div className="space-y-6">
       {loadError && <DataLoadError />}
@@ -239,7 +234,6 @@ export function WorkflowView() {
             ) : (
               <div className="flex items-start justify-between gap-1 sm:gap-2 py-2">
                 {workflow.steps.map((step, idx) => {
-                  const isActive = idx === activeStepIdx;
                   const isSelected = step.id === selectedStepId;
                   return (
                     <div key={step.id} className="flex-1 flex flex-col items-center relative">

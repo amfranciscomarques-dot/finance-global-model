@@ -78,12 +78,6 @@ export async function GET(request: NextRequest) {
     const coaMappings = await db.cOAMapping.findMany();
     const groupCOA = await db.chartOfAccount.findMany();
 
-    // Fetch consolidation runs for trend
-    const consolidationRuns = await db.consolidationRun.findMany({
-      orderBy: { createdAt: 'desc' },
-      take: 6,
-    });
-
     // ============================================================
     // 1. Balance Sheet Integrity Check
     // ============================================================
@@ -130,18 +124,11 @@ export async function GET(request: NextRequest) {
       icByRef.get(ref)!.push(tx);
     }
 
-    let icMatchedCount = 0;
-    let icUnmatchedCount = 0;
     const icUnmatchedEntities = new Set<string>();
 
     for (const [ref, txns] of icByRef) {
-      if (ref.startsWith('unmatched-')) {
-        icUnmatchedCount += txns.length;
-        txns.forEach(t => { icUnmatchedEntities.add(t.fromEntity.code); icUnmatchedEntities.add(t.toEntity.code); });
-      } else if (txns.length >= 2) {
-        icMatchedCount++;
-      } else {
-        icUnmatchedCount += txns.length;
+      // Unmatched = a synthetic 'unmatched-' reference, or a reference with fewer than two legs.
+      if (ref.startsWith('unmatched-') || txns.length < 2) {
         txns.forEach(t => { icUnmatchedEntities.add(t.fromEntity.code); icUnmatchedEntities.add(t.toEntity.code); });
       }
     }
@@ -299,7 +286,7 @@ export async function GET(request: NextRequest) {
     let disclosurePassCount = 0;
     const disclosureIssues: string[] = [];
 
-    for (const [country, config] of Object.entries(JURISDICTION_CONFIG)) {
+    for (const country of Object.keys(JURISDICTION_CONFIG)) {
       if (!entityCountries.has(country)) continue;
       const countryEntities = entities.filter(e => e.countryCode === country);
       const hasTBForCountry = countryEntities.some(e => entitiesWithTB.has(e.id));
@@ -473,14 +460,13 @@ export async function GET(request: NextRequest) {
           ? Math.round(countryEntities.reduce((sum, e) => sum + e.overallScore, 0) / countryEntities.length)
           : 0;
 
-        // Simulate filing statuses based on date
+        // Filing status is derived purely from the statutory deadline vs. today.
+        // There is no filing-submission table yet, so nothing is reported as
+        // 'filed' (we hold no record of a submission): not-yet-due => pending,
+        // past-due => overdue. Wire to real filing records when they exist.
         const now = new Date();
         const filings = config.filings.map(f => {
-          const deadline = new Date(f.deadline);
-          const isPast = deadline < now;
-          // For demo: most are pending, some filed
-          const rand = code.charCodeAt(0) % 3;
-          const status: 'filed' | 'pending' | 'overdue' = isPast ? (rand === 0 ? 'filed' : 'overdue') : (rand === 0 ? 'filed' : 'pending');
+          const status: 'filed' | 'pending' | 'overdue' = new Date(f.deadline) < now ? 'overdue' : 'pending';
           return { ...f, status };
         });
 
@@ -528,38 +514,8 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Add some demo violations for realism if none found
-    if (violations.length === 0) {
-      violations.push(
-        {
-          id: 'v-demo-1',
-          severity: 'info',
-          entityCode: 'PT0001',
-          description: 'Annual filing deadline approaching for SNC compliance',
-          detectedAt: new Date().toISOString(),
-          remediation: 'Prepare and submit annual financial statements before deadline.',
-          status: 'open',
-        },
-        {
-          id: 'v-demo-2',
-          severity: 'warning',
-          entityCode: 'UK0004',
-          description: 'GBP exchange rate may need update — last ECB rate is 3+ days old',
-          detectedAt: new Date(Date.now() - 172800000).toISOString(),
-          remediation: 'Verify ECB rate feed is active, or manually update GBP rates.',
-          status: 'in_progress',
-        },
-        {
-          id: 'v-demo-3',
-          severity: 'info',
-          entityCode: 'DE0003',
-          description: 'HGB disclosure requirements updated for 2025',
-          detectedAt: new Date(Date.now() - 604800000).toISOString(),
-          remediation: 'Review updated HGB disclosure requirements and adjust reports.',
-          status: 'resolved',
-        },
-      );
-    }
+    // No demo/placeholder violations: an empty list is the correct result when
+    // every check passes, and the UI renders a proper "no violations" empty state.
 
     // ============================================================
     // Overall Score
@@ -568,24 +524,13 @@ export async function GET(request: NextRequest) {
     const overallStatus: 'compliant' | 'warning' | 'non-compliant' = overallScore >= 80 ? (overallScore >= 90 ? 'compliant' : 'warning') : 'non-compliant';
 
     // ============================================================
-    // Compliance Trend (from consolidation runs)
+    // Compliance Trend
     // ============================================================
-    const trend = consolidationRuns.reverse().map((run, idx) => ({
-      period: new Date(run.period).toISOString().slice(0, 7),
-      score: Math.max(60, Math.min(100, overallScore - (consolidationRuns.length - 1 - idx) * 3 + Math.floor(Math.random() * 5))),
-    }));
-
-    // If not enough trend data, generate synthetic
-    if (trend.length < 6) {
-      const months = ['2024-07', '2024-08', '2024-09', '2024-10', '2024-11', '2024-12'];
-      const existingPeriods = new Set(trend.map(t => t.period));
-      const synthetic = months.filter(m => !existingPeriods.has(m)).map((m, idx) => ({
-        period: m,
-        score: Math.max(60, Math.min(100, overallScore - (5 - idx) * 4 + Math.floor(Math.random() * 8))),
-      }));
-      trend.push(...synthetic);
-      trend.sort((a, b) => a.period.localeCompare(b.period));
-    }
+    // Compliance scores are recomputed on demand and not persisted per period, so a
+    // true historical series cannot be derived. Rather than fabricate one (the prior
+    // implementation padded synthetic months with Math.random(), giving a different
+    // chart on every refresh), report the one real point we can compute: this period.
+    const trend = [{ period, score: overallScore }];
 
     return NextResponse.json({
       overallScore,

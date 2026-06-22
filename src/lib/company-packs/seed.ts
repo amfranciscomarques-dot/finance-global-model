@@ -16,6 +16,8 @@ export interface SeedPackResult {
     trialBalances: number;
     ic: number;
     projects: number;
+    products: number;
+    materials: number;
   };
 }
 
@@ -34,6 +36,10 @@ export async function seedCompanyPack(
 ): Promise<SeedPackResult> {
   if (reset) {
     // Order matters for FK integrity
+    await db.billOfMaterial.deleteMany();
+    await db.salesMix.deleteMany();
+    await db.product.deleteMany();
+    await db.rawMaterial.deleteMany();
     await db.trialBalance.deleteMany();
     await db.intercompanyTransaction.deleteMany();
     await db.budgetEntry.deleteMany();
@@ -43,7 +49,7 @@ export async function seedCompanyPack(
     await db.entity.deleteMany();
   }
 
-  const stats = { entities: 0, coa: 0, rates: 0, scenarios: 0, trialBalances: 0, ic: 0, projects: 0 };
+  const stats = { entities: 0, coa: 0, rates: 0, scenarios: 0, trialBalances: 0, ic: 0, projects: 0, products: 0, materials: 0 };
 
   // 1. Group chart of accounts (shared reference data, upsert)
   for (const a of CHART_OF_ACCOUNTS) {
@@ -182,6 +188,59 @@ export async function seedCompanyPack(
     });
     projectAppraisals[p.code] = { npv: appraisal.npv, irr: appraisal.irr, paybackYears: appraisal.paybackYears };
     stats.projects++;
+  }
+
+  // 8. Operational catalogs (products, raw materials, BOM, sales mix). These
+  //    drive the owning entity's REV/COGS trial-balance lines (added in the
+  //    pack's buildTrialBalance); here we persist the catalog itself so the
+  //    operations API/UI can read the product/market/channel/material detail.
+  for (const model of pack.operations ?? []) {
+    for (const m of model.materials) {
+      await db.rawMaterial.create({
+        data: {
+          entityCode: model.entityCode,
+          code: m.code,
+          name: m.name,
+          unit: m.unit,
+          unitCost: m.unitCost,
+        },
+      });
+      stats.materials++;
+    }
+    for (let i = 0; i < model.products.length; i++) {
+      const p = model.products[i];
+      const product = await db.product.create({
+        data: {
+          entityCode: model.entityCode,
+          code: p.code,
+          name: p.name,
+          productType: p.productType,
+          salesPricePerUnit: p.salesPricePerUnit,
+          annualVolume: p.annualVolume,
+          laborCostPerUnit: p.laborCostPerUnit,
+          overheadPerUnit: p.overheadPerUnit,
+          purchaseCostPerUnit: p.purchaseCostPerUnit,
+          sortOrder: i,
+        },
+      });
+      for (const line of p.bom) {
+        const material = await db.rawMaterial.findUnique({
+          where: { entityCode_code: { entityCode: model.entityCode, code: line.materialCode } },
+        });
+        if (!material) {
+          throw new Error(`Pack '${pack.id}': product '${p.code}' BOM references unknown material '${line.materialCode}'`);
+        }
+        await db.billOfMaterial.create({
+          data: { productId: product.id, rawMaterialId: material.id, quantityPerUnit: line.quantityPerUnit },
+        });
+      }
+      for (const mix of p.salesMix) {
+        await db.salesMix.create({
+          data: { productId: product.id, market: mix.market, channel: mix.channel, weight: mix.weight },
+        });
+      }
+      stats.products++;
+    }
   }
 
   return { packId: pack.id, reset, period: pack.period, projectAppraisals, stats };

@@ -4,9 +4,13 @@ Derived from running the app (Dashboard + Entities) on 2026-06-21. Ranked by
 impact on a financial consolidation tool, where numeric correctness is the
 core value.
 
+> **Status (2026-06-22):** P1 ✅ done · P2 ✅ done · P3 ✅ done (API route smoke
+> tests + browser smoke of all 18 views complete; one bug found & fixed). See the
+> per-item resolution notes below and the Pass-3 section in `CODE_REVIEW.md`.
+
 ---
 
-## P1 — Fix the `NaN` health gauge (correctness)
+## P1 — Fix the `NaN` health gauge (correctness) — ✅ DONE
 
 **Symptom:** The dashboard "Overall Group Health" gauge renders `NaN OUT OF 100`
 instead of a numeric score (Meridian Group, Dec 2024, Base Case).
@@ -40,9 +44,17 @@ math, which could be silently skewing other KPIs too.
 **Verify:** Reload the dashboard under `--webpack`; gauge shows a number.
 Run `npm test`.
 
+**Resolution:** The root cause was `revenueGrowth` of exactly `0` (earliest
+period, no prior to compare) computing `0 / 0 = NaN` in the revenue-growth pillar
+— not zero equity/liabilities. Guarded in
+[`computeHealthIndicators`](src/components/dashboard/helpers.ts) (the `> 0`
+branch now floors at a finite 30) and locked in by regression tests in
+[`helpers.test.ts`](src/components/dashboard/helpers.test.ts) that assert
+`Number.isFinite` for zero, negative, and crash-level growth. `npm test` green.
+
 ---
 
-## P2 — Make `npm run dev` work out of the box (setup footgun)
+## P2 — Make `npm run dev` work out of the box (setup footgun) — ✅ DONE
 
 **Symptom:** The default `npm run dev` (Next.js 16 → Turbopack) panics on Windows
 while compiling `src/app/globals.css` through PostCSS — a child node process fails
@@ -67,9 +79,12 @@ then revert to Turbopack for faster dev builds.
 
 **Verify:** `npm run dev` → `GET /` returns 200.
 
+**Resolution:** `package.json` `dev` script already points at `--webpack`
+(mirrored in `.claude/launch.json`).
+
 ---
 
-## P3 — Smoke-test the remaining views (coverage)
+## P3 — Smoke-test the remaining views (coverage) — ✅ DONE
 
 **Status:** Only Dashboard + Entities have been exercised. Unverified:
 Consolidation, IC Transactions, Journal Entry, Scenarios, Variance, Budget vs
@@ -83,6 +98,24 @@ render errors / `NaN` / empty states. Prioritize the consolidation engine path
 depends on.
 
 **Verify:** Each view renders real data without console errors.
+
+**Resolution:** Two layers.
+
+1. **API-route smoke suite** ([`src/app/api/smoke.test.ts`](src/app/api/smoke.test.ts))
+   exercises the 10 read routes added during remediation against a seeded DB and
+   asserts a non-500 JSON response — a code-level tripwire for the routes the
+   views consume.
+2. **Browser smoke (2026-06-22).** Drove the running app through all 18 views
+   after loading the Meridian pack, scanning each for render failures,
+   `NaN`/`Infinity`/`undefined`, error banners and console errors. All 18 render
+   real data with no failed network requests and no console errors; the
+   Consolidation path verified visually (−€7.50M IC eliminations, €41.5M
+   consolidated, Balanced ✓). One defect found & fixed: the Cash Flow Forecast
+   X-axis/table showed a literal **"Invalid Date"** for the full-year anchor
+   period (`"2024 (FY)"`) because `formatMonth` assumed `YYYY-MM` and its
+   `try/catch` couldn't catch a non-throwing Invalid Date. Fixed + golden-tested
+   in [`cash-flow-forecast/helpers.ts`](src/components/cash-flow-forecast/helpers.ts).
+   See the Pass-3 P3 section of `CODE_REVIEW.md`.
 
 ---
 

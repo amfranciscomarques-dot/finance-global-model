@@ -25,7 +25,7 @@ import { getJournalEntries, createJournalEntry, getCOA, getEntities } from '@/li
 import { JournalEntry, JournalEntryLine, COAAccount, Entity } from '@/lib/types';
 import { formatCompactEUR, formatNumber } from '@/lib/format';
 import { DataLoadError } from '@/components/data-load-error';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { useTranslations, useLocale } from 'next-intl';
 import { dateLocale, type Locale } from '@/i18n/locale-context';
 

@@ -616,3 +616,40 @@ export interface WorkflowData {
   lastCompletedStep: string | null;
   estimatedTimeRemaining: string;
 }
+
+// ============================================================
+// OPERATIONS (bottom-up product / material / market / channel detail)
+// ============================================================
+
+export type OperationalProductType = 'manufactured' | 'merchandise';
+
+export interface OperationalProductLine {
+  code: string;
+  name: string;
+  productType: OperationalProductType;
+  volume: number;
+  pricePerUnit: number;
+  unitCost: number;       // CIP — full unit cost
+  revenue: number;
+  cogs: number;
+  grossProfit: number;
+  grossMarginPct: number; // 0..1
+}
+
+export interface OperationalStatement {
+  entityCode: string;
+  revenueTotal: number;
+  cogs: { materials: number; labor: number; overhead: number; total: number };
+  grossProfit: number;
+  grossMarginPct: number;
+  byProduct: OperationalProductLine[];
+  byMaterial: Array<{ code: string; name: string; cost: number }>;
+  byMarket: Array<{ market: string; revenue: number; volume: number }>;
+  byChannel: Array<{ channel: string; revenue: number; volume: number }>;
+}
+
+export interface OperationsData {
+  statement: OperationalStatement | null;
+  entityCode?: string;
+  entityCodes: string[];
+}

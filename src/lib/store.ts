@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-export type ViewType = 'dashboard' | 'entities' | 'consolidation' | 'scenarios' | 'variance' | 'budget' | 'trends' | 'forecast' | 'fx-rates' | 'coa' | 'import' | 'audit' | 'ic-transactions' | 'reports' | 'ai-insights' | 'compliance' | 'settings' | 'journal' | 'workflow' | 'projects';
+export type ViewType = 'dashboard' | 'entities' | 'consolidation' | 'scenarios' | 'variance' | 'budget' | 'trends' | 'forecast' | 'fx-rates' | 'coa' | 'import' | 'audit' | 'ic-transactions' | 'reports' | 'ai-insights' | 'compliance' | 'settings' | 'journal' | 'workflow' | 'projects' | 'operations';
 
 export interface SelectedCompany {
   code: string;

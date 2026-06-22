@@ -22,6 +22,7 @@ import { ComplianceView } from '@/components/compliance-view';
 import { JournalEntryView } from '@/components/journal-entry-view';
 import { WorkflowView } from '@/components/workflow-view';
 import { ProjectsView } from '@/components/projects-view';
+import { OperationsView } from '@/components/operations-view';
 import { GroupSelectScreen } from '@/components/group-select-screen';
 import { NotificationCenter } from '@/components/notification-center';
 import { CommandPalette } from '@/components/command-palette';
@@ -46,7 +47,7 @@ import {
 } from '@/components/ui/breadcrumb';
 import { availablePeriods } from '@/lib/demo-data';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Activity, Clock, ShieldCheck, Database, ChevronRight, Command, LayoutDashboard, Building2, Layers, GitBranch, BarChart3, Target, TrendingUp, DollarSign, BookOpen, Upload, ArrowLeftRight, FileText, Settings, Coins, Sparkles, Shield, PenLine, Workflow, Rocket } from 'lucide-react';
+import { Activity, Clock, ShieldCheck, Database, ChevronRight, Command, LayoutDashboard, Building2, Layers, GitBranch, BarChart3, Target, TrendingUp, DollarSign, BookOpen, Upload, ArrowLeftRight, FileText, Settings, Coins, Sparkles, Shield, PenLine, Workflow, Rocket, Factory } from 'lucide-react';
 
 const viewIconMap: Record<string, React.ElementType> = {
   dashboard: LayoutDashboard,
@@ -58,6 +59,7 @@ const viewIconMap: Record<string, React.ElementType> = {
   trends: TrendingUp,
   forecast: Coins,
   projects: Rocket,
+  operations: Factory,
   'fx-rates': DollarSign,
   coa: BookOpen,
   'ic-transactions': ArrowLeftRight,
@@ -123,6 +125,8 @@ export default function Home() {
         return <CashFlowForecastView />;
       case 'projects':
         return <ProjectsView />;
+      case 'operations':
+        return <OperationsView />;
       case 'audit':
         return <AuditTrailView />;
       case 'settings':

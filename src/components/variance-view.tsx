@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { BarChart3, ArrowUpRight, ArrowDownRight, Loader2, Download, TrendingUp, TrendingDown } from 'lucide-react';
+import { BarChart3, ArrowUpRight, ArrowDownRight, Loader2, Download } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import {
@@ -11,7 +11,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, ReferenceLine, Legend,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, ReferenceLine,
   LineChart, Line,
 } from 'recharts';
 import { getVariance } from '@/lib/api';
@@ -89,9 +89,6 @@ function HeatmapCell({ value, label }: { value: number; label: string }) {
   const bgColor = isPositive
     ? `rgba(16, 185, 129, ${0.1 + intensity * 0.4})`
     : `rgba(245, 158, 11, ${0.1 + intensity * 0.4})`;
-  const textColor = isPositive
-    ? `rgb(${5 + intensity * 0}, ${150 - intensity * 30}, ${100 + intensity * 20})`
-    : `rgb(${180 + intensity * 50}, ${120 - intensity * 30}, ${10})`;
 
   return (
     <div
@@ -139,16 +136,15 @@ export function VarianceView() {
     .filter((d) => Math.abs(d.varianceVsBudget) > 50)
     .map((d) => ({ name: d.metric, value: d.varianceVsBudget }));
 
-  // Build stacked waterfall data
-  let runningTotal = 0;
-  const waterfallChartData = waterfallItems.map((item) => {
-    const prev = runningTotal;
-    runningTotal += item.value;
-    if (item.value >= 0) {
-      return { name: item.name, base: prev, barValue: item.value, rawValue: item.value, type: 'positive' };
-    } else {
-      return { name: item.name, base: runningTotal, barValue: Math.abs(item.value), rawValue: item.value, type: 'negative' };
-    }
+  // Build stacked waterfall data. Prefix sums are computed up front so the map
+  // callback stays pure (no reassignment of an outer variable during render,
+  // which the React Compiler rejects). The series is tiny, so O(n²) is fine.
+  const waterfallChartData = waterfallItems.map((item, i) => {
+    const prev = waterfallItems.slice(0, i).reduce((sum, it) => sum + it.value, 0);
+    const runningTotal = prev + item.value;
+    return item.value >= 0
+      ? { name: item.name, base: prev, barValue: item.value, rawValue: item.value, type: 'positive' }
+      : { name: item.name, base: runningTotal, barValue: Math.abs(item.value), rawValue: item.value, type: 'negative' };
   });
 
   const revenueVariance = varianceData.find(d => d.metric === 'Revenue');
@@ -340,7 +336,6 @@ export function VarianceView() {
                   </TableHeader>
                   <TableBody>
                     {varianceData.map((row, index) => {
-                      const isFavorableBudget = row.varianceVsBudget >= 0;
                       const isFavorableForecast = row.varianceVsForecast >= 0;
                       const isExpense = row.actual < 0;
                       const budgetFav = isExpense ? row.varianceVsBudget >= 0 : row.varianceVsBudget >= 0;

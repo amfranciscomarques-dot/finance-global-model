@@ -20,7 +20,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, ReferenceLine, Legend, Line, ComposedChart,
+  Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Legend, Line, ComposedChart,
 } from 'recharts';
 import { getBudgetVsActual, getBudgetVariance, saveBudgetEntry } from '@/lib/api';
 import { useAppStore } from '@/lib/store';

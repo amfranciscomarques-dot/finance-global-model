@@ -1,4 +1,4 @@
-import { Entity, IncomeStatement, BalanceSheet, CashFlowStatement, KPIs, ConsolidatedResult, Scenario, VarianceData, ExchangeRateInfo } from './types';
+import { Entity, IncomeStatement, BalanceSheet, CashFlowStatement, ConsolidatedResult, Scenario, VarianceData, ExchangeRateInfo } from './types';
 
 // ============================================================
 // ENTITIES - TechNova Group (5 subsidiaries)

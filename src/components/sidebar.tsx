@@ -28,6 +28,7 @@ import {
   ChevronsLeft,
   ChevronsRight,
   Rocket,
+  Factory,
 } from 'lucide-react';
 import { useAppStore, ViewType } from '@/lib/store';
 import { availablePeriods } from '@/lib/demo-data';
@@ -56,6 +57,7 @@ const navGroups: { items: { view: ViewType; icon: React.ElementType; shortcut?: 
       { view: 'dashboard', icon: LayoutDashboard, shortcut: '\u2318 1' },
       { view: 'entities', icon: Building2, shortcut: '\u2318 2' },
       { view: 'consolidation', icon: Layers, shortcut: '\u2318 3' },
+      { view: 'operations', icon: Factory },
       { view: 'ic-transactions', icon: ArrowLeftRight },
       { view: 'journal', icon: PenLine },
     ],

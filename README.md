@@ -30,9 +30,14 @@ All figures below are the fictional **Meridian Group** demo, computed live by th
 
 ```bash
 npm install
-npm run db:push          # create the SQLite schema (db/custom.db)
+npm run db:deploy        # apply migrations → SQLite schema (db/custom.db)
 npm run dev              # http://localhost:3000
 ```
+
+The schema is migration-managed (`prisma/migrations/`, baselined as `0_init`).
+Use `npm run db:deploy` on a fresh clone; `npm run db:migrate` when you change
+`schema.prisma`. `npm run db:push` still works for a throwaway local DB but does
+not record a migration.
 
 Load the demo company (Meridian Group, a small fictional multinational):
 
@@ -116,4 +121,4 @@ architecture review behind it.
 - Balance-sheet IC eliminations (IC receivable/payable netting) are not automated; P&L IC flows are.
 - All analytical routes now compute through `src/lib/finance` (the shared `metrics.ts` resolver / consolidation engine): `trends`, `budget`, `variance`, `scenarios/run`, and the Excel/PDF exports. The exporters call a compute-only `computeConsolidation` via `src/lib/report-model.ts`, so a downloaded report's Consolidated column carries the real IC eliminations (and ties to the dashboard) instead of an un-eliminated entity sum.
 - Settings, validation rules, the AI-chat sessions and import history are persisted (Prisma `Setting`/`ValidationRule`/`ChatSession`/`ImportBatch` tables) rather than held in module-level memory, so they survive restarts and behave correctly across serverless instances.
-- The codebase typechecks cleanly under `strict` (`noImplicitAny` included), so `next.config.ts` no longer sets `ignoreBuildErrors` — `next build` enforces TypeScript. ESLint runs with a curated rule set; the React-Compiler-readiness lints (`set-state-in-effect`, `immutability`) are warnings, not yet addressed in the view components.
+- The codebase typechecks cleanly under `strict` (`noImplicitAny` included), so `next.config.ts` no longer sets `ignoreBuildErrors` — `next build` enforces TypeScript. ESLint runs with a curated rule set at **0 errors**; the only remaining warnings are the React-Compiler-readiness `set-state-in-effect` lints (24) in the view components, which are runtime-safe and tracked for a follow-up sweep.

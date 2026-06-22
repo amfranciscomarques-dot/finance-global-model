@@ -8,7 +8,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
 import { motion, AnimatePresence, type Variants } from 'framer-motion';
 import { useTranslations, useLocale } from 'next-intl';
 import { dateLocale, type Locale } from '@/i18n/locale-context';
@@ -452,7 +451,6 @@ export function AIInsightsView() {
                 <AnimatePresence>
                   {sessions.map((session) => {
                     const isActive = activeSessionId === session.id;
-                    const firstUserMsg = session.messages.find((m) => m.role === 'user');
                     return (
                       <motion.div
                         key={session.id}
