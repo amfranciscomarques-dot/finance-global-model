@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import { db } from '@/lib/db';
 import {
   addEntry,
@@ -235,12 +236,23 @@ async function buildForeignEntityFinancials(
  * (otherCurrentLiabilities) so the change in net income (→ equity) is offset and
  * the entity balance sheet still reconciles. Mutates `ef` in place.
  */
-function applyModelledTax(ef: EntityFinancials, year: number): void {
+function applyModelledTax(
+  ef: EntityFinancials,
+  year: number,
+  carryforward?: { nolClosing: number; rfaiClosing: number },
+): void {
   const is = ef.incomeStatement;
   const oldTaxExpense = is.taxExpense; // negative (engine convention)
+  // BUG-05 — thread the prior year's closing NOL/RFAI pools as this year's
+  // openings so the modelled forecast tax is net of the carryforward shield.
+  // Without them, multi-year `computeTaxForProjections` runs ignored the NOL
+  // and overstated Portuguese tax by up to ~70% of the shield.
   const modelled = getTaxProvider(ef.countryCode).computeTax({
     taxableIncome: Math.max(0, is.ebt),
     year,
+    ...(carryforward
+      ? { nolOpening: carryforward.nolClosing, rfaiOpening: carryforward.rfaiClosing }
+      : {}),
   }).totalTax; // positive
   const newTaxExpense = -modelled;
 
@@ -282,8 +294,16 @@ const DEFAULT_TRANSFER_PRICING_POLICY: TransferPricingPolicy = { defaultMarkup: 
  * them for the period/entities in scope and recomputes from scratch. (They
  * used to be flipped permanently, so a re-run of the same period found zero
  * pending transactions, skipped the netting, and overstated revenue.)
+ *
+ * S2-01 — the reset→read→mark sequence races: two concurrent consolidations of
+ * the same period could each reset the flags, then one marks every transaction
+ * eliminated before the other reads, leaving the loser with zero pending rows
+ * and `eliminationsApplied=0`. The caller runs this inside a `db.$transaction`
+ * and passes the transaction client `tx`, so the whole reset→read→write block is
+ * serialized (SQLite takes a write lock) and the two runs no longer interleave.
  */
 async function runICEliminations(
+  tx: Prisma.TransactionClient,
   period: string,
   periodDate: Date,
   entityIds: string[],
@@ -314,17 +334,17 @@ async function runICEliminations(
     [a, b].sort().join('~') + '|' + Math.round(Math.abs(amount) * 100);
 
   // Reset derived elimination state for this scope so the run is repeatable
-  await db.intercompanyTransaction.updateMany({
+  await tx.intercompanyTransaction.updateMany({
     where: { period: periodDate, fromEntityId: { in: entityIds }, toEntityId: { in: entityIds } },
     data: { isEliminated: false },
   });
-  await db.trialBalance.updateMany({
+  await tx.trialBalance.updateMany({
     where: { period: periodDate, entityId: { in: entityIds }, isIntercompany: true },
     data: { eliminationStatus: 'pending', eliminationGroup: null },
   });
 
   // Find matched IC transactions for this period
-  const icTransactions = await db.intercompanyTransaction.findMany({
+  const icTransactions = await tx.intercompanyTransaction.findMany({
     where: {
       period: periodDate,
       fromEntityId: { in: entityIds },
@@ -336,7 +356,7 @@ async function runICEliminations(
   // Mark every matched pair eliminated in ONE write (they were all fetched with
   // isEliminated:false and all flip to true) instead of a per-row update (LOW.2).
   if (icTransactions.length > 0) {
-    await db.intercompanyTransaction.updateMany({
+    await tx.intercompanyTransaction.updateMany({
       where: { id: { in: icTransactions.map((tx) => tx.id) } },
       data: { isEliminated: true },
     });
@@ -373,7 +393,7 @@ async function runICEliminations(
   // Process IC trial-balance entries that match on the SAME account code (the
   // P&L revenue/cost legs). Balance-sheet IC codes (AST-009 receivable / LIA-006
   // payable) match cross-code and are handled in the dedicated pass below.
-  const icTrialBalances = await db.trialBalance.findMany({
+  const icTrialBalances = await tx.trialBalance.findMany({
     where: {
       period: periodDate,
       entityId: { in: entityIds },
@@ -445,7 +465,7 @@ async function runICEliminations(
 
   // Flush the accumulated per-row status changes (each row written once).
   await Promise.all(
-    [...tbWrites].map(([id, data]) => db.trialBalance.update({ where: { id }, data })),
+    [...tbWrites].map(([id, data]) => tx.trialBalance.update({ where: { id }, data })),
   );
 
   // MEDIUM.3 — balance-sheet IC elimination. Match each IC receivable (AST-009)
@@ -456,10 +476,10 @@ async function runICEliminations(
   // than a findFirst payable per receivable (N+1). Payables are indexed by
   // (entityId|icPartnerEntityId); the receivable matches the mirrored pair.
   const [icReceivables, icPayables] = await Promise.all([
-    db.trialBalance.findMany({
+    tx.trialBalance.findMany({
       where: { period: periodDate, entityId: { in: entityIds }, groupCOACode: 'AST-009', isIntercompany: true },
     }),
-    db.trialBalance.findMany({
+    tx.trialBalance.findMany({
       where: { period: periodDate, entityId: { in: entityIds }, groupCOACode: 'LIA-006', isIntercompany: true },
     }),
   ]);
@@ -470,7 +490,7 @@ async function runICEliminations(
     if (!payableByPair.has(k)) payableByPair.set(k, p); // first match wins (mirrors findFirst)
   }
 
-  const balanceWrites: Array<ReturnType<typeof db.trialBalance.update>> = [];
+  const balanceWrites: Array<ReturnType<typeof tx.trialBalance.update>> = [];
   for (const recv of icReceivables) {
     if (!recv.icPartnerEntityId) continue;
     const payable = payableByPair.get(`${recv.icPartnerEntityId}|${recv.entityId}`);
@@ -492,8 +512,8 @@ async function runICEliminations(
     });
     const group = `EG-${recv.id.substring(0, 8)}`;
     balanceWrites.push(
-      db.trialBalance.update({ where: { id: recv.id }, data: { eliminationStatus: 'eliminated', eliminationGroup: group } }),
-      db.trialBalance.update({ where: { id: payable.id }, data: { eliminationStatus: 'eliminated', eliminationGroup: group } }),
+      tx.trialBalance.update({ where: { id: recv.id }, data: { eliminationStatus: 'eliminated', eliminationGroup: group } }),
+      tx.trialBalance.update({ where: { id: payable.id }, data: { eliminationStatus: 'eliminated', eliminationGroup: group } }),
     );
     count++;
     details.push(`Eliminated IC balance: ${codeOf(recv.entityId)}↔${codeOf(recv.icPartnerEntityId)} €${recv.amountEUR.toFixed(0)}`);
@@ -536,16 +556,34 @@ export async function computeConsolidation(input: ConsolidationInput) {
   const entityFinancials: EntityFinancials[] = await Promise.all(
     entities.map((entity) => buildEntityFinancials(entity, periodDate, input.scenarioType)),
   );
+  const entityIds = entities.map((e) => e.id);
+
+  // MEDIUM.8b — feed each entity's PRIOR-year closing loss / RFAI pools back as
+  // this year's opening pools, so the tax chain (and the IAS 12 deferred tax
+  // below) compounds across a multi-year run. Keyed per (entity, year-1,
+  // scenario); absent for a first/standalone year, in which case the openings are
+  // 0 and the result is identical to the pre-persistence behaviour (the demo has
+  // no 2023 pools, so every golden value is unchanged). Loaded before the
+  // modelled-tax pass so BUG-05's forecast tax sees the carryforward shield.
+  const priorCarryforwards = await db.taxCarryforward.findMany({
+    where: { entityId: { in: entityIds }, year: year - 1, scenarioType: input.scenarioType },
+  });
+  const priorCfByEntityId = new Map(priorCarryforwards.map((c) => [c.entityId, c]));
+
   // B4: forecast/budget tax can be modelled from the jurisdiction provider
   // (opt-in). Actuals keep their authoritative booked IRC.
   if (input.computeTaxForProjections && input.scenarioType !== 'base') {
-    for (const financials of entityFinancials) applyModelledTax(financials, year);
+    entityFinancials.forEach((financials, i) =>
+      applyModelledTax(financials, year, priorCfByEntityId.get(entities[i].id)),
+    );
   }
 
-  // Run IC eliminations
-  const entityIds = entities.map((e) => e.id);
+  // Run IC eliminations inside a transaction so the reset→read→write sequence is
+  // serialized against a concurrent consolidation of the same period (S2-01).
   const idToCode = new Map(entities.map((e) => [e.id, e.code]));
-  const eliminations = await runICEliminations(input.period, periodDate, entityIds, idToCode);
+  const eliminations = await db.$transaction((tx) =>
+    runICEliminations(tx, input.period, periodDate, entityIds, idToCode),
+  );
 
   // Aggregate all entity financials
   const aggregated = aggregateFinancials(entityFinancials);
@@ -576,17 +614,6 @@ export async function computeConsolidation(input: ConsolidationInput) {
 
   // Calculate KPIs
   const kpis = calculateKPIs(consolidatedIS, consolidatedBS, consolidatedCF);
-
-  // MEDIUM.8b — feed each entity's PRIOR-year closing loss / RFAI pools back as
-  // this year's opening pools, so the tax chain (and the IAS 12 deferred tax
-  // below) compounds across a multi-year run. Keyed per (entity, year-1,
-  // scenario); absent for a first/standalone year, in which case the openings are
-  // 0 and the result is identical to the pre-persistence behaviour (the demo has
-  // no 2023 pools, so every golden value is unchanged).
-  const priorCarryforwards = await db.taxCarryforward.findMany({
-    where: { entityId: { in: entityIds }, year: year - 1, scenarioType: input.scenarioType },
-  });
-  const priorCfByEntityId = new Map(priorCarryforwards.map((c) => [c.entityId, c]));
 
   // B1/B2 — tax reconciliation: compare each entity's booked IRC against what its
   // jurisdiction provider models, summed per-entity (the correct basis for the

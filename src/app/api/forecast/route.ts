@@ -75,17 +75,33 @@ async function buildRealAnnualStatements(
 
   const entries = await db.trialBalance.findMany({
     where: { period: { gte: startDate, lte: endDate }, periodType: 'actual' },
-    select: { groupCOACode: true, amountEUR: true },
+    select: { entityId: true, period: true, groupCOACode: true, amountEUR: true },
   });
 
   if (entries.length === 0) return null;
+
+  // S2-07 — collapse to ONE year-end snapshot per entity. Trial balances are
+  // YTD-cumulative, so if an import lands one row per month (rather than a single
+  // year-end close), summing the whole range stacks every cumulative balance
+  // additively and overstates the anchor N×. Keep only each entity's latest
+  // snapshot date within the year (its December close); a single-snapshot import
+  // (the demo) is unaffected and the golden numbers are unchanged.
+  const latestPeriodByEntity = new Map<string, number>();
+  for (const e of entries) {
+    const t = e.period.getTime();
+    const cur = latestPeriodByEntity.get(e.entityId);
+    if (cur === undefined || t > cur) latestPeriodByEntity.set(e.entityId, t);
+  }
 
   const stmts: FinancialStatements = {
     incomeStatement: createEmptyIS(),
     balanceSheet: createEmptyBS(),
     cashFlow: createEmptyCF(),
   };
-  for (const e of entries) addEntry(stmts, e.groupCOACode, e.amountEUR);
+  for (const e of entries) {
+    if (e.period.getTime() !== latestPeriodByEntity.get(e.entityId)) continue;
+    addEntry(stmts, e.groupCOACode, e.amountEUR);
+  }
 
   deriveIncomeStatement(stmts.incomeStatement);
   deriveBalanceSheet(stmts.balanceSheet, stmts.incomeStatement);
